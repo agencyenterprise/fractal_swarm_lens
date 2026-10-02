@@ -1,0 +1,3 @@
+[submodule "vendor/aciarena"]
+	path = vendor/aciarena
+	url = https://github.com/Greysahy/aciarena.git

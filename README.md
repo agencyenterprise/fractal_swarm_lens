@@ -79,3 +79,7 @@ Tests cover nested historical forks, restart/replay, isolation, stale/concurrent
 A useful next tool is an agent-assisted application generator: give it a source schema and sample rows; it writes a `Source` implementation, provenance mappings, and representative fixtures for a developer to review. That tool should live separately from this framework. The developer owns how their source maps into agents, channels, tasks, ordering, and state. The framework then runs the application using those explicit decisions.
 
 AI Village data is attributed to AI Digest / AI Village. Local provider icons come from LobeHub Icons under its [MIT license](src/swarm_lens/web/logos/LICENSE); names and logos identify providers. See [third-party notices](THIRD_PARTY.md).
+
+### ACIArena LLM Debate pilot
+
+Run the pinned upstream benchmark with paired benign/name-disclosure cases and real OpenAI embeddings. See [setup, protocol, and limitations](examples/aciarena/README.md). CASPIAN remains inside this repository.
