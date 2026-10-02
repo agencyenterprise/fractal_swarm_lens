@@ -49,7 +49,7 @@ The sample vectors above are illustrative observed numeric features, not a recom
 - Contiguous turns numbered from 1, including empty turns. A turn is an application-defined interaction round, not automatically an event, timestamp, or model token.
 - `ChannelEvent(source, target, channel, source_vector, target_vector)`. Channels are exactly `comm`, `mem`, `tool`, `exec`, in that output order. Vectors must be nonempty and finite. Source and target dimensions may differ; their dimensions must remain fixed within each channel.
 - Independently constructed source features and **actual downstream target behavior**. Never duplicate a sender's payload as the target vector. Do not use future responses beyond the current turn/history prefix. Aggregate exposure/response pairs when the response becomes observable.
-- A versioned feature/encoder schema. Text channels require application-supplied embeddings and metadata; execution can use measured numeric features. No embedding model, dimension, or projection weights are specified by the paper, so this implementation does not invent one.
+- A versioned feature/encoder schema. Text channels require application-supplied embeddings and metadata; execution can use measured numeric features. The paper specifies no embedding model, dimension, or projection weights. The optional OpenAI adapter below uses the user-selected encoder with explicitly documented dimensions.
 - Declared observed channels. Absent channels remain zero, with entropy divided by `log(4)` as in the paper. This is a partial-observation setting, not equivalent to four-channel validation.
 
 Expand broadcasts into directed pairs only for recipients known to be exposed, and score them only once downstream target features exist. Memory/tool inputs require artifact lineage from a producing agent to an observing consumer. Empty observations mean no new evidence, not evidence of no influence. Events outside the topology are counted as masked and excluded from both scoring and target histories.
@@ -111,3 +111,22 @@ Dense covariance/Schur solves scale cubically in compact vector dimension; dense
 Tests compare streaming covariance to independently weighted batch covariance; CMI to analytic Gaussian examples and a separate determinant identity; directed singular values to hand calculations; role scores to hand calculations; and path enumeration to brute-force permutations. They cover no-event turns, ties, singular covariance, unknown/invalid inputs, channel masking, history timing, both persistence interpretations, exact interval endpoints, numerical degeneracies, first-alert behavior, path-budget reporting, deterministic replay, nested forks, and persisted provenance. No published dataset examples or author numeric fixtures were released to compare against.
 
 Published TAMAS/ACIArena experiments, A100 timings, model comparisons, ablation accuracy, confidence intervals, and AUROC/TPR scores have **not** been reproduced. They require missing execution traces, encoder/settings, author code, and costly model/framework runs. Appendix E describes a scalar spectral score without giving its formula; we do not invent a benchmark score to claim parity.
+
+## OpenAI text embeddings
+
+The optional outer adapter `swarm_lens.adapters.openai_embeddings.OpenAITextEncoder` now uses **text-embedding-3-small**, selected for this project. The numerical CASPIAN package remains provider-independent. This encoder selection does not recover the paper's unpublished encoder.
+
+```sh
+python -m pip install -e '.[caspian,embeddings,dev]'
+# For a new checkout: copy .env.example to .env and populate OPENAI_API_KEY.
+# The current local checkout already has the user-provided .env; preserve it.
+python -m examples.observability.caspian.text_embeddings
+```
+
+The example makes a real API request with two illustrative texts and prints only encoder metadata and readiness. It does not run ACIArena or validate attack detection. Unit tests mock the API and never load local credentials.
+
+`OpenAITextEncoder.from_env()` loads the explicitly named `.env` (default: current directory), preserving existing process environment variables. `CASPIAN_EMBEDDING_MODEL` must be `text-embedding-3-small`. `CASPIAN_EMBEDDING_DIMENSIONS` defaults to **16**, requested through the API's `dimensions` parameter to keep the streaming covariance compact. This is a configurable experimental choice, not a paper setting or a claim of statistical adequacy. Larger embeddings require more data and more expensive covariance calculations; changing dimensions creates a different feature schema and requires a fresh monitor.
+
+`encode(texts)` batches inputs, restores input order using response indices, validates dimensions and finite values, and returns tuples. It neither truncates nor changes text; overlong inputs remain provider errors. `feature_schema` records model, dimensions, and preprocessing for `Caspian(..., feature_schema=encoder.feature_schema)`. Applications still own observed source/target pairing and metadata features. No text is sent until `encode` is called. See the [OpenAI embedding guide](https://developers.openai.com/api/docs/guides/embeddings).
+
+`.env` is ignored by Git. `.env.example` is the explicit placeholder-only exception and contains no copied secret values.

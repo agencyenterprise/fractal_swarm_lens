@@ -33,3 +33,7 @@ Tests use closed-form Gaussian CMI, conditional independence given a common hist
 Multi-turn rule tests use controlled signal sequences because the paper's literal weak-link and phase predicates often make WATCH immediately confirm. They establish state-machine correctness, not the empirical frequency of gradual cascades. Degeneracy tests separately document why those empirical claims cannot be assumed.
 
 No TAMAS/ACIArena runs, model calls, A100 timing, AUROC/TPR/EDR comparisons, bootstrap confidence intervals, or published ablation results were reproduced. Missing reference implementation/encoder/settings/traces and contradictory rules prevent asserting exact numerical parity independently of compute cost. See [coverage](coverage.md).
+
+## Text embedding adapter follow-up
+
+After adding `text-embedding-3-small`, **79 tests pass**. Nine additional adapter tests/cases cover model selection, batch order, provenance, empty/invalid inputs, invalid dimensions, and malformed provider responses. These tests use fake clients; no live API request or benchmark run was performed during this change.

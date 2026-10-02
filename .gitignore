@@ -11,3 +11,6 @@ data/
 data-*/
 *.sqlite*
 .DS_Store
+
+# Safe placeholder template only
+!.env.example
