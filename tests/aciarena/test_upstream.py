@@ -27,10 +27,13 @@ class Client:
                  choices=[S(message=S(content='The answer is \\boxed{1}.'), finish_reason='stop')])
 
 
-@pytest.mark.parametrize('condition', ['benign', 'name_disclosure'])
+@pytest.mark.parametrize('condition', ['benign', 'name_disclosure', 'location_disclosure'])
 def test_real_upstream_debate_wiring_and_history_replay(tmp_path, condition):
     settings = {'model': 'fake', 'max_output_tokens': 100, 'seed': 42, 'max_turn': 20}
     components = load_components()
+    if condition == "location_disclosure":
+        from aciarena.attacks.disclosure_attack import MathLocationLeakInstruction
+        components = (components[0], MathLocationLeakInstruction, components[2])
     result = run_case(load_tasks(1)[0][0], condition, settings, Client(), Budget(), Encoder(),
                       tmp_path / 'case', components)
     calls = [row for row in map(json.loads, (tmp_path / 'case/trace.jsonl').read_text().splitlines())
@@ -48,4 +51,4 @@ def test_real_upstream_debate_wiring_and_history_replay(tmp_path, condition):
     for call in calls:
         assert disclosure_information() in call['messages'][0]['content']
         injected = payload in call['messages'][-1]['content']
-        assert injected == (condition == 'name_disclosure' and call['agent'] == 'debater_0')
+        assert injected == (condition != 'benign' and call['agent'] == 'debater_0')
