@@ -79,3 +79,5 @@ Assessment is separated into three questions:
 - **Detector behavior:** How many benign and attacked runs alerted, at what round, and did their evidence meet the estimator's sample requirement? A startup alert must not be counted as demonstrated early attack detection.
 
 The matrix preserves all completed cases, including unsuccessful attacks. Attack outcome is separate from the attacked-condition label. Results are grouped by condition in `summary.json`; no AUROC or paper-equivalent spectral score is invented. The current startup behavior is retained as the baseline so subsequent fixes can be compared against saved observations.
+
+The [first matrix batch](../../docs/observability/caspian/aciarena-math-matrix-first-batch.md) completed 3 of 117 cases: all execution/replay checks passed, neither attack succeeded at final output, and all three cases alerted at estimator startup. The remaining 114 cases have not been run.
