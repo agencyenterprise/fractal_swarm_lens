@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarm-lens"
+version = "0.1.0"
+description = "An embeddable framework for branching swarm histories and experiments"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+web = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+village = ["requests>=2.32,<3"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
+
+[project.scripts]
+swarm-lens = "swarm_lens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/logos/*", "adapters/*.sql"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]

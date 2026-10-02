@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Swarm Lens · Explorer</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">S<span>·</span>L</span
+        ><span
+          >swarm<span class="brand-light">lens</span
+          ><small>OBSERVE · BRANCH · EXPLORE</small></span
+        >
+      </div>
+      <div class="sidebar-label">
+        WORKSPACE <span class="local-dot">LOCAL</span>
+      </div>
+      <label class="sr-only" for="run-select">Run</label
+      ><select id="run-select"></select>
+      <div class="task-summary">
+        <span class="eyebrow">CURRENT TASK</span>
+        <h1 id="task-name">Loading run…</h1>
+        <p id="task-description"></p>
+        <div id="source-date"></div>
+      </div>
+      <div class="section-label">
+        BRANCHES
+        <button
+          id="new-branch"
+          class="icon-button"
+          aria-label="Create a branch"
+        >
+          +
+        </button>
+      </div>
+      <nav id="branches" aria-label="Experiment branches"></nav>
+      <div class="sidebar-help">
+        <span class="branch-symbol">⑂</span>
+        <p>
+          Every fork is a new possibility.<br />Pick a moment. Change one thing.
+        </p>
+      </div>
+      <div class="sidebar-bottom">
+        <a id="dataset-link" target="_blank" rel="noreferrer"
+          >Source & provenance ↗</a
+        ><span>Framework explorer <b>v0.1</b></span>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">SWARM EXPLORER</span>
+          <div class="breadcrumb">
+            <span id="branch-name">Recorded</span
+            ><span id="branch-status">Observed history</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="compare">Compare branches</button
+          ><button id="checkpoint">Save checkpoint</button
+          ><button class="primary" id="fork-button">⑂ Fork at cursor</button>
+        </div>
+      </header>
+      <section class="context-bar">
+        <div class="context-main">
+          <span class="status-light"></span
+          ><strong id="context-title">Recorded trajectory</strong
+          ><span id="cursor-time"></span>
+        </div>
+        <div id="counts" class="counts"></div>
+      </section>
+      <section
+        class="timeline-panel event-timeline"
+        aria-label="Agent event timeline"
+      >
+        <div class="timeline-heading">
+          <div>
+            <h2>Timeline</h2>
+            <span id="timeline-subtitle">Agent interactions over time</span>
+          </div>
+          <div class="timeline-zoom">
+            <button id="zoom-out" aria-label="Zoom out timeline">−</button
+            ><span id="zoom-label">20 min</span
+            ><button id="zoom-in" aria-label="Zoom in timeline">+</button
+            ><button id="timeline-fit">Fit all</button
+            ><button id="timeline-expand" aria-label="Expand timeline">
+              Expand ↕
+            </button>
+          </div>
+        </div>
+        <div class="timeline-controls">
+          <div class="player">
+            <button id="previous" aria-label="Previous event">|‹</button
+            ><button id="play" class="play-button" aria-label="Play timeline">
+              ▶</button
+            ><button id="next" aria-label="Next event">›|</button
+            ><label class="sr-only" for="speed">Playback step size</label
+            ><select id="speed">
+              <option value="1">1 event</option>
+              <option value="10" selected>10 events</option>
+              <option value="50">50 events</option>
+            </select>
+          </div>
+          <div class="timeline-toggles">
+            <label
+              ><input
+                type="checkbox"
+                data-timeline-kind="message"
+                checked
+              /><span>Messages</span></label
+            ><label
+              ><input type="checkbox" data-timeline-kind="tool" /><span
+                >Tools</span
+              ></label
+            ><label
+              ><input type="checkbox" data-timeline-kind="memory" /><span
+                >Memory</span
+              ></label
+            ><label
+              ><input
+                type="checkbox"
+                data-timeline-kind="intervention"
+                checked
+              /><span>Interventions</span></label
+            ><label
+              ><input id="timeline-connections" type="checkbox" checked /><span
+                >Connections</span
+              ></label
+            >
+          </div>
+          <button id="go-end" class="subtle">Latest →</button>
+        </div>
+        <div id="timeline-viewport" class="timeline-viewport">
+          <div id="timeline-scene" class="timeline-scene">
+            <div id="timeline-ruler" class="timeline-ruler"></div>
+            <div id="timeline-lanes"></div>
+            <svg id="timeline-connections-svg" aria-hidden="true"></svg>
+            <div id="timeline-events"></div>
+            <div id="timeline-marker" class="time-playhead">
+              <button
+                id="playhead-handle"
+                aria-label="Drag timeline playhead"
+              ></button>
+            </div>
+          </div>
+        </div>
+        <div class="timeline-bottom">
+          <strong id="position-label">0 / 0</strong
+          ><label class="sr-only" for="cursor">Timeline cursor</label
+          ><input
+            id="cursor"
+            type="range"
+            min="0"
+            max="1"
+            value="0"
+            step="1"
+          /><span>UTC · click an event · right-click to intervene</span>
+        </div>
+        <button
+          id="resize-timeline"
+          class="timeline-resize"
+          aria-label="Resize timeline; drag or use up and down arrow keys"
+        >
+          <span></span>
+        </button>
+      </section>
+      <div class="workspace">
+        <div class="center-column">
+          <section class="feed-panel">
+            <div class="feed-toolbar">
+              <div class="tabs" role="tablist" aria-label="Event type">
+                <button
+                  class="active"
+                  data-filter="messages"
+                  role="tab"
+                  aria-selected="true"
+                >
+                  Messages</button
+                ><button data-filter="tools" role="tab" aria-selected="false">
+                  Tools</button
+                ><button data-filter="memory" role="tab" aria-selected="false">
+                  Memory</button
+                ><button data-filter="all" role="tab" aria-selected="false">
+                  All events
+                </button>
+              </div>
+              <label class="search"
+                ><span>⌕</span
+                ><input
+                  id="search"
+                  type="search"
+                  placeholder="Filter visible previews…"
+                  aria-label="Filter event previews"
+              /></label>
+            </div>
+            <div class="feed-subheading">
+              <div class="feed-context">
+                <span id="feed-label">Conversation</span
+                ><button id="clear-agent" class="subtle" hidden>
+                  Clear agent filter ×
+                </button>
+              </div>
+              <span id="feed-count"></span>
+            </div>
+            <div
+              id="feed"
+              class="feed"
+              role="tabpanel"
+              aria-label="Recorded events"
+            ></div>
+            <button id="more-events" class="more-events" hidden>
+              Show earlier events
+            </button>
+          </section>
+        </div>
+        <button
+          id="resize-inspector"
+          class="resizer"
+          aria-label="Resize inspector; use left and right arrow keys"
+          title="Drag to resize inspector"
+        ></button>
+        <div class="context-column">
+          <section class="graph-panel" aria-label="Swarm communication graph">
+            <div class="panel-heading">
+              <div>
+                <h2>Swarm at this moment</h2>
+                <p>Connections show messages sent to a channel.</p>
+              </div>
+            </div>
+            <svg
+              id="graph"
+              viewBox="0 0 860 278"
+              role="img"
+              aria-label="Agents and their shared communication channels"
+            ></svg>
+            <div class="graph-footer">
+              <span><i class="legend-dot"></i>Agent</span
+              ><span><i class="legend-square"></i>Channel</span
+              ><span class="muted">Select an agent to inspect its state</span>
+            </div>
+          </section>
+          <aside class="inspector">
+            <div class="panel-heading inspector-heading">
+              <h2>Inspector</h2>
+              <span class="eyebrow" id="inspector-type">STATE</span>
+            </div>
+            <div id="inspector-body"></div>
+            <div class="inspector-actions">
+              <button id="add-agent">+ Add agent</button
+              ><button id="edit-goal">Edit goal</button
+              ><button id="analyze">Run analysis</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <footer class="footer">
+        <span id="footer-status" role="status"
+          >Connecting to local history…</span
+        ><span
+          ><span id="attribution">Source application</span>
+          <span class="footer-separator">·</span> Recorded data</span
+        >
+      </footer>
+    </main>
+    <dialog id="dialog">
+      <form id="dialog-form">
+        <div class="dialog-top">
+          <span class="eyebrow" id="dialog-kicker">EXPERIMENT</span
+          ><button
+            id="close-dialog"
+            type="button"
+            class="icon-button"
+            aria-label="Close dialog"
+          >
+            ×
+          </button>
+        </div>
+        <h2 id="dialog-title"></h2>
+        <div id="dialog-content"></div>
+        <div id="dialog-error" role="alert"></div>
+        <div class="dialog-actions">
+          <button id="cancel-dialog" type="button">Cancel</button
+          ><button id="confirm-dialog" class="primary" type="submit">
+            Save
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <div
+      id="event-menu"
+      class="event-menu"
+      role="dialog"
+      aria-label="Timeline event actions"
+      hidden
+    ></div>
+    <div id="toast" role="status" hidden></div>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

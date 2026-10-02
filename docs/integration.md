@@ -1,0 +1,61 @@
+# Build an application with Swarm Lens
+
+The framework does not recognize arbitrary datasets. Your application defines what its source records mean, produces facts, chooses plugins and execution services, and mounts whichever UI or API it needs.
+
+```python
+from swarm_lens import Fact, Framework
+from swarm_lens.adapters.sqlite import SQLiteHistory
+from swarm_lens.adapters.git import GitVersions
+
+class MySource:
+    def facts(self):
+        at = "2026-01-01T12:00:00+00:00"
+        yield Fact("environment.updated", {"task": "Investigate", "goal": "Explain the evidence"}, at)
+        yield Fact("agent.added", {"id": "researcher", "name": "Researcher", "model": "my-model"}, at)
+        yield Fact("channel.created", {"id": "team", "name": "Team", "members": ["researcher"]}, at)
+        yield Fact("message.created", {
+            "id": "m1", "channel_id": "team", "sender_id": "researcher", "content": "First observation",
+        }, at, source={"table": "my_messages", "row_id": "42"})
+
+framework = Framework(SQLiteHistory("my-data/history.sqlite"), versions=GitVersions("my-data/history.git"))
+recorded = framework.create_run("My investigation")
+framework.ingest(recorded.id, MySource())
+experiment = framework.fork(recorded.id, 4, "Alternative prompt")
+framework.intervene(experiment.id, "agent.updated", {
+    "id": "researcher", "system_prompt": "Check every claim against source evidence.",
+}, expected_head=4)
+state = framework.state(experiment.id)
+commit = framework.checkpoint(experiment.id)
+```
+
+Inputs use timezone-aware ISO timestamps. Emit creation facts before facts that reference those identities. Use globally unique event IDs if supplying them explicitly; omitted IDs are generated. Domain entity IDs can recur across runs. Application-specific source identifiers belong in provenance. The same memory ID denotes revisions of one slot; use different IDs for independent memories.
+
+The AI Village example has stable event IDs derived from source revision and row identity and deliberately imports into a fresh database. It is a concrete application choice, not a generic deduplication service.
+
+## A plugin that intervenes
+
+```python
+class PromptExperiment:
+    id, version = "prompt-experiment", "1"
+
+    def run(self, context, config):
+        agent = context.state.agents[config["agent_id"]]
+        child = context.fork(config["name"])
+        context.intervene(child.id, "agent.updated", {
+            "id": agent.id, "system_prompt": config["prompt"],
+        }, expected_head=context.cursor)
+        return {"branch_id": child.id}
+
+framework.plugins["prompt-experiment"] = PromptExperiment()
+result = framework.analyze("prompt-experiment", recorded.id, 4, {
+    "agent_id": "researcher", "name": "Probe branch", "prompt": "Check assumptions first.",
+})
+```
+
+Plugins can inspect `context.state`, `context.history()`, and `context.branches()`. They are trusted application code running in the host process. Give a plugin model/artifact services through its constructor when needed. Choose your own analysis trigger; the example UI exposes a manual Activity analysis action.
+
+## Runtime and presentation
+
+Implement the `Runtime` protocol's `capabilities()` and `continue_from(state, steps)` to yield new facts from actual execution. Register it with `Framework(..., runtime=runtime)`, then call `framework.continue_run(branch_id, steps)`. Provisioning machines, restoring external tools, translating prompt/steering configuration, and recording model outputs belong to that runtime. The framework cannot resume the original AI Village machines from this observational export.
+
+Use `swarm_lens.web.api.create_app(framework, artifacts=...)` for the supplied browser explorer, or call the same application services from a different UI. See the small composition root in `swarm_lens/cli.py`. Core behavior is independent of the browser and FastAPI.

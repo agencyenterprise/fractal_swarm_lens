@@ -1,0 +1,161 @@
+from collections import Counter
+from dataclasses import asdict
+from functools import lru_cache
+import json
+from pathlib import Path
+
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from swarm_lens import Framework
+from swarm_lens.core.models import Conflict, DomainError
+
+
+class ForkRequest(BaseModel):
+    cursor: int = Field(ge=0)
+    name: str = Field(min_length=1, max_length=160)
+
+
+class InterventionRequest(BaseModel):
+    kind: str
+    data: dict
+    expected_head: int = Field(ge=0)
+
+
+class AnalysisRequest(BaseModel):
+    plugin_id: str = "activity"
+    cursor: int = Field(ge=0)
+    config: dict = Field(default_factory=dict)
+
+
+class CheckpointRequest(BaseModel):
+    cursor: int | None = Field(default=None, ge=0)
+    message: str = "Visual explorer checkpoint"
+
+
+def event_summary(event):
+    d = event.data
+    family = event.kind.split(".")[0]
+    agent_id = d.get("sender_id") or d.get("agent_id") or d.get("owner_id")
+    if family == "agent":
+        agent_id = d.get("id")
+    text = d.get("content") or d.get("goal") or d.get("tool_name") or d.get("name") or ""
+    return {"id": event.id, "position": event.position, "kind": event.kind,
+            "at": event.occurred_at, "agent_id": agent_id, "channel_id": d.get("channel_id"),
+            "label": d.get("type") or event.kind, "preview": str(text)[:260],
+            "intervention": event.source.get("origin") == "intervention",
+            "agent_name": d.get("name") if family == "agent" else None,
+            "model": d.get("model") if family == "agent" else None,
+            "entity_id": d.get("id"), "reply_to_id": d.get("reply_to_id"),
+            "channel_name": d.get("name") if family == "channel" else None}
+
+
+def create_app(framework: Framework, artifacts=None) -> FastAPI:
+    app = FastAPI(title="Swarm Lens", version="0.1.0")
+
+    @app.exception_handler(DomainError)
+    async def domain_error(request, exc):
+        return JSONResponse({"detail": str(exc)}, status_code=409 if isinstance(exc, Conflict) else 400)
+
+    @app.middleware("http")
+    async def local_mutations(request: Request, call_next):
+        origin = request.headers.get("origin")
+        if request.method == "POST" and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+            return JSONResponse({"detail": "Cross-origin mutations are not accepted"}, status_code=403)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    @lru_cache(maxsize=6)
+    def history(branch_id, head):
+        return framework.history(branch_id, head)
+
+    @lru_cache(maxsize=6)
+    def state_at(branch_id, cursor):
+        return framework.state(branch_id, cursor)
+
+    @app.get("/api/workspace")
+    def workspace():
+        runs = framework.store.runs()
+        return {"runs": [asdict(run) for run in runs],
+                "branches": [asdict(branch) for run in runs for branch in framework.store.branches(run.id)],
+                "capabilities": framework.capabilities()}
+
+    @app.get("/api/branches/{branch_id}/timeline")
+    def timeline(branch_id: str):
+        branch = framework.store.branch(branch_id)
+        return {"branch": asdict(branch), "events": [event_summary(event) for event in history(branch_id, branch.head)]}
+
+    @app.get("/api/branches/{branch_id}/state")
+    def state(branch_id: str, cursor: int = Query(ge=0)):
+        value = state_at(branch_id, cursor)
+        activity = Counter(message.sender_id for message in value.messages.values() if message.sender_id)
+        edges = Counter((message.sender_id, message.channel_id) for message in value.messages.values() if message.sender_id)
+        return {"branch_id": branch_id, "cursor": cursor, "occurred_at": value.occurred_at,
+                "agents": {key: asdict(agent) for key, agent in value.agents.items()},
+                "channels": {key: asdict(channel) for key, channel in value.channels.items()},
+                "environment": asdict(value.environment),
+                "counts": {"messages": len(value.messages), "tools": len(value.tools), "memories": len(value.memories),
+                           "agents": sum(agent.active for agent in value.agents.values())},
+                "activity": dict(activity),
+                "edges": [{"agent_id": aid, "channel_id": cid, "count": count} for (aid, cid), count in edges.items()],
+                "memories": [{"id": memory.id, "owner_id": memory.owner_id, "preview": memory.content[:220]}
+                             for memory in value.memories.values()]}
+
+    @app.get("/api/branches/{branch_id}/events/{event_id}")
+    def event_detail(branch_id: str, event_id: str, cursor: int = Query(ge=0)):
+        branch = framework.store.branch(branch_id)
+        if cursor > branch.head:
+            raise DomainError("Cursor is outside branch history")
+        event = next((event for event in history(branch_id, branch.head)
+                      if event.id == event_id and event.position <= cursor), None)
+        if event is None:
+            raise DomainError("Event is not visible at this branch and cursor")
+        return asdict(event)
+
+    @app.get("/api/branches/{branch_id}/memory")
+    def memory(branch_id: str, memory_id: str, cursor: int = Query(ge=0)):
+        value = state_at(branch_id, cursor).memories.get(memory_id)
+        if value is None:
+            raise DomainError("Memory is not visible at this cursor")
+        return asdict(value)
+
+    @app.post("/api/branches/{branch_id}/fork")
+    def fork(branch_id: str, request: ForkRequest):
+        return asdict(framework.fork(branch_id, request.cursor, request.name))
+
+    @app.post("/api/branches/{branch_id}/interventions")
+    def intervene(branch_id: str, request: InterventionRequest):
+        return asdict(framework.intervene(branch_id, request.kind, request.data, request.expected_head, actor="explorer"))
+
+    @app.post("/api/branches/{branch_id}/analyses")
+    def analyze(branch_id: str, request: AnalysisRequest):
+        return framework.analyze(request.plugin_id, branch_id, request.cursor, request.config)
+
+    @app.post("/api/branches/{branch_id}/checkpoint")
+    def checkpoint(branch_id: str, request: CheckpointRequest):
+        return {"commit": framework.checkpoint(branch_id, request.cursor, request.message)}
+
+    @app.get("/api/compare")
+    def compare(left: str, right: str, left_cursor: int | None = None, right_cursor: int | None = None):
+        return framework.diff(left, right, left_cursor, right_cursor)
+
+    @app.get("/api/artifacts/{digest}")
+    def artifact(digest: str):
+        if artifacts is None:
+            raise DomainError("No artifact store registered")
+        try:
+            return Response(artifacts.get(digest), media_type="application/json")
+        except (ValueError, FileNotFoundError) as exc:
+            raise DomainError("Unknown artifact") from exc
+
+    web = Path(__file__).parent
+    app.mount("/assets", StaticFiles(directory=web), name="assets")
+
+    @app.get("/")
+    def index():
+        return FileResponse(web / "index.html")
+
+    return app
