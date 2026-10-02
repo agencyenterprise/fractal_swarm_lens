@@ -37,3 +37,7 @@ For model-internal experiments, store the proposed intervention and its configur
 ## Scaling without changing the core
 
 The current explorer loads one selected branch's event summaries and compact state. Timeline rendering limits event DOM nodes to the horizontal viewport. For larger runs, move timeline paging and aggregate state queries into a query adapter, reduce snapshot duplication, and queue runtime work. Replace SQLite with another `HistoryStore` if concurrent write load requires it. UI layouts, live subscriptions, and custom inspectors remain outer concerns.
+
+## Optional observability
+
+`observability/` supplies method protocols and a versioned plugin bridge; method-specific numerical code is isolated in subpackages such as `observability/caspian/`. It depends on the domain event type for its adapter contract, while the core/application do not import it. Application adapters define feature encoders, observed source/target pairs, and turn boundaries. Each plugin analysis starts a fresh monitor over the selected effective history prefix, preserving branch isolation. See [observability](observability/README.md) and [CASPIAN's specification limits](observability/caspian/coverage.md).

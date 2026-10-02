@@ -54,6 +54,12 @@ The AI Village example reconstructs observations. A changed prompt does not gene
 
 This is a working foundation, not a claim of deployment readiness at arbitrary scale. Before exposing it to a team, supply application authentication and deployment configuration. A larger workload needs paged history/state reads, snapshot retention, and asynchronous runtime jobs. These changes fit the existing outer adapters and application services.
 
+## Observability methods
+
+Optional methods live under `swarm_lens.observability`, independently of the core. The first is a paper-based [CASPIAN implementation](docs/observability/caspian/README.md) with streaming conditional influence estimation, spectral detection, and role/path attribution. Install `.[caspian]`. Applications supply observed source/target vectors through a versioned history adapter; no AI Village schema is embedded in the method.
+
+The [paper coverage map](docs/observability/caspian/coverage.md) records equation-level tests, missing author artifacts, reconstruction choices, and mathematical limitations of the published rules. This is not a reproduction of the paper's reported benchmark accuracy or latency. Runnable synthetic, attribution, and nested-branch examples are under `examples/observability/caspian/`; `python -m examples.ai_village.caspian` audits the Village mapping's missing evidence without fabricating scores. See the [method extension contract](docs/observability/README.md).
+
 ## Validation
 
 ```sh

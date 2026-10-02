@@ -48,3 +48,7 @@ PYTHONPATH=src python3 -m examples.ai_village.fetch --output data-refetched/sour
 For the exact same revision, place the revision hash above in `data-refetched/source/revision.txt` before running the command. The extractor streams compressed source tables, retaining only selected rows and metadata rather than saving the full dataset. Existing selected files are treated as a resumable extraction; use a new directory for a different interval.
 
 `data/source/selection.json` records the selection and its limitations; `data/import-report.json` records the imported run, event count, and initial Git checkpoint.
+
+## CASPIAN readiness
+
+`python -m examples.ai_village.caspian --source data/source` audits this application's exported schema without changing it or emitting payloads. The current mapping lacks verified recipient exposure/response pairing and cross-agent memory/tool lineage. It therefore produces a readiness report, not inferred influence or attack scores. Model internals are not required by CASPIAN, but observed downstream behavior and explicit feature/turn mappings are. See [the CASPIAN contract](observability/caspian/README.md).
