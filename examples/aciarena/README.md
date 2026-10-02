@@ -45,3 +45,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv-aciarena/bin/python -m pytest -p no:captu
 ```
 
 Tests exercise the real upstream debate with fake model responses, exact attack targeting, chronological source mapping, budget rejection before requests, feature caching, and online/history replay equality. Optional upstream tests skip when benchmark dependencies or the submodule are absent.
+
+## First live result
+
+The [2026-10-02 paired pilot](../../docs/observability/caspian/aciarena-pilot-2026-10-02.md) completed both cases. The attack disclosed the planted name in aggregation, but CASPIAN alerted at round 8 in both conditions. Expansion is deferred pending diagnosis of the startup false alarm.
