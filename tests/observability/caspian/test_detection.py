@@ -58,14 +58,28 @@ def test_one_channel_entropy_is_not_renormalized_to_observed_channels():
     assert measure(snapshot, None, detector.mask, detector.config).channel_entropy < 1e-7
 
 
-def test_instant_first_alert_and_stop():
+def test_instant_first_alert_is_preserved_while_measurements_continue():
     detector, snapshot = setup()
     result = detector.advance(1, snapshot, signals(phase_shift=True, weak_link=True))
     assert result['alert']['classification'] == 'single_turn'
     assert result['alert']['confirmation_turn'] == result['alert']['onset_turn'] == 1
     assert result['alert']['attribution_status'] == 'complete'
+    from copy import deepcopy
+    first_alert = deepcopy(result['alert'])
+    assert result['new_alert']
+    # Returned historical data must not mutate the saved first detection.
+    result['alert']['attribution']['origin'] = 'changed by caller'
+    empty = make_snapshot(np.zeros_like(snapshot.tensor), detector.mask, detector.config)
+    later = detector.update(2, empty)
+    assert later['signals']['energy'] == 0
+    assert later['alert'] == first_alert and not later['new_alert']
+    assert detector.last_turn == 2 and detector.previous.energy == 0
+    assert not detector.cache and not detector.signals
+    # A later qualifying turn is measured but does not overwrite or reissue the alert.
+    later = detector.advance(3, snapshot, signals(phase_shift=True, weak_link=True))
+    assert later['alert'] == first_alert and not later['new_alert']
     with pytest.raises(ValueError):
-        detector.update(2, snapshot)
+        detector.update(3, snapshot)
 
 
 def test_algorithm1_majority_inclusive_window_and_interval_attribution():
@@ -78,6 +92,10 @@ def test_algorithm1_majority_inclusive_window_and_interval_attribution():
     assert result['alert']['classification'] == 'multi_turn'
     assert result['alert']['onset_turn'] == 1
     assert result['alert']['confirmation_turn'] == 4
+    first_alert = result['alert']
+    later = detector.advance(5, snapshot, signals(watch=False))
+    assert later['alert'] == first_alert and not later['new_alert']
+    assert not later['signals']['watch'] and detector.last_turn == 5
 
 
 def test_prose_reset_policy_discards_on_watch_drop():

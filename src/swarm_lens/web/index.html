@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Swarm Lens · Explorer</title>
-    <link rel="stylesheet" href="/assets/style.css" />
+    <link rel="stylesheet" href="/assets/style.css?v=3" />
   </head>
   <body>
     <aside class="sidebar">
@@ -20,10 +20,12 @@
       </div>
       <label class="sr-only" for="run-select">Run</label
       ><select id="run-select"></select>
+      <button id="import-trace" class="import-trace" hidden>+ Import saved trace</button>
       <div class="task-summary">
         <span class="eyebrow">CURRENT TASK</span>
         <h1 id="task-name">Loading run…</h1>
         <p id="task-description"></p>
+        <button id="read-task" class="read-task" hidden>Read benchmark question</button>
         <div id="source-date"></div>
       </div>
       <div class="section-label">
@@ -59,6 +61,7 @@
           </div>
         </div>
         <div class="header-actions">
+          <button id="mast-analyze" hidden>MAST analysis</button>
           <button id="compare">Compare branches</button
           ><button id="checkpoint">Save checkpoint</button
           ><button class="primary" id="fork-button">⑂ Fork at cursor</button>
@@ -69,9 +72,16 @@
           <span class="status-light"></span
           ><strong id="context-title">Recorded trajectory</strong
           ><span id="cursor-time"></span>
+          <a id="paired-example" class="paired-example" hidden></a>
         </div>
         <div id="counts" class="counts"></div>
       </section>
+      <div class="workspace-switcher">
+        <div id="workspace-tabs" role="tablist" aria-label="Workspace view"></div>
+        <span>Explore a conversation or read its reports</span>
+      </div>
+      <div id="workspace-views">
+      <div id="workspace-timeline">
       <section
         class="timeline-panel event-timeline"
         aria-label="Agent event timeline"
@@ -133,7 +143,8 @@
           </div>
           <button id="go-end" class="subtle">Latest →</button>
         </div>
-        <div id="timeline-viewport" class="timeline-viewport">
+        <div id="timeline-viewport" class="timeline-viewport" data-view-scroll
+          role="region" aria-label="Timeline events" tabindex="0">
           <div id="timeline-scene" class="timeline-scene">
             <div id="timeline-ruler" class="timeline-ruler"></div>
             <div id="timeline-lanes"></div>
@@ -168,7 +179,7 @@
         </button>
       </section>
       <div class="workspace">
-        <div class="center-column">
+        <div class="center-column" data-view-scroll>
           <section class="feed-panel">
             <div class="feed-toolbar">
               <div class="tabs" role="tablist" aria-label="Event type">
@@ -222,7 +233,7 @@
           aria-label="Resize inspector; use left and right arrow keys"
           title="Drag to resize inspector"
         ></button>
-        <div class="context-column">
+        <div class="context-column" data-view-scroll>
           <section class="graph-panel" aria-label="Swarm communication graph">
             <div class="panel-heading">
               <div>
@@ -251,10 +262,12 @@
             <div class="inspector-actions">
               <button id="add-agent">+ Add agent</button
               ><button id="edit-goal">Edit goal</button
-              ><button id="analyze">Run analysis</button>
+              ><button id="analyze">Activity analysis</button>
             </div>
           </aside>
         </div>
+      </div>
+      </div>
       </div>
       <footer class="footer">
         <span id="footer-status" role="status"
@@ -297,6 +310,6 @@
       hidden
     ></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js"></script>
+    <script type="module" src="/assets/app.js?v=3"></script>
   </body>
 </html>

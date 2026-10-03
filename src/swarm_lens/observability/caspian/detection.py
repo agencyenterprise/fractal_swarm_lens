@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 import math
 
@@ -47,7 +48,7 @@ def measure(snapshot, previous, mask, config):
 
 
 class CascadeDetector:
-    """First-alert monitor. Algorithm 1 and the conflicting prose policy are explicit."""
+    """Continuous measurements with Algorithm 1's first detection latched once."""
 
     def __init__(self, agents, mask, config):
         self.agents, self.mask, self.config = agents, mask.copy(), config
@@ -60,8 +61,6 @@ class CascadeDetector:
     def validate_turn(self, turn):
         if isinstance(turn, bool) or not isinstance(turn, int) or turn != self.last_turn + 1:
             raise ValueError("Turns must be contiguous positive integers beginning at 1; submit empty turns explicitly")
-        if self.alert is not None:
-            raise ValueError("CASPIAN stops at its first alert (Algorithm 1); create a new monitor to restart")
 
     def update(self, turn, snapshot):
         self.validate_turn(turn)
@@ -72,6 +71,8 @@ class CascadeDetector:
         """State transition separated from numerical measurement for rule-level validation."""
         self.validate_turn(turn)
         self.last_turn, self.previous = turn, signals
+        if self.alert is not None:
+            return self._result(turn, signals, new_alert=False)
         if (self.config.persistence == "reset_on_watch_drop" and self.onset is not None
                 and not signals.watch):
             self._reset()
@@ -103,8 +104,14 @@ class CascadeDetector:
                 self.alert["attribution_status"] = "path_budget_exceeded"
                 self.alert["attribution_error"] = str(error)
             self.cache.clear()
-        return {"turn": turn, "signals": asdict(signals), "candidate_onset": self.onset,
-                "candidate_deadline": self.deadline, "alert": self.alert}
+            self.signals.clear()
+        return self._result(turn, signals, new_alert=bool(classification))
+
+    def _result(self, turn, signals, *, new_alert):
+        return {"turn": turn, "signals": asdict(signals),
+                "candidate_onset": self.onset if self.alert is None else None,
+                "candidate_deadline": self.deadline if self.alert is None else None,
+                "alert": deepcopy(self.alert), "new_alert": new_alert}
 
     def _reset(self):
         self.onset = self.deadline = None

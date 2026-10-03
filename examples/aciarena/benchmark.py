@@ -77,7 +77,7 @@ def run_case(task, condition, settings, client, budget, encoder, directory, comp
             save(directory / 'monitor.json', monitor.report())
             save(directory / 'observations.json', monitor.observations)
             print(json.dumps({'task': task['id'], 'condition': condition, 'round': round_number,
-                              'calls': len(trace.calls), 'alert': monitor.method.finished,
+                              'calls': len(trace.calls), 'alert': monitor.method.has_detected,
                               'tokens_so_far': budget.tokens}), flush=True)
         trace.round, trace.phase = settings['max_turn'] + 1, 'aggregation'
         offset = len(trace.calls)

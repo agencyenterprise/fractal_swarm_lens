@@ -2,6 +2,12 @@
 
 A self-hosted framework for observing, replaying, branching, and intervening in agent systems. The included AI Village application demonstrates how a developer maps one source system into the framework's primitives. Dataset interpretation belongs to that application.
 
+## Project priorities
+
+Swarm Lens will support two modes over the same event history: importing saved traces and observing existing agent applications live. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for importing and analyzing traces. Live collection, WebSocket updates, one pinned CrewAI integration, and Docker deployment remain priorities. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
+
+CASPIAN stays as an optional experimental plugin. We have not validated that it reliably detects cascade effects; executable code and equation-level tests do not establish detection accuracy. Observability and trace collection must remain useful independently of CASPIAN.
+
 ## Run the included explorer
 
 Python 3.11+ and Git are required. The local demo workspace stores selected AI Village data, SQLite history, model-response artifacts, and Git checkpoints under `data/`. These files and all environment files are excluded from Git.
@@ -56,6 +62,8 @@ This is a working foundation, not a claim of deployment readiness at arbitrary s
 
 ## Observability methods
 
+For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,mast]`, configure the server's `OPENAI_API_KEY`, and launch the usual explorer. **Import saved trace** collects a transcript locally; **MAST analysis** runs the upstream 14-category judge on a saved snapshot and retains the result. MAST does not run live. Its sub-API is `/api/plugins/mast`; CASPIAN has no dedicated API.
+
 Optional methods live under `swarm_lens.observability`, independently of the core. The first is a paper-based [CASPIAN implementation](docs/observability/caspian/README.md) with streaming conditional influence estimation, spectral detection, and role/path attribution. Install `.[caspian]`. Applications supply observed source/target vectors through a versioned history adapter; no AI Village schema is embedded in the method.
 
 The [paper coverage map](docs/observability/caspian/coverage.md) records equation-level tests, missing author artifacts, reconstruction choices, and mathematical limitations of the published rules. This is not a reproduction of the paper's reported benchmark accuracy or latency. Runnable synthetic, attribution, and nested-branch examples are under `examples/observability/caspian/`; `python -m examples.ai_village.caspian` audits the Village mapping's missing evidence without fabricating scores. See the [method extension contract](docs/observability/README.md).
@@ -66,10 +74,10 @@ The [paper coverage map](docs/observability/caspian/coverage.md) records equatio
 python -m pytest -q
 ```
 
-For the supplied Conda runtime, which has a `readline`/pytest capture incompatibility:
+For the supplied Conda runtime, disable its incompatible pytest capture and OpenMP initialization after fork:
 
 ```sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -p no:capture -q
+KMP_INIT_AT_FORK=FALSE PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -p no:capture -q
 ```
 
 Tests cover nested historical forks, restart/replay, isolation, stale/concurrent writes, atomic batches, relational references, tool lifecycle, runtime extension behavior, plugin mutation, Git parentage, and API cursor boundaries. Browser checks cover event menus, expansion/resizing, filters, and an actual intervention branch with a verified diff.

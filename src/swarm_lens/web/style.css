@@ -23,6 +23,9 @@
 * {
   box-sizing: border-box;
 }
+[hidden] {
+  display: none !important;
+}
 body {
   margin: 0;
   display: flex;
@@ -340,6 +343,9 @@ main {
 .context-main strong {
   font-weight: 500;
 }
+.paired-example { font-size: 11px; margin-left: 5px; text-decoration: underline; text-underline-offset: 3px; }
+.read-task { padding: 7px 0; border: 0; background: transparent; color: #adddcf; font-size: 11px; }
+.read-task:hover { background: transparent; color: white; text-decoration: underline; }
 .status-light {
   width: 6px;
   height: 6px;
@@ -763,6 +769,19 @@ main {
   color: #8899a5;
   margin-top: 20px;
 }
+.import-trace {
+  margin: 10px 0 4px;
+  width: 100%;
+  font-size: 11px;
+}
+.mast-label-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.mast-badge { flex-shrink: 0; padding: 3px 9px; border-radius: 12px; background: #edf1f4; color: #536470; font-size: 11px; }
+.mast-badge.present { background: #fae9df; color: #8d4524; }
+.mast-badge.unknown { background: #fff3ca; color: #795c16; }
+.mast-details { margin: 14px 0; font-size: 12px; }
+.mast-details summary { cursor: pointer; font-weight: 600; }
+.mast-details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; }
+.mast-error { color: #a14028; padding: 12px 0; }
 .analysis-row {
   display: flex;
   justify-content: space-between;
@@ -1145,9 +1164,17 @@ dialog h2 {
 }
 
 /* Timeline workspace */
-:root {
-  --timeline-height: clamp(320px, 48vh, 620px);
+.mast-input-preview {
+  padding: 14px 16px;
+  border: 1px solid #dce6e9;
+  border-radius: 8px;
+  background: #f5faf8;
+  line-height: 1.5;
 }
+.mast-input-preview p {
+  margin: 8px 0 0;
+}
+
 main {
   overflow: auto;
 }
@@ -1156,8 +1183,8 @@ main {
   flex-shrink: 0;
 }
 .event-timeline {
-  height: var(--timeline-height);
-  min-height: 260px;
+  height: auto;
+  min-height: 0;
   max-height: none;
   display: flex;
   flex-direction: column;
@@ -1243,8 +1270,10 @@ main {
   padding: 4px;
 }
 .timeline-viewport {
-  flex: 1;
+  flex: 0 1 auto;
+  height: calc(var(--timeline-content-height, 76px) + 2px);
   min-height: 60px;
+  max-height: clamp(220px, 55vh, 620px);
   overflow: auto;
   border-top: 1px solid #e4ebee;
   border-bottom: 1px solid #e4ebee;
@@ -1253,6 +1282,10 @@ main {
   overscroll-behavior: contain;
   scrollbar-color: #bbcec9 #f0f5f4;
   scrollbar-width: thin;
+}
+.event-timeline[data-height-mode="manual"] .timeline-viewport {
+  flex: 1;
+  max-height: none;
 }
 .timeline-scene {
   position: relative;
@@ -1648,9 +1681,6 @@ main {
     min-height: 600px;
     overflow: visible;
   }
-  .event-timeline {
-    min-height: 280px;
-  }
   .timeline-heading {
     flex-wrap: wrap;
   }
@@ -1705,10 +1735,6 @@ main {
   }
   .timeline-bottom {
     gap: 9px;
-  }
-  .event-timeline {
-    height: var(--timeline-height);
-    padding: 0;
   }
   .event-menu {
     width: 270px;
@@ -1794,4 +1820,99 @@ main {
     flex-wrap: wrap;
     gap: 3px;
   }
+}
+
+/* Swappable workspace views. Hiding a view retains its controls and cursor. */
+.topbar, .context-bar, .workspace-switcher { flex-shrink: 0; }
+.workspace-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 25px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.workspace-switcher > span { font-size: 10px; color: var(--muted); }
+#workspace-tabs { display: flex; gap: 24px; }
+#workspace-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 15px 0 13px;
+  font-size: 12px;
+}
+#workspace-tabs button.active { color: #117c69; border-bottom-color: var(--teal); font-weight: 650; }
+#workspace-views { flex: 1 0 auto; min-width: 0; }
+#workspace-timeline { display: flex; flex-direction: column; }
+.plugin-workspace { padding: 26px; min-height: calc(100vh - 230px); }
+.mast-workspace-header, .mast-result-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.mast-workspace-header { margin-bottom: 24px; }
+.mast-workspace-header h2 { font-size: 25px; letter-spacing: -.6px; margin: 7px 0; }
+.mast-workspace-header p { font-size: 12px; overflow-wrap: anywhere; max-width: 650px; }
+.mast-report-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.mast-workspace-header > .mast-report-actions { flex-shrink: 0; }
+.mast-report-layout { display: grid; grid-template-columns: 205px minmax(0, 1fr); gap: 22px; align-items: start; }
+.mast-report-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mast-report-list h3 { margin: 0 0 8px 3px; }
+.mast-report-list > p { padding: 12px 3px; font-size: 12px; }
+.mast-report-link { display: flex; flex-direction: column; gap: 7px; color: var(--ink); padding: 14px; border: 1px solid transparent; border-radius: 8px; }
+.mast-report-link:hover { background: #eaf0f2; }
+.mast-report-link.active { border-color: #bdded4; background: #edf7f3; }
+.mast-report-link strong { font-size: 12px; }
+.mast-report-link > span { font-size: 10px; color: #667b85; }
+.mast-report-link > .mast-report-status { color: #117c69; font-weight: 600; }
+.mast-result { min-width: 0; padding: 25px; border: 1px solid var(--line); background: #fff; border-radius: 10px; }
+.mast-result-heading h3 { font-size: 21px; letter-spacing: -.4px; margin: 7px 0; }
+.mast-result-heading p { font-size: 11px; }
+.mast-result-heading > .mast-badge { margin-top: 5px; }
+.mast-report-scope { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 14px; margin: 20px 0 12px; font-size: 11px; }
+.mast-report-scope button { color: var(--teal); padding: 5px 0; font-size: 11px; }
+.mast-permalink { padding: 7px 3px; margin-right: 5px; }
+.mast-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 22px 0; margin-top: 5px; border-bottom: 1px solid var(--line); }
+.mast-stat { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; background: #f5f8f9; border-radius: 7px; }
+.mast-stat strong { font-size: 24px; font-weight: 650; letter-spacing: -.6px; }
+.mast-stat span { font-size: 10px; color: #657987; line-height: 1.5; }
+.mast-summary-section { padding: 24px 0; }
+.mast-summary-section h4, .mast-category-group h4 { margin: 0 0 12px; font-size: 12px; font-weight: 650; }
+.mast-summary { font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mast-categories { display: grid; gap: 22px; }
+.mast-category-group h4 { padding: 12px 0 8px; border-bottom: 1px solid var(--line); color: #657987; }
+.mast-label-row { padding: 12px 0; line-height: 1.5; }
+.mast-label-row > div { display: flex; gap: 12px; }
+.mast-code { font-family: monospace; color: var(--muted); flex-shrink: 0; }
+.mast-assessment-note { font-size: 11px; color: #70808e; padding: 22px 0 10px; }
+.mast-empty { padding: 22px 0; color: var(--muted); font-size: 12px; }
+.mast-empty h3 { color: var(--ink); margin: 12px 0; }
+@media (max-width: 1250px) {
+  .mast-report-layout { grid-template-columns: minmax(0, 1fr); }
+  .mast-report-list { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .mast-report-list h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .mast-report-link { min-width: 180px; }
+  .mast-workspace-header { flex-wrap: wrap; gap: 14px; }
+}
+@media (max-width: 900px) {
+  .workspace-switcher { padding: 0 16px; }
+  .workspace-switcher > span { display: none; }
+  .plugin-workspace { padding: 20px 16px; }
+  .mast-result { padding: 18px; }
+  .mast-stats { gap: 7px; }
+  .mast-stat { padding: 10px; }
+  .mast-stat strong { font-size: 20px; }
+}
+@media (max-width: 600px) {
+  .mast-result-heading { flex-wrap: wrap; gap: 6px; }
+  .mast-label-row { font-size: 11px; }
+  .mast-label-row > div { gap: 7px; }
+  .mast-stats { grid-template-columns: minmax(0, 1fr); }
+  .mast-stat { flex-direction: row; align-items: center; gap: 14px; }
+  .mast-stat strong { min-width: 65px; }
+  .header-actions { flex-wrap: wrap; }
 }

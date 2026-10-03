@@ -2,7 +2,9 @@ import { $, $$, el, button, svg, time, color, logoFor } from "./ui.js";
 
 const LEFT = 166,
   ROW = 44,
-  RULER = 32;
+  RULER = 32,
+  EDGE = 20,
+  EVENT_SPACE = 28;
 
 export class EventTimeline {
   constructor({ onSeek, onAgent, onEvent }) {
@@ -13,10 +15,12 @@ export class EventTimeline {
     this.agents = {};
     this.lanes = [];
     this.cursor = 0;
-    this.scale = 35;
+    this.scale = 1;
+    this.scaleMode = "auto";
     this.selected = null;
     this.viewport = $("#timeline-viewport");
     this.scene = $("#timeline-scene");
+    this.panel = $(".event-timeline");
     this.viewport.addEventListener("scroll", () => {
       if (!this.frame)
         this.frame = requestAnimationFrame(() => {
@@ -30,21 +34,18 @@ export class EventTimeline {
     });
     $("#zoom-in").onclick = () => this.zoom(this.scale * 1.8);
     $("#zoom-out").onclick = () => this.zoom(this.scale / 1.8);
-    $("#timeline-fit").onclick = () =>
-      this.zoom(
-        Math.max(1, this.viewport.clientWidth - LEFT - 40) /
-          ((this.end - this.start) / 60000),
-      );
+    $("#timeline-fit").onclick = () => this.fit();
     $$("[data-timeline-kind]").forEach(
-      (input) => (input.onchange = () => this.drawEvents()),
+      (input) => (input.onchange = () => {
+        this.layout();
+        this.setCursor(this.cursor, true);
+      }),
     );
     $("#timeline-connections").onchange = () => this.drawEvents();
-    $("#timeline-expand").onclick = () =>
-      this.setHeight(
-        this.panelHeight() > 570
-          ? 400
-          : Math.max(620, Math.min(850, window.innerHeight - 130)),
-      );
+    $("#timeline-expand").onclick = () => {
+      if (this.panel.dataset.heightMode === "manual") this.resetHeight();
+      else this.setHeight(Math.max(this.panelHeight(), window.innerHeight - 170));
+    };
     const resize = $("#resize-timeline");
     let resizeOrigin;
     resize.onpointerdown = (event) => {
@@ -63,8 +64,6 @@ export class EventTimeline {
         );
       }
     };
-    const saved = Number(localStorage.getItem("swarm-lens.timeline.height"));
-    if (saved >= 260 && saved <= 1200) this.setHeight(saved);
     const handle = $("#playhead-handle");
     handle.onpointerdown = (event) => {
       event.stopPropagation();
@@ -85,24 +84,34 @@ export class EventTimeline {
   }
 
   panelHeight() {
-    return $(".event-timeline").getBoundingClientRect().height;
+    return this.panel.getBoundingClientRect().height;
   }
   setHeight(height) {
     height = Math.round(Math.max(260, Math.min(1200, height)));
-    document.documentElement.style.setProperty(
-      "--timeline-height",
-      height + "px",
-    );
-    localStorage.setItem("swarm-lens.timeline.height", height);
-    $("#timeline-expand").textContent =
-      height > 570 ? "Compact ↕" : "Expand ↕";
+    this.panel.style.height = height + "px";
+    this.panel.dataset.heightMode = "manual";
+    $("#timeline-expand").textContent = "Auto height ↕";
+    $("#timeline-expand").setAttribute("aria-label", "Use automatic timeline height");
+  }
+  resetHeight() {
+    this.panel.style.height = "";
+    delete this.panel.dataset.heightMode;
+    $("#timeline-expand").textContent = "Expand ↕";
+    $("#timeline-expand").setAttribute("aria-label", "Expand timeline");
+  }
+  fit() {
+    this.scaleMode = "fit";
+    this.resetHeight();
+    this.viewport.scrollLeft = 0;
+    this.viewport.scrollTop = 0;
+    this.layout();
   }
   x(at) {
     return (
       LEFT +
       (((typeof at === "number" ? at : Date.parse(at)) - this.start) / 60000) *
         this.scale +
-      20
+      EDGE
     );
   }
   laneFor(event) {
@@ -112,6 +121,12 @@ export class EventTimeline {
 
   setData(events, branch) {
     $("#timeline-events").replaceChildren();
+    if (branch.id !== this.branch?.id) {
+      this.scaleMode = "auto";
+      this.resetHeight();
+      this.viewport.scrollLeft = 0;
+      this.viewport.scrollTop = 0;
+    }
     this.events = events;
     this.branch = branch;
     this.selected = null;
@@ -165,7 +180,7 @@ export class EventTimeline {
       ...(actual.length ? actual : events).map((event) => Date.parse(event.at)),
     );
     this.end = Math.max(
-      this.start + 60000,
+      this.start + 1000,
       ...events.map((event) => Date.parse(event.at)),
     );
     if (!Number.isFinite(this.start)) {
@@ -178,26 +193,45 @@ export class EventTimeline {
   }
 
   zoom(scale) {
-    this.scale = Math.max(0.5, Math.min(1500, scale));
+    this.scaleMode = "manual";
+    const fitScale = Math.max(1, this.viewport.clientWidth - LEFT - EDGE * 2) /
+      ((this.end - this.start) / 60000);
+    this.scale = Math.max(fitScale, Math.min(fitScale * 1000, scale));
     this.layout();
     this.setCursor(this.cursor, true);
   }
 
   layout() {
+    if (!this.viewport.clientWidth) return;
+    const duration = (this.end - this.start) / 60000;
+    const available = Math.max(1, this.viewport.clientWidth - LEFT - EDGE * 2);
+    if (this.scaleMode !== "manual") {
+      const laneCounts = new Map();
+      for (const event of this.events) {
+        if (!this.allowed(event)) continue;
+        const lane = this.laneFor(event);
+        laneCounts.set(lane, (laneCounts.get(lane) || 0) + 1);
+      }
+      // Keep small histories in view; give dense lanes enough room to scroll.
+      const readable = (Math.max(1, ...laneCounts.values()) - 1) * EVENT_SPACE;
+      this.scale = (this.scaleMode === "fit" ? available : Math.max(available, readable)) / duration;
+    }
     const width = Math.max(
       this.viewport.clientWidth,
-      LEFT + ((this.end - this.start) / 60000) * this.scale + 55,
+      Math.round(LEFT + duration * this.scale + EDGE * 2),
     );
     this.scene.style.width = width + "px";
-    this.scene.style.height = RULER + this.lanes.length * ROW + "px";
+    const contentHeight = RULER + this.lanes.length * ROW;
+    this.scene.style.height = contentHeight + "px";
+    this.panel.style.setProperty("--timeline-content-height", contentHeight + "px");
     const ruler = $("#timeline-ruler");
     ruler.replaceChildren();
     const axis = el("div", "timeline-axis-label", "AGENT / UTC");
     ruler.append(axis);
     const minutesPerTick =
-      [0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120].find(
+      [1 / 60, 1 / 30, 1 / 12, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120].find(
         (value) => value * this.scale >= 95,
-      ) || 240;
+      ) || Math.ceil(95 / this.scale / 60) * 60;
     const step = minutesPerTick * 60000;
     for (
       let at = Math.ceil(this.start / step) * step;
@@ -250,7 +284,7 @@ export class EventTimeline {
     connections.setAttribute("height", RULER + this.lanes.length * ROW);
     const windowMinutes = Math.max(
       0.01,
-      (this.viewport.clientWidth - LEFT) / this.scale,
+      available / this.scale,
     );
     $("#zoom-label").textContent =
       windowMinutes < 1
@@ -373,9 +407,9 @@ export class EventTimeline {
       );
       node.setAttribute(
         "aria-label",
-        `${time(event.at)} ${this.agents[event.agent_id]?.name || "Human"} ${event.label}, event ${event.position}`,
+        `${time(event.at)} ${this.agents[event.agent_id]?.name || "Human"} ${event.stage_label || event.label}, event ${event.position}`,
       );
-      node.title = `${time(event.at)} UTC · ${event.label}\n${event.preview}`;
+      node.title = `${time(event.at)} UTC · ${event.stage_label || event.label}\n${event.preview}`;
       if (!prior) {
         node.append(
           el(

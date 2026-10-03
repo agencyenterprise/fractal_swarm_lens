@@ -14,8 +14,10 @@ import {
   logoFor,
 } from "./ui.js";
 import { renderGraph } from "./graph.js";
-import { EventTimeline } from "./timeline.js";
+import { EventTimeline } from "./timeline.js?v=2";
 import { field, openDialog } from "./dialog.js";
+import { installMast } from "./mast.js?v=2";
+import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js";
 import {
   inspectAgent,
   inspectEnvironment,
@@ -57,9 +59,47 @@ const timeline = new EventTimeline({
   onAgent: selectAgent,
   onEvent: timelineEvent,
 });
+const installedPlugins = new Set();
+const workspaceViews = new WorkspaceViews((id) => {
+  openWorkspaceView(id, workspaceViews.entries.get(id).params);
+});
+workspaceViews.register({ id: "timeline", title: "Timeline", panel: $("#workspace-timeline") });
+
+function selection() {
+  return view.branch ? { branchId: view.branch.id, cursor: view.cursor,
+    name: view.run.name, branchName: view.branch.name } : null;
+}
+
+function saveWorkspaceRoute(replace = true) {
+  if (!view.branch) return;
+  const url = workspaceURL({ ...selection(), view: workspaceViews.current || "timeline", ...workspaceViews.params });
+  if (url !== location.href) history[replace ? "replaceState" : "pushState"](null, "", url);
+}
+
+function openWorkspaceView(id, params = {}, { replace = false, write = true } = {}) {
+  stopPlayback();
+  clearTimeout(seekTimer);
+  $("#event-menu").hidden = true;
+  workspaceViews.show(id, params);
+  if (write) saveWorkspaceRoute(replace);
+}
+
+async function restoreWorkspaceRoute() {
+  const route = readWorkspaceRoute();
+  if (route.branchId && route.branchId !== view.branch?.id) {
+    await loadBranch(route.branchId, route.cursor);
+  } else if (route.cursor !== undefined && view.branch && route.cursor !== view.cursor) {
+    await seek(route.cursor);
+  }
+  openWorkspaceView(route.view, { report: route.report }, { replace: true });
+}
+window.addEventListener("hashchange", () => restoreWorkspaceRoute().catch(failure));
 
 async function refreshWorkspace() {
   view.workspace = await api("/workspace");
+  const rank = (run) => run.metadata.source_type === "aciarena_example"
+    ? (run.metadata.condition === "control" ? 0 : 1) : 2;
+  view.workspace.runs.sort((a, b) => rank(a) - rank(b));
 }
 
 function renderBranches() {
@@ -107,9 +147,18 @@ async function loadBranch(id, cursor) {
   stopPlayback();
   $("#footer-status").textContent = "Loading branch history…";
   const data = await api(`/branches/${id}/timeline`);
+  workspaceViews.reset();
+  openWorkspaceView("timeline", {}, { write: false });
   view.branch = data.branch;
   view.events = data.events;
   view.run = view.workspace.runs.find((run) => run.id === view.branch.run_id);
+  if (view.run.metadata.source_type === "saved_trace" && view.filter === "messages") {
+    view.filter = "all";
+    $$("[data-filter]").forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.filter === "all");
+      tab.setAttribute("aria-selected", String(tab.dataset.filter === "all"));
+    });
+  }
   view.agent = null;
   view.event = null;
   view.limit = 45;
@@ -120,7 +169,23 @@ async function loadBranch(id, cursor) {
     : "Observed history";
   $("#context-title").textContent = view.branch.parent_id
     ? "Branch state"
-    : "Recorded trajectory";
+    : view.run.metadata.source_type === "aciarena_example"
+      ? `ACIArena · ${view.run.metadata.condition_label} · ${view.run.metadata.max_turn} rounds`
+      : "Recorded trajectory";
+  const pairedRun = view.run.metadata.example_pair && view.workspace.runs.find((run) =>
+    run.id !== view.run.id && run.metadata.example_pair === view.run.metadata.example_pair);
+  const pairedBranch = pairedRun && view.workspace.branches.find((branch) => branch.run_id === pairedRun.id && !branch.parent_id);
+  const pairedLink = $("#paired-example");
+  pairedLink.hidden = !pairedBranch;
+  if (pairedBranch) {
+    pairedLink.textContent = `${pairedRun.metadata.condition_label} →`;
+    pairedLink.href = workspaceURL({ branchId: pairedBranch.id, cursor: pairedBranch.head });
+    pairedLink.onclick = (event) => {
+      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      loadBranch(pairedBranch.id).catch(failure);
+    };
+  }
   $("#dataset-link").href = view.run.metadata.dataset_url || "#";
   $("#dataset-link").hidden = !view.run.metadata.dataset_url;
   $("#attribution").textContent =
@@ -132,11 +197,13 @@ async function loadBranch(id, cursor) {
   renderBranches();
   timeline.setData(view.events, view.branch);
   await seek(cursor ?? view.branch.head);
+  if (!$("#mast-analyze").hidden) $("#mast-analyze").disabled = false;
 }
 
 async function seek(cursor) {
   cursor = Math.max(0, Math.min(view.branch.head, Number(cursor)));
   view.cursor = cursor;
+  saveWorkspaceRoute();
   $("#cursor").value = cursor;
   $("#position-label").textContent =
     `${formatNumber(cursor)} / ${formatNumber(view.branch.head)}`;
@@ -150,9 +217,12 @@ async function seek(cursor) {
     view.state = state;
     if (view.event && view.event.position > cursor) view.event = null;
     if (view.agent && !state.agents[view.agent]) view.agent = null;
-    $("#task-name").textContent = state.environment.task || view.run.name;
+    $("#task-name").textContent = view.run.metadata.task_title || state.environment.task || view.run.name;
     $("#task-description").textContent =
-      state.environment.goal || "Explore recorded swarm state.";
+      view.run.metadata.source_type === "aciarena_example"
+        ? `${view.run.metadata.condition_label} · ${view.run.metadata.max_turn} debate rounds · 3 debaters + aggregator`
+        : state.environment.goal || "Explore recorded swarm state.";
+    $("#read-task").hidden = view.run.metadata.source_type !== "aciarena_example";
     $("#cursor-time").textContent =
       `${date(state.occurred_at)} · ${time(state.occurred_at)} UTC`;
     $("#counts").replaceChildren(
@@ -258,7 +328,7 @@ function renderFeed() {
       el(
         "span",
         "event-type",
-        event.intervention ? "Intervention" : event.kind.split(".")[0],
+        event.intervention ? "Intervention" : event.stage_label || event.kind.split(".")[0],
       ),
     );
     body.append(
@@ -590,6 +660,8 @@ function compareDialog() {
 }
 
 $("#fork-button").onclick = forkDialog;
+$("#read-task").onclick = () => openDialog("Benchmark question", el("div", "content-text", view.state.environment.task),
+  { kicker: view.run.metadata.task_id || "RECORDED TASK" });
 $("#new-branch").onclick = forkDialog;
 $("#cursor").addEventListener("input", (event) => {
   stopPlayback();
@@ -787,8 +859,37 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") $("#event-menu").hidden = true;
 });
 
-async function boot() {
+async function boot(selectedBranchId) {
+  const route = selectedBranchId ? {} : readWorkspaceRoute();
   await refreshWorkspace();
+  const renderers = { mast: installMast };
+  for (const manifest of view.workspace.capabilities.web_plugins || []) {
+    if (installedPlugins.has(manifest.id)) continue;
+    renderers[manifest.ui?.renderer]?.(manifest, {
+      selection,
+      registerView: (config) => workspaceViews.register(config),
+      openView: openWorkspaceView,
+      openReport: async (job) => {
+        if (view.branch?.id !== job.branch_id) await loadBranch(job.branch_id, job.cursor);
+        openWorkspaceView("mast", { report: job.id });
+      },
+      setViewParams: (id, params) => {
+        if (workspaceViews.current !== id) return;
+        workspaceViews.entries.get(id).params = params;
+        saveWorkspaceRoute();
+      },
+      showSnapshot: async (branchId, cursor) => {
+        if (branchId !== view.branch?.id) await loadBranch(branchId, cursor);
+        else await seek(cursor);
+        openWorkspaceView("timeline");
+      },
+      onImport: async (branchId) => {
+        await boot(branchId);
+        $('[data-filter="all"]').click();
+      },
+    });
+    installedPlugins.add(manifest.id);
+  }
   if (!view.workspace.runs.length) {
     $("#task-name").textContent = "No runs yet";
     $("#footer-status").textContent =
@@ -805,7 +906,10 @@ async function boot() {
   );
   $("#checkpoint").disabled = !view.workspace.capabilities.git;
   await loadBranch(
-    view.workspace.branches.find((branch) => !branch.parent_id).id,
+    selectedBranchId || route.branchId || view.workspace.branches.find((branch) =>
+      !branch.parent_id && branch.run_id === view.workspace.runs[0].id).id,
+    route.cursor,
   );
+  if (route.view && route.view !== "timeline") openWorkspaceView(route.view, { report: route.report }, { replace: true });
 }
 boot().catch(failure);

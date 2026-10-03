@@ -10,7 +10,7 @@ from .topology import make_snapshot, topology
 class Caspian:
     """Paper-based reconstruction; not the unreleased author implementation."""
 
-    id, version = "caspian", "0.1.0"
+    id, version = "caspian", "0.2.0"
 
     def __init__(self, agents, edges, config=None, *, feature_schema, observed_channels=CHANNELS):
         if not isinstance(feature_schema, str) or not feature_schema.strip():
@@ -27,10 +27,17 @@ class Caspian:
 
     @property
     def finished(self):
+        """Measurement ends with the caller's input stream, never with an alert."""
+        return False
+
+    @property
+    def has_detected(self):
         return self.detector.alert is not None
 
     def describe(self):
         return {"paper": "https://arxiv.org/abs/2605.19240v1", "implementation": "paper_reconstruction",
+                "measurement_policy": "continuous_until_end_of_input",
+                "detection_policy": "latch_first_alert_no_rearming",
                 "config": asdict(self.config), "agents": list(self.agents),
                 "edges": [[a, b] for i, a in enumerate(self.agents) for j, b in enumerate(self.agents)
                           if self.mask[i, j]], "feature_schema": self.feature_schema,

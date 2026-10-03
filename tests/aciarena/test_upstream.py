@@ -40,6 +40,15 @@ def test_real_upstream_debate_wiring_and_history_replay(tmp_path, condition):
              if row['type'] == 'model_call']
     assert result['calls'] == 64
     assert result['history']['replay_matches']
+    monitor = json.loads((tmp_path / 'case/monitor.json').read_text())
+    observations = json.loads((tmp_path / 'case/observations.json').read_text())
+    assert len(monitor['turns']) == len(observations) == 22
+    first = next(t for t in monitor['turns'] if t['new_alert'])
+    assert sum(t['new_alert'] for t in monitor['turns']) == 1
+    assert monitor['first_alert'] == first['alert'] == monitor['turns'][-1]['alert']
+    assert monitor['turns'][-1]['turn'] == 22
+    assert monitor['turns'][-1]['evidence']['sample_counts'][0][1][0] == 20
+    assert monitor['turns'][-1]['evidence']['sample_counts'][0][3][0] == 1
     assert all(not call['sources'] for call in calls[:3])
     # Sequential upstream debate: debater_1 receives this round's debater_0 answer.
     assert [s['sequence'] for s in calls[3]['sources']] == [2, 3]

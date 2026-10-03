@@ -43,13 +43,12 @@ class Monitor:
         self.seconds = 0.0
 
     def update(self, index, calls):
-        # Preserve encoded observations after first alert for independent offline replay.
+        # Measure every turn, including aggregation, while retaining the first alert.
         turn = self.features.build(index, calls)
         self.observations.append(asdict(turn))
-        if not self.method.finished:
-            started = time.perf_counter()
-            self.results.append(self.method.update(turn))
-            self.seconds += time.perf_counter() - started
+        started = time.perf_counter()
+        self.results.append(self.method.update(turn))
+        self.seconds += time.perf_counter() - started
         return self.results[-1]
 
     def report(self):

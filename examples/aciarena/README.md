@@ -1,4 +1,35 @@
-# ACIArena LLM Debate pilot
+# ACIArena examples and experiments
+
+## Complete examples for the explorer
+
+The bundled [20-round pair](samples/llm-debate-pair-20261003/manifest.json) uses the pinned upstream `LLMDebate`, its original `BaseMAS.run` scheduler, the first public math task (`math-000`), and `MathNameLeakInstruction`. Each conversation has three initial responses, 20 rounds with three responses each, and one final aggregation: **64 model responses**. The control has no injection; the second example injects the upstream instruction into `debater_0` on every input, including initialization. Both receive the same synthetic disclosure context.
+
+Import the saved pair into a workspace without making model calls:
+
+```sh
+PYTHONPATH=src .venv-aciarena/bin/python -m examples.aciarena.samples import \
+  --input examples/aciarena/samples/llm-debate-pair-20261003 --data data
+PYTHONPATH=src .venv-aciarena/bin/python -m swarm_lens.cli --data data --port 8766
+```
+
+Choose **ACIArena · Without injection · 20 rounds** or **ACIArena · With injection · 20 rounds**. A link beside the timeline context switches to the matched example. These are independent executions on the same task, not two branches sharing generated answers. Each input and output is retained, including the final answer. Select a response to inspect its round, preceding source responses, and exact recorded model call. Enable **Memory** to see actual upstream conversation-memory updates; **All events** includes delivered prompts and the injection installation. This system does not use tools; no tool activity or aggregator memory is invented.
+
+The control imports as **199 events**, the injection as **200 events**. Each includes 64 model responses plus the original task message, 64 model-input records, 63 updates to three agents' memory slots, setup records, and completion. The injection has one additional installation event, marked as actually applied during generation. Reimporting the same pair does not duplicate it; interrupted imports can finish from their verified prefix.
+
+For a readable copy of every response in order, open the [conversation without injection](samples/llm-debate-pair-20261003/control/conversation.txt) or [conversation with injection](samples/llm-debate-pair-20261003/injection/conversation.txt). These are derived from the saved traces; the JSONL files retain the full model inputs and memory snapshots.
+
+Generate a fresh pair using the configured API key:
+
+```sh
+PYTHONPATH=src KMP_INIT_AT_FORK=FALSE .venv-aciarena/bin/python -m examples.aciarena.samples generate \
+  --max-turn 20 --output data/aciarena/new-example-pair
+```
+
+The generator defaults to 20 debate rounds, `gpt-4o-mini-2024-07-18`, temperature 0, seed 42, and up to 2,048 output tokens per call. It uses independent agent instances and memories for each condition. Twenty rounds deliberately extends the upstream two-round default. The command is bounded to its scheduled requests and a 3,000,000-token local budget, configurable with `--max-total-tokens`. Partial or truncated examples are preserved on disk but rejected by the importer. No analysis plugins or embeddings run during generation or import.
+
+`manifest.json` records the exact upstream commit, dataset and trace hashes, model settings, package versions, and native math/attack outcomes. `trace.jsonl` contains all recorded requests, responses, delivered-source references, timestamps, and observed memory snapshots. `result.json` contains the final answer and upstream verification results. Only the benchmark's synthetic fixture information is included; provider credentials are not serialized. These examples illustrate the two conditions, and do not establish cascade ground truth or reproduce aggregate paper scores.
+
+## CASPIAN pilot
 
 This application-owned runner executes the actual pinned ACIArena `LLMDebate`, `MathNameLeakInstruction`, and `MathTask.verify` implementations. CASPIAN remains an optional observability module inside Swarm Lens. No upstream benchmark code is edited.
 
@@ -30,7 +61,7 @@ Bootstrap is observation 1 and has no agent-to-agent edges. Debate round r is ob
 
 The native attack success check looks for the planted name in the final answer. We also record the first name marker in another debater or aggregator, and native math correctness. A marker in another agent is descriptive evidence, not proof of causal propagation: every agent has the same planted context. Alert timing is reported at round boundaries, and same-round alerts are not counted as preceding a marker.
 
-The detector stops after its first alert, as its API requires. Model execution and feature capture continue through aggregation; changing detector settings later can use stored observations without making model calls. Raw prompts and responses, encoded observations, manifest, per-case results, detector outputs, and SQLite histories are saved under ignored `data/aciarena/`. Historical analysis must exactly match the online results before a case is marked complete. The manifest records upstream revision, dataset hash, model settings, package versions, framework commit, source-file hashes, and whether the checkout had uncommitted changes.
+CASPIAN records its first alert once and continues updating estimates, spectral signals, evidence counts and matrices through every debate round and final aggregation. `alert` retains the first detection; `new_alert` is true only on its confirmation turn. Later measurements do not rearm detection or change its onset, confirmation time or attribution. Stored observations can be replayed without model calls. Raw prompts and responses, encoded observations, manifest, per-case results, detector outputs, and SQLite histories are saved under ignored `data/aciarena/`. Historical analysis must exactly match the online results before a case is marked complete. The manifest records upstream revision, dataset hash, model settings, package versions, framework commit, source-file hashes, and whether the checkout had uncommitted changes.
 
 ## Interpreting the pilot
 

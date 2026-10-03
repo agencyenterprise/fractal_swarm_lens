@@ -12,8 +12,9 @@ dependencies = []
 [project.optional-dependencies]
 caspian = ["numpy>=1.26,<3"]
 embeddings = ["openai>=1.63,<3", "python-dotenv>=1,<2"]
+mast = ["openai>=1.63,<3", "python-dotenv>=1,<2", "tiktoken>=0.7,<1"]
 aciarena = ["math-verify==0.6.0", "human_eval==1.0.3", "pydantic>=2.10,<3", "tenacity>=8.2,<10", "PyYAML>=6,<7", "colorlog>=6.9,<7", "transformers>=4.56,<6", "datasets>=3.6,<4"]
-web = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+web = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "pydantic>=2.10,<3"]
 village = ["requests>=2.32,<3"]
 dev = ["pytest>=8,<10", "httpx>=0.27,<1", "numpy>=1.26,<3"]
 
@@ -25,6 +26,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/logos/*", "adapters/*.sql"]
+"swarm_lens.observability.mast" = ["assets.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

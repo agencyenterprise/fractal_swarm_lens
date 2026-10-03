@@ -146,6 +146,10 @@ export function inspectEvent(event, state, actions) {
     root.append(
       button("Inspect agent", () => actions.selectAgent(agent.id), "subtle"),
     );
+  if (data.metadata?.stage_label) root.append(section("Stage", data.metadata.stage_label));
+  if (event.source.delivered_sources?.length) {
+    root.append(section("Responses supplied to this agent", event.source.delivered_sources.join(", ")));
+  }
   root.append(
     el(
       "div",

@@ -1,3 +1,6 @@
 [submodule "vendor/aciarena"]
 	path = vendor/aciarena
 	url = https://github.com/Greysahy/aciarena.git
+[submodule "vendor/mast"]
+	path = vendor/mast
+	url = https://github.com/multi-agent-systems-failure-taxonomy/MAST.git

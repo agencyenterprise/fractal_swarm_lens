@@ -49,10 +49,14 @@ def event_summary(event):
             "agent_name": d.get("name") if family == "agent" else None,
             "model": d.get("model") if family == "agent" else None,
             "entity_id": d.get("id"), "reply_to_id": d.get("reply_to_id"),
+            "stage_label": d.get("metadata", {}).get("stage_label"),
             "channel_name": d.get("name") if family == "channel" else None}
 
 
-def create_app(framework: Framework, artifacts=None) -> FastAPI:
+def create_app(framework: Framework, artifacts=None, *, extensions=()) -> FastAPI:
+    extensions = tuple(extensions)
+    if len({extension.id for extension in extensions}) != len(extensions):
+        raise ValueError("Duplicate web extension ID")
     app = FastAPI(title="Swarm Lens", version="0.1.0")
 
     @app.exception_handler(DomainError)
@@ -81,7 +85,8 @@ def create_app(framework: Framework, artifacts=None) -> FastAPI:
         runs = framework.store.runs()
         return {"runs": [asdict(run) for run in runs],
                 "branches": [asdict(branch) for run in runs for branch in framework.store.branches(run.id)],
-                "capabilities": framework.capabilities()}
+                "capabilities": {**framework.capabilities(),
+                                 "web_plugins": [extension.manifest() for extension in extensions]}}
 
     @app.get("/api/branches/{branch_id}/timeline")
     def timeline(branch_id: str):
@@ -150,6 +155,18 @@ def create_app(framework: Framework, artifacts=None) -> FastAPI:
             return Response(artifacts.get(digest), media_type="application/json")
         except (ValueError, FileNotFoundError) as exc:
             raise DomainError("Unknown artifact") from exc
+
+    existing = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
+    for extension in extensions:
+        for route in extension.router.routes:
+            if not route.path.startswith(f"/api/plugins/{extension.id}/"):
+                raise ValueError("Plugin routes must use their own API namespace")
+            for method in getattr(route, "methods", ()):
+                key = (route.path, method)
+                if key in existing:
+                    raise ValueError("Duplicate plugin route")
+                existing.add(key)
+        app.include_router(extension.router)
 
     web = Path(__file__).parent
     app.mount("/assets", StaticFiles(directory=web), name="assets")
