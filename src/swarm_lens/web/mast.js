@@ -338,8 +338,8 @@ function importDialog(onImport) {
 
 export function installMast(manifest, host) {
   installReportView(manifest, host);
-  host.addAction({ id: "mast-analyze", label: "Analyze with MAST…", group: "analysis",
+  host.addAction({ id: "mast-analyze", label: "Analyze with MAST…",
     onClick: () => analyzeDialog(manifest, host.selection(), host) });
-  host.addAction({ id: "import-trace", label: "Import trace…", group: "data",
+  host.addAction({ id: "import-trace", label: "Import trace…",
     onClick: () => importDialog(host.onImport) });
 }

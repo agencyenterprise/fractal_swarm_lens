@@ -174,13 +174,18 @@ function branchMenuItems() {
   ];
 }
 
+// Plugins contribute actions under their own name, in registration order; core actions follow.
+function pluginMenuItems() {
+  const plugins = [...new Set(menuActions.map((action) => action.plugin))];
+  if (!plugins.length) return [];
+  return [{ heading: "Plugins" }, ...plugins.flatMap((plugin) => [
+    { subheading: plugin }, ...menuActions.filter((action) => action.plugin === plugin),
+  ]), "---"];
+}
+
 function moreMenuItems() {
-  const group = (name) => menuActions.filter((action) => action.group === name);
   return [
-    ...group("analysis"),
-    { label: "Activity summary", onClick: runActivityAnalysis },
-    "---",
-    ...group("data"),
+    ...pluginMenuItems(),
     ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", onClick: saveCheckpoint }] : []),
     ...(view.run?.metadata.dataset_url ? [{ label: "Source and provenance ↗", onClick: () => window.open(view.run.metadata.dataset_url, "_blank", "noopener") }] : []),
     "---",
@@ -206,6 +211,7 @@ function openMenu(items, { anchor, point }) {
   menu.replaceChildren(...items.map((item) => {
     if (item === "---") return el("hr");
     if (item.heading) return el("div", "menu-label", item.heading);
+    if (item.subheading) return el("div", "menu-sublabel", item.subheading);
     const node = button("", () => { closeMenu(); item.onClick(); });
     node.setAttribute("role", "menuitem");
     node.append(el("span", "", item.label));
@@ -545,7 +551,7 @@ document.addEventListener("keydown", (event) => {
 
 // Startup
 
-function pluginHost() {
+function pluginHost(manifest) {
   return {
     selection: () => view.branch ? { branchId: view.branch.id, cursor: view.cursor, name: view.run.name,
       branchName: view.branch.name } : null,
@@ -568,7 +574,7 @@ function pluginHost() {
       await selectEvent(event);
     },
     onImport: async (branchId) => { await refreshWorkspace(); await loadBranch(branchId); },
-    addAction: (action) => menuActions.push(action),
+    addAction: (action) => menuActions.push({ ...action, plugin: manifest.title }),
   };
 }
 
@@ -589,11 +595,18 @@ function installPlugins() {
     loadTimeline,
     loadDetail,
     openTimeline: (branchId, cursor) => openTimelineAt(branchId, cursor).catch(failure),
-    setViewParams: (params) => pluginHost().setViewParams("compare", params),
+    setViewParams: (params) => {
+      if (workspaceViews.current !== "compare") return;
+      workspaceViews.entries.get("compare").params = params;
+      saveRoute();
+    },
     favoriteRuns,
   });
   for (const manifest of view.workspace.capabilities.web_plugins || []) {
-    renderers[manifest.ui?.renderer]?.(manifest, pluginHost());
+    renderers[manifest.ui?.renderer]?.(manifest, pluginHost(manifest));
+  }
+  if (view.workspace.capabilities.plugins?.some((plugin) => plugin.id === "activity")) {
+    menuActions.push({ plugin: "Activity", label: "Activity summary", onClick: runActivityAnalysis });
   }
 }
 
