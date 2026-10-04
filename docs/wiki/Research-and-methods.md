@@ -31,8 +31,10 @@ A cascade can propagate benign, harmful, or other behavior. An attack is a possi
 
 Imported-trace continuation is a new execution in CrewAI, not exact resumption of the original system. Model stochasticity and external side effects limit direct counterfactual interpretations.
 
-## Current limitations
+## Next steps
 
-MAST can misclassify. Some ACIArena answer parsing is imperfect. The visualization fallbacks are not all recorded delivery edges. Local SQLite data is not automatically reproducible from a Git checkout. See the [MAST guide](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/mast/README.md).
-
-No Swarm Lens paper, DOI, or benchmark accuracy claim is asserted here. Cite the upstream methods separately when using them, and record the exact Swarm Lens commit used in an experiment.
+- **Build reproducible benchmark workflows.** Package trace exports, model settings, prompts, and code revisions so researchers can repeat and compare experiments.
+- **Compare analysis with reference annotations.** Evaluate MAST reports and CASPIAN outputs against independently reviewed traces, with results broken down by scenario and behavior.
+- **Study propagation over time.** Compare paired control and intervention runs to examine how behaviors spread through messages, tools, and memory.
+- **Extend framework integrations.** Capture more interaction types and support branch experiments across additional agent runtimes.
+- **Make research easier to share.** Export reports and trace evidence together, with citations to the methods used in each experiment.
