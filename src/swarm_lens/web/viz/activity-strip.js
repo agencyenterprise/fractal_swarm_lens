@@ -1,5 +1,5 @@
 // Activity: per-agent heatmap over stages (or equal time buckets), shaded against each agent's own median.
-import { el, button, avatar, color, formatNumber, tip } from "../ui.js";
+import { el, button, avatar, color, formatNumber, tip, recordedUsage } from "../ui.js";
 import { columnScheme, columnTitle } from "./columns.js";
 
 const SPIKE_RATIO = 2;
@@ -41,12 +41,9 @@ export function detailNumbers(detail) {
   };
 }
 
-// Some recorders write a usage block of zeros when they did not measure usage; any real model call
-// counts tokens, so an all-zero block means "not recorded", not "0 tokens".
 function recordedOutputTokens(usage) {
-  if (!Number.isFinite(usage?.output_tokens)) return undefined;
-  const counts = Object.values(usage).filter(Number.isFinite);
-  return counts.every((count) => count === 0) ? undefined : usage.output_tokens;
+  const tokens = recordedUsage(usage)?.output_tokens;
+  return Number.isFinite(tokens) ? tokens : undefined;
 }
 
 // Averages only the events whose details carry the field. A cell whose details are all loaded but

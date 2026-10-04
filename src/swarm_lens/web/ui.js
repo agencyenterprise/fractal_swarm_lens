@@ -202,3 +202,11 @@ export function avatar(agent, className = "avatar") {
   } else node.textContent = (agent?.name || "?").slice(0, 1).toUpperCase();
   return node;
 }
+
+// Some recorders write a usage block of zeros when they did not measure usage; any real model call
+// counts tokens, so an all-zero block means "not recorded", not "0 tokens".
+export function recordedUsage(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  const counts = Object.values(usage).filter(Number.isFinite);
+  return counts.length && counts.some((count) => count !== 0) ? usage : null;
+}

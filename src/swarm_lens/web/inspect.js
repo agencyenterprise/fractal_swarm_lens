@@ -1,4 +1,4 @@
-import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure, tip } from "./ui.js";
+import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure, tip, recordedUsage } from "./ui.js";
 import { forkTips } from "./branch.js";
 import { renderMarkdownInto } from "./markdown.js";
 import { interventionLabel } from "./transcript.js";
@@ -181,7 +181,7 @@ function eventBody(event, data) {
 }
 
 function eventMeta(event, data, agent) {
-  const usage = data.metadata?.usage;
+  const usage = recordedUsage(data.metadata?.usage);
   const latency = data.metadata?.latency_seconds;
   const model = data.metadata?.model || event.model || agent?.model;
   const parts = [

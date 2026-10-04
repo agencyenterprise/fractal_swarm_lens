@@ -294,10 +294,12 @@ class PhraseSpreadView {
 
   renderGrid(spread) {
     const { rows, columns } = this.grid;
-    if (!this.grid.messages.length) {
+    // Without a phrase the grid would only show message presence, which reads as a loading skeleton.
+    if (!this.grid.messages.length || !spread) {
       this.cellNodes = [];
       this.markNodes = [];
-      this.plot.replaceChildren(el("div", "empty", "No messages"));
+      this.plot.replaceChildren(el("div", "empty", this.grid.messages.length
+        ? "Type a phrase or pick a word to see where it appears" : "No messages"));
       return;
     }
     const grid = el("div", "ps-grid");
