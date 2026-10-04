@@ -64,7 +64,7 @@ function badgeFor(event) {
   return null;
 }
 
-function overviewView(root, _selection, { state, run, branch, actions }) {
+function overviewView(root, _selection, { state, events, run, branch, comments, actions }) {
   const task = state.environment.task || state.environment.goal || "";
   const title = run.name;
   const head = el("header", "ins-overview-head");
@@ -85,6 +85,8 @@ function overviewView(root, _selection, { state, run, branch, actions }) {
   const goal = state.environment.goal;
   if (goal && goal !== task) root.append(section("Goal", el("p", "ins-goal", goal)));
   root.append(section("Agents", agentList(state, actions)));
+  const threads = comments.overviewSection(events, state.agents);
+  if (threads) root.append(threads);
   root.append(actionRow(button("Fork here", actions.fork, "primary"), button("Fork with new agent…", actions.addAgent, "ghost"),
     button("Fork with new goal…", actions.editGoal, "ghost")));
 }
@@ -120,7 +122,7 @@ function eventAgentId(event, data) {
     || (event.kind.startsWith("agent.") ? data.id : null) || event.agent_id;
 }
 
-function eventView(root, { event, detail }, { state, events, actions }) {
+function eventView(root, { event, detail }, { state, events, comments, actions }) {
   const data = detail?.data || {};
   const agentId = eventAgentId(event, data);
   const agent = state.agents[agentId];
@@ -139,7 +141,10 @@ function eventView(root, { event, detail }, { state, events, actions }) {
     agent && button("Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
     agent && button(agent.active ? "Fork without agent…" : "Fork restoring agent…", () => actions.removeAgent(agent), "ghost"),
     button("Fork with new goal…", actions.editGoal, "ghost"),
+    button("Comment", () => actions.comment(event), "ghost"),
   ));
+  const threads = comments.eventSection(event);
+  if (threads) root.append(threads);
   root.append(eventBody(event, data));
   const meta = eventMeta(event, data, agent);
   if (meta) root.append(meta);

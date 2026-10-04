@@ -13,6 +13,7 @@ import { branchDialog } from "./branch.js";
 import { Picker } from "./components.js?v=1";
 import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js";
 import { LiveView } from "./live.js";
+import { Comments, exportRun, importRun } from "./comments.js";
 
 const view = {
   workspace: null,
@@ -64,6 +65,11 @@ const transcript = new Transcript($("#transcript"), {
   loadDetail: (event) => loadDetail(view.branch.id, event),
   onClearAgent: () => filterAgent(null),
 });
+const comments = new Comments({
+  dataChanged: renderExplorer,
+  viewChanged: () => renderSelection().catch(failure),
+  selectEvent: (id) => selectEventById(id).catch(failure),
+});
 const workspaceViews = new WorkspaceViews((id) => openWorkspaceView(id, workspaceViews.entries.get(id).params));
 workspaceViews.register({ id: "timeline", title: "Timeline", panel: $("#workspace-timeline") });
 
@@ -106,6 +112,7 @@ async function refreshWorkspace() {
 
 const runBranches = (runId = view.run?.id) => view.workspace.branches.filter((branch) => branch.run_id === runId);
 const rootBranch = (runId) => runBranches(runId).find((branch) => !branch.parent_id);
+const eventAtCursor = () => view.events.find((event) => event.position === view.cursor);
 
 // URL routing
 
@@ -193,8 +200,12 @@ function moreMenuItems() {
   return [
     ...pluginMenuItems(),
     { label: "Import trace…", onClick: importDialog },
+    { label: "Import run…", onClick: () => openImportedRun().catch(failure) },
+    ...(view.run ? [{ label: "Export run", onClick: () => exportRun(view.run).catch(failure) }] : []),
     ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", onClick: saveCheckpoint }] : []),
     ...(view.run?.metadata.dataset_url ? [{ label: "Source and provenance ↗", onClick: () => window.open(view.run.metadata.dataset_url, "_blank", "noopener") }] : []),
+    "---",
+    { label: "Your name…", onClick: () => comments.editAuthor() },
     "---",
     { heading: "Theme" },
     ...[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([value, label]) => ({
@@ -259,6 +270,8 @@ async function openContextMenu(event, position, point) {
       { label: `Fork ${agent.active ? "without" : "restoring"} ${agent.name}…`, onClick: () => removeAgent(agent) },
     ] : []),
     { label: "Fork with new goal…", onClick: editGoal },
+    "---",
+    { label: "Comment", hint: "C", onClick: () => startComment(event ?? eventAtCursor()).catch(failure) },
   ], { point });
 }
 
@@ -278,9 +291,11 @@ async function loadBranch(id, cursor) {
   view.run = view.workspace.runs.find((run) => run.id === view.branch.run_id);
   view.selection = { type: "overview" };
   view.agentFilter = null;
+  const threads = comments.load(view.branch.id);
   runPicker.value = view.run.id;
   renderAppBar();
   await seek(cursor ?? view.branch.head);
+  threads.then(renderExplorer, failure);
   liveView.connect(view.branch, view.run.metadata.source_type === "live" && cursor === undefined);
 }
 
@@ -311,9 +326,9 @@ async function seek(cursor, { moveSelection = false } = {}) {
 function renderExplorer() {
   const selectedId = view.selection.type === "event" ? view.selection.event.id : null;
   visualizations.update({ events: view.events, branch: view.branch, state: view.state, cursor: view.cursor,
-    selectedId, agents: view.state.agents });
+    selectedId, agents: view.state.agents, comments: comments.index });
   transcript.render({ events: view.events, agents: view.state.agents, cursor: view.cursor, selectedId,
-    agentId: view.agentFilter });
+    agentId: view.agentFilter, comments: comments.index });
   renderSelection().catch(failure);
 }
 
@@ -326,7 +341,14 @@ async function renderSelection() {
     selection = { ...selection, detail };
   }
   renderInspector($("#inspector"), selection, { state: view.state, events: view.events, run: view.run, branch: view.branch,
-    cursor: view.cursor, actions: inspectorActions });
+    cursor: view.cursor, comments, actions: inspectorActions });
+  comments.restoreFocus($("#inspector"));
+}
+
+async function selectEventById(id) {
+  const event = view.events.find((item) => item.id === id);
+  if (!event) throw new Error("This event is not in the selected branch.");
+  await selectEvent(event);
 }
 
 async function selectEvent(event) {
@@ -347,6 +369,13 @@ function filterAgent(agentId) {
   view.agentFilter = agentId;
   if (!agentId && view.selection.type === "agent") view.selection = { type: "overview" };
   renderExplorer();
+}
+
+// Comments anchor to the selected event, or to the event at the cursor.
+async function startComment(event = view.selection.event ?? eventAtCursor()) {
+  if (!event) return toast("Select an event to comment on.");
+  comments.start(event.id);
+  await selectEvent(event);
 }
 
 function clearSelection() {
@@ -408,7 +437,7 @@ function openBranch(title, fields = [], change, effect = "") {
   stopPlayback();
   liveView.pause();
   clearTimeout(seekTimer);
-  const event = view.events.find((item) => item.position === view.cursor);
+  const event = eventAtCursor();
   branchDialog({
     source: { branchId: view.branch.id, branchName: view.branch.name, cursor: view.cursor, at: event?.at,
       label: forkPointLabel(event), defaultName: `Experiment ${runBranches().length}`,
@@ -523,6 +552,14 @@ function importDialog() {
   });
 }
 
+async function openImportedRun() {
+  const branch = await importRun();
+  if (!branch) return;
+  await refreshWorkspace();
+  await loadBranch(branch.id);
+  toast("Run imported");
+}
+
 async function runActivityAnalysis() {
   try {
     stopPlayback();
@@ -540,7 +577,7 @@ async function saveCheckpoint() {
 }
 
 const inspectorActions = { fork: forkDialog, editAgent, removeAgent, addAgent, editGoal, selectAgent, clearSelection,
-  readMemory, readArtifact, readTask, selectEvent };
+  readMemory, readArtifact, readTask, selectEvent, comment: (event) => startComment(event).catch(failure) };
 
 $("#fork-button").onclick = forkDialog;
 
@@ -592,6 +629,7 @@ document.addEventListener("keydown", (event) => {
   if (typing(event.target) || event.metaKey || event.ctrlKey || event.altKey || !view.branch) return;
   if (workspaceViews.current !== "timeline") return;
   if (event.key === "f" || event.key === "F") { event.preventDefault(); forkDialog(); }
+  if (event.key === "c" || event.key === "C") { event.preventDefault(); startComment().catch(failure); }
   if (document.activeElement === document.body && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
     event.preventDefault();
     userSeek(view.cursor + (event.key === "ArrowLeft" ? -1 : 1));

@@ -48,6 +48,13 @@ button.tx-show-button { height: 28px; gap: 6px; padding: 0 9px; }
 
 .tx-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tx-time { margin-left: auto; flex: none; color: var(--text-3); font-size: 11px; }
+button.tx-comments {
+  flex: none; height: 18px; min-width: 22px; margin-left: auto; padding: 0 6px;
+  border: 0; border-radius: 9px 9px 9px 2px; background: var(--accent-soft); color: var(--accent-text);
+  font-size: 11px; font-weight: 600;
+}
+button.tx-comments:hover { background: var(--accent); color: var(--accent-fg); }
+.tx-comments + .tx-time { margin-left: 0; }
 
 .tx-message { padding: 12px 16px 12px 14px; }
 .tx-message + .tx-message { border-top: 1px solid var(--border); }

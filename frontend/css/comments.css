@@ -1,0 +1,46 @@
+/* Comment threads (comments.js) in the inspector. */
+
+.cm-section { display: flex; flex-direction: column; gap: 8px; }
+
+.cm-thread {
+  display: flex; flex-direction: column; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.cm-thread.is-resolved { background: var(--surface-2); box-shadow: none; }
+.cm-thread.is-resolved .cm-text { color: var(--text-2); }
+
+.cm-comment + .cm-comment { padding-top: 10px; border-top: 1px solid var(--border); }
+.cm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cm-author { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.cm-time, .cm-replies { flex: none; font-size: 12px; }
+.cm-tools { display: flex; gap: 2px; margin: -4px -6px -4px auto; opacity: .7; }
+.cm-comment:hover .cm-tools, .cm-tools:focus-within { opacity: 1; }
+button.cm-tool { height: 24px; padding: 0 6px; font-size: 12px; }
+.cm-thread.is-resolved .cm-tool:first-child { color: var(--accent-text); }
+.cm-text { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.cm-composer { display: flex; flex-direction: column; gap: 6px; }
+.cm-composer textarea.cm-input { min-height: 34px; height: 34px; padding: 6px 9px; resize: none; }
+.cm-composer.is-open textarea.cm-input, .cm-composer:focus-within textarea.cm-input { height: 72px; resize: vertical; }
+.cm-name { height: 30px; padding: 0 9px; }
+.cm-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.cm-actions button { height: 28px; }
+.cm-composer:not(.is-open):not(:focus-within) .cm-actions { display: none; }
+.cm-section > .cm-composer {
+  padding: 10px 12px; border: 1px solid var(--accent); border-radius: var(--radius);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.cm-summary {
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  height: auto; margin: 0 -8px; padding: 8px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; font-weight: 400; text-align: left; white-space: normal;
+}
+.cm-summary:hover { background: var(--surface-2); }
+.cm-summary-text {
+  display: -webkit-box; overflow: hidden; color: var(--text);
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere;
+}
+.cm-anchor { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.cm-confirm { color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }

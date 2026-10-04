@@ -1,7 +1,7 @@
 import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar } from "./ui.js";
 import { timelineTime, gapDuration } from "./timeline-time.js";
 
-const LABEL_WIDTH = 150, ROW = 34, RULER = 40, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
+const LABEL_WIDTH = 150, ROW = 34, RULER = 40, COMMENT_ROW = 18, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
 const STORAGE_KEY = "swarm-lens.timeline.view";
 const VIEW_OPTIONS = [
   ["message", "Messages", true],
@@ -11,6 +11,7 @@ const VIEW_OPTIONS = [
   ["observation", "Observations", false],
   ["connections", "Connections", true],
   ["compact", "Compact gaps", true],
+  ["resolved", "Show resolved", false],
 ];
 // Which View toggle shows each tone; setup events (`state`) have no lane marker.
 const TOGGLE_FOR_TONE = { message: "message", observation: "observation", intervention: "intervention",
@@ -22,6 +23,7 @@ const ICONS = {
   next: ["M6 3.5 10.5 8 6 12.5", false],
   play: ["M5 3.2v9.6L12.6 8z", true],
   pause: ["M4.5 3.5h2.6v9H4.5zM8.9 3.5h2.6v9H8.9z", true],
+  comment: ["M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6a1.5 1.5 0 0 1-1.5 1.5H7.5L4.5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5z", true],
 };
 
 const isResume = (event) => event.resume_point && !event.resume_point.replay_reason
@@ -167,6 +169,9 @@ export class EventTimeline {
     this.shown = [];
     this.xs = [];
     this.lanes = [];
+    this.threads = [];
+    this.notes = [];
+    this.rulerHeight = RULER;
     this.agents = {};
     this.branch = null;
     this.cursor = 0;
@@ -207,6 +212,7 @@ export class EventTimeline {
     cancelAnimationFrame(this.frame);
     this.viewButton.remove();
     this.root.classList.remove("tl");
+    this.root.style.removeProperty("--tl-ruler-h");
     this.root.replaceChildren();
   }
 
@@ -241,6 +247,11 @@ export class EventTimeline {
     this.viewport.addEventListener("contextmenu", (event) => this.onLaneContext(event));
     this.viewport.addEventListener("wheel", (event) => this.onWheel(event), { passive: false });
     this.ruler.addEventListener("pointerdown", (event) => this.startScrub(event));
+    this.rulerTrack.addEventListener("click", (event) => this.onNoteClick(event));
+    this.rulerTrack.addEventListener("pointerover", (event) => this.onNoteHover(event));
+    this.rulerTrack.addEventListener("pointerout", (event) => {
+      if (!event.relatedTarget?.closest?.(".tl-note")) this.hideTooltip();
+    });
     this.markerLayer.addEventListener("click", (event) => this.onMarkerClick(event));
     this.markerLayer.addEventListener("contextmenu", (event) => this.onMarkerContext(event));
     this.markerLayer.addEventListener("keydown", (event) => this.onMarkerKey(event));
@@ -271,6 +282,7 @@ export class EventTimeline {
       input.addEventListener("change", () => this.setOption(key, input.checked));
       row.append(input, el("span", "", label));
       if (key === "connections") this.connectionsOption = row;
+      if (key === "resolved") this.resolvedOption = row;
       this.menu.append(row);
     }
     const zoom = el("div", "tl-zoom");
@@ -306,6 +318,7 @@ export class EventTimeline {
     this.view[key] = on;
     saveView(this.view);
     if (key === "connections") return this.drawLinks();
+    if (key === "resolved") return this.layout();
     if (key === "compact") {
       this.scaleMode = "auto";
       this.prepare();
@@ -331,6 +344,22 @@ export class EventTimeline {
     this.prepare();
     this.refresh();
     this.updateHeader();
+  }
+
+  // Comment threads ({ event_id, resolved, author, text }) drawn as notes above the lanes.
+  setComments(threads) {
+    this.threads = threads;
+    this.resolvedOption.hidden = !threads.some((thread) => thread.resolved);
+    this.layout();
+  }
+
+  // One note per commented event; resolved threads count only with "Show resolved".
+  commentNotes() {
+    const shown = this.threads.filter((thread) => (this.view.resolved || !thread.resolved) && this.byId?.has(thread.event_id));
+    return [...Map.groupBy(shown, (thread) => thread.event_id)].map(([id, threads]) => {
+      const event = this.byId.get(id);
+      return { event, threads, x: this.x(event) };
+    });
   }
 
   // Display clock and range; depends on events and the compact-gaps option.
@@ -383,7 +412,7 @@ export class EventTimeline {
   }
 
   laneY(laneId) {
-    return RULER + this.laneIndex.get(laneId) * ROW + ROW / 2;
+    return this.rulerHeight + this.laneIndex.get(laneId) * ROW + ROW / 2;
   }
 
   durationMinutes() {
@@ -412,7 +441,10 @@ export class EventTimeline {
     if (this.scaleMode === "fit") this.scale = this.fitScale();
     else if (this.scaleMode === "auto") this.scale = this.autoScale();
     this.width = Math.max(this.measuredWidth, Math.round(LABEL_WIDTH + this.durationMinutes() * this.scale + EDGE * 2));
-    this.height = RULER + this.lanes.length * ROW;
+    this.notes = this.commentNotes();
+    this.rulerHeight = RULER + (this.notes.length ? COMMENT_ROW : 0);
+    this.root.style.setProperty("--tl-ruler-h", `${this.rulerHeight}px`);
+    this.height = this.rulerHeight + this.lanes.length * ROW;
     this.scene.style.width = `${this.width}px`;
     this.scene.style.height = `${this.height}px`;
     this.linkLayer.setAttribute("width", this.width);
@@ -514,6 +546,7 @@ export class EventTimeline {
     this.drawBands(range);
     this.drawMarkers(range);
     this.drawLinks();
+    if (!this.tooltipAnchor?.isConnected) this.hideTooltip();
   }
 
   bandRects() {
@@ -553,6 +586,7 @@ export class EventTimeline {
       label.title = `${new Date(gap.from).toISOString()} → ${new Date(gap.to).toISOString()}`;
       items.push(label);
     }
+    for (const note of this.notes) if (note.x >= left && note.x <= right) items.push(this.noteNode(note));
     const forkX = this.forkX();
     if (forkX !== null && forkX >= left && forkX <= right) {
       const flag = el("span", "tl-fork-flag", "Forked here");
@@ -560,6 +594,19 @@ export class EventTimeline {
       items.push(flag);
     }
     this.rulerTrack.replaceChildren(...items);
+  }
+
+  noteNode({ event, threads, x }) {
+    const node = el("button", "tl-note");
+    node.type = "button";
+    node.dataset.eventId = event.id;
+    node.style.left = `${x}px`;
+    node.classList.toggle("is-future", event.position > this.cursor);
+    node.classList.toggle("is-resolved", threads.every((thread) => thread.resolved));
+    node.append(icon(ICONS.comment));
+    if (threads.length > 1) node.append(el("span", "tl-note-count", threads.length));
+    node.setAttribute("aria-label", `${threads.length} comment thread${threads.length === 1 ? "" : "s"} on event ${event.position}`);
+    return node;
   }
 
   drawBands({ left, right }) {
@@ -718,7 +765,7 @@ export class EventTimeline {
       return;
     }
     if (this.menu.contains(event.target)) return;
-    const onHeaderButton = event.target.closest?.(".tl-header button");
+    const onHeaderButton = event.target.closest?.(".tl-header button, .tl-note");
     const rows = this.shown.length ? this.shown : this.ordered;
     let position;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") position = this.stepTarget(event.key === "ArrowLeft" ? -1 : 1)?.position;
@@ -765,7 +812,7 @@ export class EventTimeline {
   }
 
   startScrub(event) {
-    if (event.button !== 0 || event.target.closest(".tl-corner")) return;
+    if (event.button !== 0 || event.target.closest(".tl-corner, .tl-note")) return;
     event.preventDefault();
     this.ruler.setPointerCapture?.(event.pointerId);
     this.seekAt(event.clientX);
@@ -838,6 +885,29 @@ export class EventTimeline {
     this.layout();
   }
 
+  noteAt(target) {
+    const node = target.closest(".tl-note");
+    return node && { node, note: this.notes.find((note) => note.event.id === node.dataset.eventId) };
+  }
+
+  onNoteClick(pointer) {
+    const hit = this.noteAt(pointer.target);
+    if (!hit) return;
+    this.select(hit.note.event.id);
+    this.handlers.onSelect(hit.note.event);
+  }
+
+  onNoteHover(pointer) {
+    const hit = this.noteAt(pointer.target);
+    if (!hit) return;
+    const [first, ...others] = hit.note.threads;
+    const head = el("div", "tl-tip-head");
+    head.append(el("strong", "", first.author));
+    const parts = [head, el("div", "tl-tip-preview", first.text)];
+    if (others.length) parts.push(el("div", "tl-tip-stage", `${others.length} more thread${others.length === 1 ? "" : "s"}`));
+    this.showTooltip(hit.node, parts);
+  }
+
   onMarkerHover(pointer) {
     const hit = this.markerEvent(pointer.target);
     if (!hit) return;
@@ -847,6 +917,11 @@ export class EventTimeline {
     const parts = [head];
     if (event.stage_label) parts.push(el("div", "tl-tip-stage", event.stage_label));
     if (event.preview) parts.push(el("div", "tl-tip-preview", event.preview));
+    this.showTooltip(node, parts);
+  }
+
+  showTooltip(node, parts) {
+    this.tooltipAnchor = node;
     this.tooltip.replaceChildren(...parts);
     this.tooltip.hidden = false;
     const rootRect = this.root.getBoundingClientRect(), rect = node.getBoundingClientRect();
@@ -871,11 +946,12 @@ export const lanesVisualization = {
       onContext: actions.contextMenu, onAgent: actions.selectAgent, onPlay: actions.togglePlayback }, { toolbar });
     let shown = {};
     return {
-      update({ events, branch, cursor, selectedId }) {
+      update({ events, branch, cursor, selectedId, comments }) {
         if (events !== shown.events || branch !== shown.branch) timeline.setData(events, branch);
+        if (comments !== shown.comments) timeline.setComments(comments.threads);
         timeline.setCursor(cursor, cursor !== shown.cursor);
         timeline.select(selectedId);
-        shown = { events, branch, cursor };
+        shown = { events, branch, cursor, comments };
       },
       stepTarget: (delta) => timeline.stepTarget(delta)?.position,
       destroy: () => timeline.destroy(),

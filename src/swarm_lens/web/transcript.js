@@ -212,7 +212,7 @@ export class Transcript {
   }
 
   update({ scroll }) {
-    const { events, agents, cursor, selectedId, agentId } = this.props;
+    const { events, agents, cursor, selectedId, agentId, comments } = this.props;
     const matching = visibleEvents(events, { agentId, kinds: this.kinds, query: this.query, agents });
     const split = matching.findIndex((event) => event.position > cursor);
     const boundary = split === -1 ? matching.length : split;
@@ -234,6 +234,7 @@ export class Transcript {
       node.classList.toggle("tx-selected", event.id === selectedId);
       node.classList.toggle("tx-at-cursor", event === atCursor);
       this.setFuture(node, event.position > cursor);
+      this.setCommentBadge(node, event, comments?.openCount(event.id) ?? 0);
     }
     const anchor = atCursor || shown[0];
     if (scroll && anchor) this.nodes.get(anchor.id).scrollIntoView({ block: "nearest" });
@@ -248,6 +249,20 @@ export class Transcript {
     this.lateObserver.unobserve(node);
     (future ? this.lateObserver : this.observer).observe(node);
     node.dataset.watch = watch;
+  }
+
+  setCommentBadge(node, event, count) {
+    let badge = node.querySelector(".tx-comments");
+    if (!count) return badge?.remove();
+    if (!badge) {
+      badge = button("", (click) => {
+        click.stopPropagation();
+        this.handlers.onSelect(event);
+      }, "tx-comments");
+      node.querySelector(".tx-time").before(badge);
+    }
+    badge.textContent = formatNumber(count);
+    badge.setAttribute("aria-label", `${count} open comment${count === 1 ? "" : "s"}`);
   }
 
   renderToolbar(total, agents, agentId) {
