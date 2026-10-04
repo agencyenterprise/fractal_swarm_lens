@@ -941,6 +941,11 @@ export class EventTimeline {
 export const lanesVisualization = {
   id: "lanes",
   title: "Lanes",
+  about: {
+    question: "When did each agent act?",
+    read: "One row per agent. Each dot is one event at the time it happened; faded dots come after the cursor. Orange flags are changes made on a fork, and a dashed line marks where this branch forked.",
+    method: "Recorded timestamps. Gaps longer than a minute are folded (View → Compact gaps).",
+  },
   mount(root, actions, toolbar) {
     const timeline = new EventTimeline(root, { onSeek: actions.seek, onSelect: actions.select,
       onContext: actions.contextMenu, onAgent: actions.selectAgent, onPlay: actions.togglePlayback }, { toolbar });

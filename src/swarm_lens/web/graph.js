@@ -325,5 +325,10 @@ class InfluenceGraph {
 export const influenceVisualization = {
   id: "influence",
   title: "Influence",
+  about: {
+    question: "Who reads whom?",
+    read: "Each node is an agent, sized by how often the others read it, with sent and read counts. An arrow from A to B means B read A's messages before answering; thicker means more often. Select a message to see what it read and who read it next.",
+    method: "Counted up to the cursor from each message's recorded delivery list; without one, from reply links, then channel membership.",
+  },
   mount: (root, actions) => new InfluenceGraph(root, actions),
 };

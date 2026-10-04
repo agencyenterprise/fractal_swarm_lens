@@ -499,6 +499,11 @@ class EchoView {
 export const echoScore = {
   id: "echo-score",
   title: "Echo",
+  about: {
+    question: "Are agents reasoning, or copying what they read?",
+    read: "One line per agent: how much of each answer is copied from the messages it read, by stage. A sharp rise means an agent started copying. Self-echo (toggle) is how much an agent repeats its own previous answer.",
+    method: "Share of the answer's 5-word phrases that also appear in the messages it read.",
+  },
   mount(root, actions, toolbar) {
     const view = new EchoView(root, actions, toolbar);
     return { update: (context) => view.update(context), destroy: () => view.destroy() };

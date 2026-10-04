@@ -13,6 +13,7 @@ const hosts = new Set();
 
 // Registers a view for the shared cursor area. `mount(root, actions, toolbar)` returns
 // `{ update(context), destroy(), stepTarget?(delta) }`; only the visible view is mounted and updated.
+// An optional `about: { question, read, method }` explains the view behind the ⓘ button.
 export function registerVisualization(config) {
   const { id, title, mount } = config || {};
   if (!id || !title || typeof mount !== "function") throw new Error("A visualization needs an id, a title and a mount function.");
@@ -70,10 +71,17 @@ export class VisualizationHost {
     this.playback = new PlaybackBar({ onStep: (delta) => this.step(delta), onPlay: () => this.actions.togglePlayback() });
     this.tools = el("div", "viz-tools");
     const header = el("header", "viz-header");
-    header.append(this.switcher, ...this.playback.nodes, this.speedControl(), el("span", "viz-spacer"), this.tools);
+    this.aboutButton = button("ⓘ", () => this.toggleAbout(), "icon ghost viz-about-button");
+    this.aboutButton.setAttribute("aria-expanded", "false");
+    this.about = el("div", "menu viz-about");
+    this.about.hidden = true;
+    header.append(this.switcher, this.aboutButton, ...this.playback.nodes, this.speedControl(), el("span", "viz-spacer"), this.tools);
     this.body = el("div", "viz-body");
     this.root.classList.add("viz");
-    this.root.replaceChildren(header, this.body);
+    this.root.replaceChildren(header, this.body, this.about);
+    document.addEventListener("pointerdown", (event) => {
+      if (!this.about.hidden && !this.about.contains(event.target) && event.target !== this.aboutButton) this.closeAbout();
+    });
     this.root.addEventListener("keydown", (event) => this.onKey(event));
   }
 
@@ -91,6 +99,23 @@ export class VisualizationHost {
     return select;
   }
 
+  toggleAbout() {
+    if (!this.about.hidden) return this.closeAbout();
+    const { title, about } = this.views.get(this.active).config;
+    this.about.replaceChildren(el("strong", "viz-about-question", about.question), el("p", "", about.read), el("p", "muted", about.method));
+    this.about.setAttribute("aria-label", `About ${title}`);
+    this.about.hidden = false;
+    this.aboutButton.setAttribute("aria-expanded", "true");
+    const anchor = this.aboutButton.getBoundingClientRect();
+    this.about.style.left = `${Math.min(anchor.left, innerWidth - this.about.offsetWidth - 8)}px`;
+    this.about.style.top = `${anchor.bottom + 6}px`;
+  }
+
+  closeAbout() {
+    this.about.hidden = true;
+    this.aboutButton.setAttribute("aria-expanded", "false");
+  }
+
   // A view registered later (a plugin) opens at once only if it was the remembered choice.
   add(config) {
     this.addTab(config);
@@ -99,6 +124,7 @@ export class VisualizationHost {
 
   addTab(config) {
     const tab = button(config.title, () => this.show(config.id, { remember: true }));
+    if (config.about) tab.title = config.about.question;
     tab.setAttribute("aria-pressed", "false");
     this.switcher.append(tab);
     const root = el("div", "viz-view");
@@ -114,6 +140,9 @@ export class VisualizationHost {
     if (this.active === id) return;
     this.unmount(this.views.get(this.active));
     this.active = id;
+    this.closeAbout();
+    this.aboutButton.hidden = !next.config.about;
+    this.aboutButton.setAttribute("aria-label", `About ${next.config.title}`);
     for (const view of this.views.values()) view.tab.setAttribute("aria-pressed", String(view === next));
     next.root.hidden = false;
     this.tools.replaceChildren(next.tools);
@@ -151,6 +180,7 @@ export class VisualizationHost {
 
   // Views handle their own keys first; anything left over moves the shared cursor.
   onKey(event) {
+    if (event.key === "Escape" && !this.about.hidden) return this.closeAbout();
     if (event.defaultPrevented || event.target.closest("select, input, textarea")) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();

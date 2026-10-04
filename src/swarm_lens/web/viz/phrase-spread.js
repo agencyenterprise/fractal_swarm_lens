@@ -434,6 +434,11 @@ function columnHeader(column) {
 export const phraseSpread = {
   id: "phrase-spread",
   title: "Phrase spread",
+  about: {
+    question: "Where does a phrase appear, and when did it jump to another agent?",
+    read: "Type a phrase. Each cell is one agent in one stage; darker means more matches. Numbered markers give the order in which agents first used it. Suggested words are ones one agent introduced and others picked up later.",
+    method: "Case-insensitive literal match on the full text of each message.",
+  },
   mount(root, actions, toolbar) {
     const view = new PhraseSpreadView(root, actions, toolbar);
     return { update: (context) => view.update(context), destroy: () => view.destroy() };

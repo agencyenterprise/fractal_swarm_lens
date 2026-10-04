@@ -304,6 +304,11 @@ function selectedRoot(graph, context) {
 export const blastRadius = {
   id: "blast-radius",
   title: "Blast radius",
+  about: {
+    question: "How far did one message spread?",
+    read: "Select a message: every later message that read it, directly or through others, appears by stage. With nothing selected, the widest-reaching messages are listed.",
+    method: "Follows recorded delivery links forward from the message. When every agent reads every message, nearly everything reaches 100%.",
+  },
   mount(root, actions) {
     const frame = el("div", "br");
     root.append(frame);

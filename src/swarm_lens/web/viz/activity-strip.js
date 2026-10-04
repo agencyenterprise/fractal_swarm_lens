@@ -547,6 +547,11 @@ function place(node, row, column) {
 export const activityStrip = {
   id: "activity-strip",
   title: "Activity",
+  about: {
+    question: "Who is unusually loud, quiet, slow or verbose?",
+    read: "Rows are agents, columns are stages. Shading compares each cell with that agent's own usual value, so a spike stands out per agent. Flags list cells over 2× usual and silences.",
+    method: "Counts and averages per stage; tokens and latency appear only when the run recorded them.",
+  },
   mount(root, actions, toolbar) {
     const view = new ActivityView(root, actions, toolbar);
     return { update: (context) => view.update(context), destroy: () => view.destroy() };
