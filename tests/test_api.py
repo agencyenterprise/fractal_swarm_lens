@@ -98,10 +98,11 @@ def test_cli_composition_serves_bundled_and_configured_plugins(tmp_path):
 
     with TestClient(build_app(tmp_path, plugin_specs=[f"{__name__}:notes_plugin"])) as client:
         capabilities = client.get("/api/workspace").json()["capabilities"]
-        assert [plugin["id"] for plugin in client.get("/api/plugins").json()["plugins"]] == ["activity"]
+        assert [plugin["id"] for plugin in client.get("/api/plugins").json()["plugins"]] == ["activity", "stance-lanes"]
         assert capabilities["live"]["runtimes"] == ["crewai-trace"]
-        mast, notes = capabilities["web_plugins"]
-        assert (mast["id"], notes["id"], notes["ui"]) == ("mast", "notes", None)
+        mast, stance, notes = capabilities["web_plugins"]
+        assert (mast["id"], stance["id"], notes["id"], notes["ui"]) == ("mast", "stance-lanes", "notes", None)
         assert client.get(mast["ui"]["module"]).status_code == 200
+        assert client.get(stance["ui"]["module"]).status_code == 200
         assert client.get("/api/plugins/notes/runs").json() == {"runs": 0, "data": str(tmp_path)}
         assert client.get("/").status_code == 200
