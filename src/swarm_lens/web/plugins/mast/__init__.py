@@ -6,11 +6,9 @@ __all__ = ["create", "mast_extension"]
 
 
 def create(services: PluginServices) -> WebExtension:
-    """The MAST plugin with the OpenAI judge and its job store under the data directory."""
+    """The MAST report view with the OpenAI judge; its jobs and findings live in the shared plugin service."""
     from swarm_lens.observability.mast import MastPlugin
     from swarm_lens.observability.mast.judge import OpenAIMastJudge
-    from swarm_lens.observability.mast.service import MastJobs, MastService
+    from swarm_lens.observability.mast.service import MastService
 
-    service = MastService(services.framework, MastPlugin(OpenAIMastJudge()),
-                          MastJobs(services.data / "mast.sqlite"), services.artifacts)
-    return mast_extension(service)
+    return mast_extension(MastService(services.plugins, MastPlugin(OpenAIMastJudge()), services.artifacts))

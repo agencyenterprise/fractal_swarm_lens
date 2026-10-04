@@ -4,11 +4,13 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
+from swarm_lens import PluginService
 from swarm_lens.adapters.artifacts import FileArtifacts
+from swarm_lens.adapters.jobs import JobStore
 from swarm_lens.core.models import DomainError
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.method import assets, make_prompt, parse_response
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.plugins.mast import mast_extension
 
@@ -42,12 +44,13 @@ class FakeJudge:
 
 @pytest.fixture
 def service(framework, tmp_path):
-    return MastService(framework, MastPlugin(FakeJudge()), MastJobs(tmp_path / "mast.sqlite"),
-                       FileArtifacts(tmp_path / "artifacts"))
+    plugins = PluginService(framework, jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    return MastService(plugins, MastPlugin(FakeJudge()), FileArtifacts(tmp_path / "artifacts"))
 
 
 def app(service):
-    return create_app(service.framework, service.artifacts, extensions=(mast_extension(service),))
+    return create_app(service.framework, service.artifacts, plugins=service.plugins,
+                      extensions=(mast_extension(service),))
 
 
 def test_bundled_assets_match_pinned_notebook_and_retain_ambiguities():
@@ -94,9 +97,9 @@ def test_api_discovery_import_and_analysis_persist_after_restart(service):
         job_id = submitted.json()["id"]
         record = client.get(f"/api/plugins/mast/analyses/{job_id}").json()
         assert record["status"] == "completed"
-        assert record["analysis"]["output"]["human_reviewed"] is False
+        assert record["analysis"]["output"]["report"]["human_reviewed"] is False
         assert len(service.plugin.judge.prompts) == 2
-        assert service.framework.store.analyses(branch["id"], branch["head"])[0]["id"] == job_id
+        assert service.framework.store.analyses(branch["id"], branch["head"])[0] == record["analysis"]
         assert client.get("/api/plugins/caspian/capabilities").status_code == 404
     with TestClient(app(service)) as client:
         jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch["id"]}).json()["jobs"]
@@ -148,8 +151,10 @@ def test_invalid_provider_output_is_saved_for_review_not_scored_negative(service
     service.execute(job["id"])
     result = service.jobs.get(job["id"])
     assert result["status"] == "needs_review"
-    assert all(label["present"] is None for label in result["analysis"]["output"]["labels"])
-    assert result["analysis"]["output"]["raw_response"] == service.plugin.judge.text
+    report = result["analysis"]["output"]["report"]
+    assert all(label["present"] is None for label in report["labels"])
+    assert report["raw_response"] == service.plugin.judge.text
+    assert result["analysis"]["output"]["annotations"] == []
 
 
 def test_provider_error_has_no_fabricated_results_or_sensitive_detail(service, branch):

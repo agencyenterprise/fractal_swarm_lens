@@ -48,9 +48,9 @@ Dependencies point inward. The core and application layers import no HTTP server
 
 - **State:** agents, channels, messages, memory, tool calls, and an environment.
 - **History:** runs, branches, ordered immutable events, and snapshots.
-- **Extensions:** application-owned `Source`, `Runtime`, `Plugin`, `HistoryStore`, and `VersionStore` protocols.
+- **Extensions:** application-owned `Source`, `Runtime`, `HistoryStore`, and `VersionStore` protocols, and `Analyzer`, `StreamingAnalyzer` and `Intervention` plugins.
 
-See [architecture](docs/architecture.md), [developer integration](docs/integration.md), and [AI Village investigation](docs/ai-village.md).
+See [architecture](docs/architecture.md), [developer integration](docs/integration.md), [writing a plugin](docs/plugins.md), and [AI Village investigation](docs/ai-village.md).
 
 ## What works today
 

@@ -3,10 +3,12 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from swarm_lens import PluginService
 from swarm_lens.adapters.artifacts import FileArtifacts
+from swarm_lens.adapters.jobs import JobStore
 from swarm_lens.observability.mast.evidence import generate_evidence, validate_traits
 from swarm_lens.observability.mast.method import MastPlugin, assets, history_trace
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.plugins.mast import mast_extension
 
@@ -95,9 +97,8 @@ class Judge:
 
 def test_evidence_failure_preserves_original_assessment(framework, branch):
     plugin = MastPlugin(Judge(fail=True))
-    framework.plugins[plugin.id] = plugin
-    record = framework.analyze("mast", branch.id, 4)
-    output = record["output"]
+    record = PluginService(framework, (plugin,)).analyze("mast", branch.id, 1, 4)
+    output = record["output"]["report"]
     assert output["parse_status"] == "complete"
     assert next(x for x in output["labels"] if x["code"] == "1.3")["present"] is True
     assert output["evidence"]["status"] == "unavailable"
@@ -119,14 +120,23 @@ def test_api_presents_frozen_evidence_and_library_matches(framework, branch, tmp
         if category["code"] not in {"1.3", "1.1"}:
             payload["traits"].append({"code": category["code"], "explanation": "Absent in the saved prefix.", "occurrences": []})
     plugin = MastPlugin(Judge(payload))
-    framework.plugins[plugin.id] = plugin
-    direct = framework.analyze("mast", child.id, 4)
-    service = MastService(framework, plugin, MastJobs(tmp_path / "mast.sqlite"), FileArtifacts(tmp_path / "artifacts"))
+    plugins = PluginService(framework, (plugin,), jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    direct = plugins.analyze("mast", child.id, 1, 4)
+    service = MastService(plugins, plugin, FileArtifacts(tmp_path / "artifacts"))
     job = service.submit(child.id, 4, "partial")
     framework.intervene(child.id, "agent.updated", {"id": "a", "system_prompt": "future child"}, 4)
     service.execute(job["id"])
-    assert service.jobs.get(job["id"])["analysis"]["output"]["evidence"]["traits"] == direct["output"]["evidence"]["traits"]
-    with TestClient(create_app(framework, service.artifacts, extensions=(mast_extension(service),))) as client:
+    saved = service.jobs.get(job["id"])["analysis"]["output"]
+    assert saved["report"]["evidence"]["traits"] == direct["output"]["report"]["evidence"]["traits"]
+    trait = next(label for label in saved["report"]["labels"] if label["code"] == "1.3")
+    assert saved["annotations"] == direct["output"]["annotations"] == [{
+        "seq_from": 4, "seq_to": 4, "label": f"MAST 1.3 {trait['label']}",
+        "agent_id": None, "score": None, "plugin": "mast", "cited_event_ids": [event_id],
+        "data": {"code": "1.3", "group": trait["group"], "evidence_status": "located",
+                 "explanation": "The correction follows two repeated messages.", "counterevidence_event_ids": []}}]
+    with TestClient(create_app(framework, service.artifacts, plugins=plugins,
+                               extensions=(mast_extension(service),))) as client:
+        assert client.get(f"/api/branches/{child.id}/annotations").json()["annotations"] == saved["annotations"]
         path = f"/api/plugins/mast/analyses/{job['id']}/traits/1.3"
         detail = client.get(path).json()
         assert detail["cursor"] == 4 and detail["branch_id"] == child.id
@@ -139,7 +149,7 @@ def test_api_presents_frozen_evidence_and_library_matches(framework, branch, tmp
         client.get(path)
         assert len(plugin.judge.prompts) == calls, "Opening a disclosure must never call the judge"
         saved = service.jobs.get(job["id"])
-        del saved["analysis"]["output"]["evidence"]
+        del saved["analysis"]["output"]["report"]["evidence"]
         service.jobs.update(saved)
         legacy = client.get(path).json()
         assert legacy["status"] == "unavailable" and legacy["occurrences"] == []
@@ -160,7 +170,8 @@ def test_presenter_keeps_non_message_context_and_later_counterevidence(framework
     history = framework.history(branch.id)
     first, last = history[3].id, history[-1].id
     plugin = MastPlugin(Judge(response(first, last, [first], [last])))
-    service = MastService(framework, plugin, MastJobs(tmp_path / "mast.sqlite"), FileArtifacts(tmp_path / "artifacts"))
+    plugins = PluginService(framework, jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    service = MastService(plugins, plugin, FileArtifacts(tmp_path / "artifacts"))
     job = service.submit(branch.id, 7, "partial")
     service.execute(job["id"])
     detail = present_trait_details(service, job["id"], "1.3")

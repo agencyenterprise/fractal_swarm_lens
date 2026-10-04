@@ -14,9 +14,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from swarm_lens import Framework
+from swarm_lens.application.plugins import PluginService, event_agent_id
 from swarm_lens.core.models import Conflict, DomainError
 from .extensions import WebExtension
 from .live import BranchIntervention
+from .plugins_api import plugins_router
 
 
 class ForkRequest(BaseModel):
@@ -29,12 +31,6 @@ class InterventionRequest(BaseModel):
     kind: str
     data: dict
     expected_head: int = Field(ge=0)
-
-
-class AnalysisRequest(BaseModel):
-    plugin_id: str = "activity"
-    cursor: int = Field(ge=0)
-    config: dict = Field(default_factory=dict)
 
 
 class TraceRequest(BaseModel):
@@ -88,9 +84,7 @@ def event_summary(event):
                     if event.kind == 'environment.updated' and event.source.get('origin') == 'crewai'
                     and cp.get('phase') == 'boundary' else None)
     family = event.kind.split(".")[0]
-    agent_id = d.get("sender_id") or d.get("agent_id") or d.get("owner_id")
-    if family == "agent":
-        agent_id = d.get("id")
+    agent_id = event_agent_id(event)
     text = d.get("content") or d.get("goal") or d.get("tool_name") or d.get("name") or ""
     return {"id": event.id, "position": event.position, "kind": event.kind,
             "at": event.occurred_at, "agent_id": agent_id, "channel_id": d.get("channel_id"),
@@ -119,12 +113,15 @@ def include_extensions(app: FastAPI, extensions: tuple[WebExtension, ...]) -> No
         app.include_router(extension.router)
 
 
-def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None) -> FastAPI:
+def create_app(framework: Framework, artifacts=None, *, plugins: PluginService | None = None,
+               extensions=(), live=None) -> FastAPI:
+    plugins = plugins or PluginService(framework)
     extensions = tuple(extensions)
     if len({extension.id for extension in extensions}) != len(extensions):
         raise ValueError("Duplicate web extension ID")
     @asynccontextmanager
     async def lifespan(app):
+        plugins.recover_interrupted()
         if live:
             live.recover()
         yield
@@ -220,10 +217,6 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
                 return asdict(framework.intervene(branch_id, request.kind, request.data, request.expected_head, actor="explorer"))
         return asdict(framework.intervene(branch_id, request.kind, request.data, request.expected_head, actor="explorer"))
 
-    @app.post("/api/branches/{branch_id}/analyses")
-    def analyze(branch_id: str, request: AnalysisRequest):
-        return framework.analyze(request.plugin_id, branch_id, request.cursor, request.config)
-
     @app.post("/api/branches/{branch_id}/checkpoint")
     def checkpoint(branch_id: str, request: CheckpointRequest):
         return {"commit": framework.checkpoint(branch_id, request.cursor, request.message)}
@@ -268,6 +261,7 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
         except (ValueError, FileNotFoundError) as exc:
             raise DomainError("Unknown artifact") from exc
 
+    app.include_router(plugins_router(plugins))
     include_extensions(app, extensions)
 
     if live:

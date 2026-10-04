@@ -12,7 +12,7 @@ import sys
 import time
 from types import SimpleNamespace
 
-from swarm_lens import Framework
+from swarm_lens import Framework, PluginService
 from swarm_lens.adapters.openai_embeddings import OpenAITextEncoder
 from swarm_lens.adapters.sqlite import SQLiteHistory
 from swarm_lens.observability import ObservabilityPlugin
@@ -113,12 +113,12 @@ def run_case(task, condition, settings, client, budget, encoder, directory, comp
         plugin = ObservabilityPlugin('caspian', Caspian.version,
             lambda config: Caspian(AGENTS, EDGES, CaspianConfig(**config),
                                   feature_schema=encoder.feature_schema, observed_channels=('comm',)), DebateHistory())
-        framework = Framework(SQLiteHistory(directory / 'history.sqlite'), plugins=(plugin,))
+        framework = Framework(SQLiteHistory(directory / 'history.sqlite'))
         branch = framework.create_run(f"ACIArena {task['id']} {condition}")
         framework.ingest(branch.id, DebateSource(trace, monitor.observations))
         cursor = framework.store.branch(branch.id).head
-        analysis = framework.analyze(plugin.id, branch.id, cursor)
-        if analysis['output']['turns'] != monitor.results:
+        analysis = PluginService(framework, (plugin,)).analyze(plugin.id, branch.id, 1, cursor)
+        if analysis['output']['report']['turns'] != monitor.results:
             raise AssertionError('Historical replay disagrees with online CASPIAN results')
         result['history'] = {'branch_id': branch.id, 'cursor': cursor, 'analysis_id': analysis['id'],
                              'input_digest': analysis['input_digest'], 'replay_matches': True}
