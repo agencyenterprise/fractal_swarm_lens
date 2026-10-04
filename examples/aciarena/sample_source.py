@@ -96,7 +96,8 @@ class ExampleSource:
                 yield Fact('observation.recorded', {'type': 'instruction_injection', 'agent_id': row['agent'],
                     'content': row['content'], 'schedule': row['schedule'], 'attack': row['attack'],
                     'metadata': {'stage_label': 'Instruction injection installed'}}, at,
-                    {**source, 'origin': 'intervention', 'actor': 'ACIArena', 'applied_to_runtime': True})
+                    # Part of the recorded run, not a change to it: an observation, not an intervention.
+                    {**source, 'actor': 'ACIArena', 'applied_to_runtime': True})
             elif kind == 'model_call':
                 artifact = self.artifacts.put(json.dumps(row, ensure_ascii=False).encode())
                 delivered = [f"call-{item['sequence']}" for item in row['sources']]
