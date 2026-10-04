@@ -1,6 +1,9 @@
 import { $, el, button, api, post, toast, failure, formatNumber, time } from "./ui.js";
 import { renderMarkdownInto } from "./markdown.js";
-import { EventTimeline } from "./timeline.js";
+import { lanesVisualization } from "./timeline.js";
+import { influenceVisualization } from "./graph.js";
+import { builtinVisualizations } from "./viz/index.js";
+import { VisualizationHost, registerVisualization, playbackInterval } from "./visualizations.js";
 import { Transcript } from "./transcript.js";
 import { renderInspector } from "./inspect.js";
 import { installCompare } from "./compare.js";
@@ -46,12 +49,15 @@ const runPicker = new Picker({ id: "conversation", label: "Run", heading: "Runs"
 $("#run-select").append(runPicker.root);
 runPicker.mount();
 
-const timeline = new EventTimeline($("#timeline"), {
-  onSeek: (position) => userSeek(position),
-  onSelect: (event) => selectEvent(event),
-  onContext: (event, position, point) => openContextMenu(event, position, point),
-  onAgent: (id) => selectAgent(id),
-  onPlay: () => togglePlayback(),
+for (const visualization of [lanesVisualization, influenceVisualization, ...builtinVisualizations])
+  registerVisualization(visualization);
+const visualizations = new VisualizationHost($("#timeline"), {
+  seek: (position) => userSeek(position),
+  select: (event) => selectEvent(event).catch(failure),
+  selectAgent: (id) => selectAgent(id),
+  contextMenu: (event, position, point) => openContextMenu(event, position, point).catch(failure),
+  togglePlayback: () => togglePlayback(),
+  loadDetail: (event) => loadDetail(view.branch.id, event),
 });
 const transcript = new Transcript($("#transcript"), {
   onSelect: (event) => selectEvent(event),
@@ -274,7 +280,6 @@ async function loadBranch(id, cursor) {
   view.agentFilter = null;
   runPicker.value = view.run.id;
   renderAppBar();
-  timeline.setData(view.events, view.branch);
   await seek(cursor ?? view.branch.head);
   liveView.connect(view.branch, view.run.metadata.source_type === "live" && cursor === undefined);
 }
@@ -290,7 +295,6 @@ async function seek(cursor, { moveSelection = false } = {}) {
   cursor = Math.max(0, Math.min(view.branch.head, Number(cursor)));
   view.cursor = cursor;
   saveRoute();
-  timeline.setCursor(cursor, true);
   const ticket = ++seekTicket;
   const state = await api(`/branches/${view.branch.id}/state?cursor=${cursor}`);
   if (ticket !== seekTicket) return;
@@ -306,7 +310,8 @@ async function seek(cursor, { moveSelection = false } = {}) {
 
 function renderExplorer() {
   const selectedId = view.selection.type === "event" ? view.selection.event.id : null;
-  timeline.select(selectedId);
+  visualizations.update({ events: view.events, branch: view.branch, state: view.state, cursor: view.cursor,
+    selectedId, agents: view.state.agents });
   transcript.render({ events: view.events, agents: view.state.agents, cursor: view.cursor, selectedId,
     agentId: view.agentFilter });
   renderSelection().catch(failure);
@@ -320,7 +325,7 @@ async function renderSelection() {
     if (ticket !== inspectorTicket) return;
     selection = { ...selection, detail };
   }
-  renderInspector($("#inspector"), selection, { state: view.state, run: view.run, branch: view.branch,
+  renderInspector($("#inspector"), selection, { state: view.state, events: view.events, run: view.run, branch: view.branch,
     cursor: view.cursor, actions: inspectorActions });
 }
 
@@ -356,14 +361,14 @@ function stopPlayback() {
   if (!view.playing) return;
   view.playing = false;
   clearTimeout(playTimer);
-  timeline.setPlaying(false);
+  visualizations.setPlaying(false);
 }
 
 function togglePlayback() {
   liveView.pause();
   if (view.playing) return stopPlayback();
   view.playing = true;
-  timeline.setPlaying(true);
+  visualizations.setPlaying(true);
   const start = view.cursor >= view.branch.head ? 0 : view.cursor;
   seek(start).then(playStep).catch(failure);
 }
@@ -372,7 +377,7 @@ async function playStep() {
   if (!view.playing) return;
   if (view.cursor >= view.branch.head) return stopPlayback();
   await seek(view.cursor + 1);
-  if (view.playing) playTimer = setTimeout(playStep, 350);
+  if (view.playing) playTimer = setTimeout(playStep, playbackInterval());
 }
 
 // Live updates arrive in order; a gap means the stream must reconnect.
@@ -386,7 +391,6 @@ async function applyLiveEvents(data, follow) {
   const stored = view.workspace.branches.find((branch) => branch.id === view.branch.id);
   if (stored) Object.assign(stored, view.branch);
   timelines.delete(view.branch.id);
-  timeline.setData(view.events, view.branch);
   renderAppBar();
   await seek(follow ? view.branch.head : view.cursor);
 }
@@ -536,7 +540,7 @@ async function saveCheckpoint() {
 }
 
 const inspectorActions = { fork: forkDialog, editAgent, removeAgent, addAgent, editGoal, selectAgent, clearSelection,
-  readMemory, readArtifact, readTask };
+  readMemory, readArtifact, readTask, selectEvent };
 
 $("#fork-button").onclick = forkDialog;
 
@@ -619,6 +623,7 @@ function pluginHost(manifest) {
       await selectEvent(event);
     },
     addAction: (action) => menuActions.push({ ...action, plugin: manifest.title }),
+    registerVisualization,
   };
 }
 

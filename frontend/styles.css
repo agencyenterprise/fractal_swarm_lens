@@ -5,4 +5,9 @@
 @import "./css/inspector.css";
 @import "./css/compare.css";
 @import "./css/mast.css";
+@import "./css/visualizations.css";
+@import "./css/viz-blast-radius.css";
+@import "./css/viz-phrase-spread.css";
+@import "./css/viz-echo-score.css";
+@import "./css/viz-activity-strip.css";
 @source "./components.js";

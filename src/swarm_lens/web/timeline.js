@@ -79,6 +79,35 @@ function lastAtOrBefore(items, value, key) {
   return low - 1;
 }
 
+// Transport, cursor position, time and stage; shared by every view that moves the cursor.
+export class PlaybackBar {
+  constructor({ onStep, onPlay }) {
+    this.playButton = iconButton("Play", ICONS.play, onPlay);
+    this.transport = el("div", "tl-transport");
+    this.transport.append(iconButton("Previous event", ICONS.prev, () => onStep(-1)), this.playButton,
+      iconButton("Next event", ICONS.next, () => onStep(1)));
+    this.positionText = el("span", "tl-position mono");
+    this.timeText = el("span", "tl-time mono");
+    this.stageText = el("span", "tl-stage");
+    this.nodes = [this.transport, this.positionText, this.timeText, this.stageText];
+  }
+
+  // `ordered` is sorted by position.
+  update(ordered, branch, cursor) {
+    this.positionText.textContent = `${cursor} / ${branch?.head ?? ordered.length}`;
+    const index = lastAtOrBefore(ordered, cursor, (event) => event.position);
+    this.timeText.textContent = ordered[index] ? time(ordered[index].at) : "";
+    let stage = null;
+    for (let back = index; back >= 0 && !stage; back--) stage = stageOf(ordered[back]);
+    this.stageText.textContent = stage || "";
+  }
+
+  setPlaying(playing) {
+    this.playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
+    this.playButton.replaceChildren(icon(playing ? ICONS.pause : ICONS.play));
+  }
+}
+
 function collectAgents(events) {
   const agents = {};
   for (const event of events) {
@@ -128,8 +157,9 @@ function compactStage(label, neighbour) {
 
 const fitsLabel = (text, width) => text.length * 6 + 8 <= width;
 
+// With a `toolbar`, the timeline puts only its View button there and leaves playback to its host.
 export class EventTimeline {
-  constructor(root, handlers) {
+  constructor(root, handlers, { toolbar } = {}) {
     this.root = root;
     this.handlers = handlers;
     this.events = [];
@@ -147,32 +177,37 @@ export class EventTimeline {
     this.nodes = new Map();
     this.pool = [];
     this.layoutVersion = 0;
-    this.build();
+    this.build(toolbar);
   }
 
-  build() {
+  build(toolbar) {
     this.root.classList.add("tl");
-    this.root.replaceChildren(this.buildHeader(), this.buildViewport(), this.buildTooltip(), this.buildMenu());
+    this.viewButton = button("View", () => this.toggleMenu(), "ghost tl-view-button");
+    this.viewButton.setAttribute("aria-haspopup", "true");
+    this.viewButton.setAttribute("aria-expanded", "false");
+    if (toolbar) toolbar.append(this.viewButton);
+    this.root.replaceChildren(...(toolbar ? [] : [this.buildHeader()]), this.buildViewport(), this.buildTooltip(), this.buildMenu());
     this.root.addEventListener("keydown", (event) => this.onKey(event));
-    new ResizeObserver(() => {
+    this.resizeObserver = new ResizeObserver(() => {
       if (this.viewport.clientWidth !== this.measuredWidth) this.layout();
-    }).observe(this.viewport);
+    });
+    this.resizeObserver.observe(this.viewport);
   }
 
   buildHeader() {
     const header = el("header", "tl-header");
-    const transport = el("div", "tl-transport");
-    this.playButton = iconButton("Play", ICONS.play, () => this.handlers.onPlay());
-    transport.append(iconButton("Previous event", ICONS.prev, () => this.step(-1)), this.playButton,
-      iconButton("Next event", ICONS.next, () => this.step(1)));
-    this.positionText = el("span", "tl-position mono");
-    this.timeText = el("span", "tl-time mono");
-    this.stageText = el("span", "tl-stage");
-    this.viewButton = button("View", () => this.toggleMenu(), "ghost tl-view-button");
-    this.viewButton.setAttribute("aria-haspopup", "true");
-    this.viewButton.setAttribute("aria-expanded", "false");
-    header.append(transport, this.positionText, this.timeText, this.stageText, el("span", "tl-spacer"), this.viewButton);
+    this.playback = new PlaybackBar({ onStep: (delta) => this.step(delta), onPlay: () => this.handlers.onPlay() });
+    header.append(...this.playback.nodes, el("span", "tl-spacer"), this.viewButton);
     return header;
+  }
+
+  destroy() {
+    this.closeMenu();
+    this.resizeObserver.disconnect();
+    cancelAnimationFrame(this.frame);
+    this.viewButton.remove();
+    this.root.classList.remove("tl");
+    this.root.replaceChildren();
   }
 
   buildViewport() {
@@ -651,8 +686,7 @@ export class EventTimeline {
   }
 
   setPlaying(playing) {
-    this.playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
-    this.playButton.replaceChildren(icon(playing ? ICONS.pause : ICONS.play));
+    this.playback?.setPlaying(playing);
   }
 
   select(eventId) {
@@ -662,13 +696,7 @@ export class EventTimeline {
   }
 
   updateHeader() {
-    this.positionText.textContent = `${this.cursor} / ${this.branch?.head ?? this.events.length}`;
-    const index = lastAtOrBefore(this.ordered, this.cursor, (event) => event.position);
-    const current = this.ordered[index];
-    this.timeText.textContent = current ? time(current.at) : "";
-    let stage = null;
-    for (let back = index; back >= 0 && !stage; back--) stage = stageOf(this.ordered[back]);
-    this.stageText.textContent = stage || "";
+    this.playback?.update(this.ordered, this.branch, this.cursor);
   }
 
   stepTarget(delta) {
@@ -833,3 +861,24 @@ export class EventTimeline {
     this.tooltip.hidden = true;
   }
 }
+
+// The lanes view: the EventTimeline driven by the shared visualization context.
+export const lanesVisualization = {
+  id: "lanes",
+  title: "Lanes",
+  mount(root, actions, toolbar) {
+    const timeline = new EventTimeline(root, { onSeek: actions.seek, onSelect: actions.select,
+      onContext: actions.contextMenu, onAgent: actions.selectAgent, onPlay: actions.togglePlayback }, { toolbar });
+    let shown = {};
+    return {
+      update({ events, branch, cursor, selectedId }) {
+        if (events !== shown.events || branch !== shown.branch) timeline.setData(events, branch);
+        timeline.setCursor(cursor, cursor !== shown.cursor);
+        timeline.select(selectedId);
+        shown = { events, branch, cursor };
+      },
+      stepTarget: (delta) => timeline.stepTarget(delta)?.position,
+      destroy: () => timeline.destroy(),
+    };
+  },
+};

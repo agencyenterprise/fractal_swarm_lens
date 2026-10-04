@@ -1,0 +1,65 @@
+/* Visualization host (visualizations.js) and the Influence view (graph.js). */
+
+.viz { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; background: var(--surface); }
+.viz-header {
+  display: flex; flex: none; align-items: center; gap: 12px; min-width: 0;
+  height: 40px; padding: 0 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+.viz-switch button { height: 24px; padding: 0 9px; font-size: 12px; }
+.viz-speed {
+  width: auto; height: 26px; padding: 0 4px;
+  border-color: transparent; background: transparent; color: var(--text-2); font: 12px var(--mono);
+  cursor: pointer;
+}
+.viz-speed:hover { background: var(--surface-2); }
+.viz-spacer { flex: 1; }
+.viz-tools, .viz-view-tools { display: flex; align-items: center; gap: 6px; }
+.viz-body { position: relative; flex: 1; min-height: 0; }
+.viz-view { height: 100%; min-height: 0; }
+.viz-view > .tl { height: 100%; }
+
+/* Influence graph: SVG edges under HTML nodes so nodes stay real buttons. */
+.viz-graph { display: flex; flex-direction: column; height: 100%; }
+.viz-graph-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.viz-graph-edges { position: absolute; inset: 0; }
+.viz-graph-nodes { position: absolute; inset: 0; pointer-events: none; }
+.viz-graph-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+.viz-graph-edge { color: var(--text-3); transition: opacity .15s; }
+.viz-graph-line { fill: none; stroke: currentColor; stroke-linecap: round; opacity: .55; pointer-events: stroke; }
+.viz-graph-arrow { fill: currentColor; opacity: .7; }
+.viz-graph-edge:hover { color: var(--text); }
+.viz-graph-edge.is-dim { opacity: .14; }
+.viz-graph-edge:is(.is-in, .is-out) { color: var(--accent); }
+.viz-graph-edge:is(.is-in, .is-out) .viz-graph-line { opacity: .95; }
+.viz-graph-edge.is-future .viz-graph-line { stroke-dasharray: 5 4; }
+
+.viz-graph-node {
+  position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: auto; height: auto; padding: 0; margin: 0;
+  border: 0; background: transparent; color: var(--text);
+  transform: translate(-50%, calc(var(--size) / -2));
+  pointer-events: auto; transition: opacity .15s;
+}
+button.viz-graph-node:hover { background: transparent; }
+.viz-graph-node.is-dim { opacity: .35; }
+.viz-graph-node.is-inactive .viz-graph-avatar { opacity: .5; }
+.viz-graph-avatar {
+  width: var(--size); height: var(--size); border-radius: 50%;
+  background: var(--surface); font-size: calc(var(--size) * .38);
+  box-shadow: inset 0 0 0 2px var(--c), var(--shadow-sm);
+  transition: width .2s, height .2s;
+}
+.viz-graph-avatar img { width: 55%; height: 55%; }
+button.viz-graph-node:hover .viz-graph-avatar { background: var(--surface-2); }
+.viz-graph-node.is-author .viz-graph-avatar { box-shadow: inset 0 0 0 2px var(--c), 0 0 0 3px var(--surface), 0 0 0 4.5px var(--accent); }
+.viz-graph-node.is-channel .viz-graph-avatar { border-radius: var(--radius-sm); color: var(--text-3); }
+.viz-graph-name { max-width: 140px; overflow: hidden; font-size: 12px; font-weight: 500; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.viz-graph-counts { color: var(--text-3); font-size: 11px; line-height: 1.1; }
+
+.viz-graph-footer {
+  flex: none; padding: 4px 12px 6px; overflow: hidden;
+  color: var(--text-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap;
+}
+.viz-graph-footer.is-caption { color: var(--accent-text); }

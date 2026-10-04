@@ -1,6 +1,5 @@
-import { el, button, avatar, color, eventTone, speakerName, time, formatNumber, failure } from "./ui.js";
+import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure } from "./ui.js";
 import { renderMarkdownInto } from "./markdown.js";
-import { topologyGraph } from "./graph.js";
 import { interventionLabel } from "./transcript.js";
 
 const LONG_TASK = 400;
@@ -86,8 +85,8 @@ function overviewView(root, _selection, { state, run, branch, actions }) {
   const goal = state.environment.goal;
   if (goal && goal !== task) root.append(section("Goal", el("p", "ins-goal", goal)));
   root.append(section("Agents", agentList(state, actions)));
-  if (Object.keys(state.channels).length > 1) root.append(section("Topology", topologyGraph(state, actions.selectAgent)));
-  root.append(actionRow(button("Fork with new agent…", actions.addAgent, "ghost"), button("Fork with new goal…", actions.editGoal, "ghost")));
+  root.append(actionRow(button("Fork here", actions.fork, "primary"), button("Fork with new agent…", actions.addAgent, "ghost"),
+    button("Fork with new goal…", actions.editGoal, "ghost")));
 }
 
 function agentList(state, actions) {
@@ -121,7 +120,7 @@ function eventAgentId(event, data) {
     || (event.kind.startsWith("agent.") ? data.id : null) || event.agent_id;
 }
 
-function eventView(root, { event, detail }, { state, actions }) {
+function eventView(root, { event, detail }, { state, events, actions }) {
   const data = detail?.data || {};
   const agentId = eventAgentId(event, data);
   const agent = state.agents[agentId];
@@ -145,7 +144,7 @@ function eventView(root, { event, detail }, { state, actions }) {
   const meta = eventMeta(event, data, agent);
   if (meta) root.append(meta);
   const sources = detail?.source?.delivered_sources;
-  if (sources?.length) root.append(section("Received from", sourceList(sources, state)));
+  if (sources?.length) root.append(section("Read before answering", sourceList(sources, events, state, actions)));
   const artifact = data.metadata?.model_output_artifact;
   if (artifact) root.append(disclosure("Recorded model response", button("Open response", () => actions.readArtifact(artifact))));
   if (detail?.source) root.append(disclosure("Source", el("pre", "metadata-box", JSON.stringify(detail.source, null, 2))));
@@ -182,12 +181,18 @@ function eventMeta(event, data, agent) {
   return node;
 }
 
-function sourceList(sources, state) {
+// delivered_sources holds message ids; each chip names the message's author and stage and opens it.
+function sourceList(sources, events, state, actions) {
+  const messages = new Map(events.filter((item) => item.kind === "message.created").map((item) => [item.entity_id, item]));
   const list = el("div", "ins-sources");
   for (const id of sources) {
-    const agent = state.agents[id];
-    const chip = el("span", "ins-source");
-    chip.append(avatar(agent || { name: id }), el("span", "", agent?.name || id));
+    const message = messages.get(id);
+    const agent = message && state.agents[message.agent_id];
+    const name = message ? speakerName(message, state.agents) : id;
+    const label = [name, message && stageOf(message)].filter(Boolean).join(" · ");
+    const chip = button("", () => actions.selectEvent(message), "ins-source");
+    chip.disabled = !message;
+    chip.append(avatar(agent || { name }), el("span", "", label));
     list.append(chip);
   }
   return list;

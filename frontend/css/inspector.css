@@ -49,7 +49,7 @@ button.ins-agent:hover { background: var(--surface-2); }
 .ins-meta { font-size: 11.5px; }
 
 .ins-sources { display: flex; flex-wrap: wrap; gap: 6px; }
-.ins-source { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: 999px; background: var(--surface-2); font-size: 12px; }
+.ins-source { height: auto; border: 0; font-weight: 400; display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: 999px; background: var(--surface-2); font-size: 12px; }
 .ins-source .avatar { width: 18px; height: 18px; border-radius: 999px; font-size: 10px; }
 .ins-source .avatar img { width: 12px; height: 12px; }
 
@@ -71,12 +71,3 @@ button.ins-agent:hover { background: var(--surface-2); }
 .ins-memory-text { flex: 1; min-width: 0; overflow: hidden; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 .ins-note { font-size: 12px; }
 
-.ins-graph { width: 100%; height: auto; font: 12px var(--font); }
-.ins-graph text { fill: var(--text); }
-.ins-graph-link { fill: none; stroke: var(--border-strong); }
-.ins-graph-channel-dot { fill: var(--text-3); }
-.ins-graph .ins-graph-channel { fill: var(--text-2); }
-.ins-graph-agent { cursor: pointer; outline: none; }
-.ins-graph-hit { fill: transparent; }
-.ins-graph-agent:hover .ins-graph-hit, .ins-graph-agent:focus-visible .ins-graph-hit { fill: var(--surface-2); }
-.ins-graph-agent.inactive { opacity: .45; }

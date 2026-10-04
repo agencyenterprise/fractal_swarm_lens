@@ -1,0 +1,43 @@
+/* blast-radius visualization (src/swarm_lens/web/viz/blast-radius.js) */
+.br { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); }
+.br-head { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 8px; border-bottom: 1px solid var(--border); }
+.br-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.br-title strong { white-space: nowrap; }
+.br-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.br-avatar { width: 18px; height: 18px; font-size: 10px; flex: none; }
+.br-stats { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; color: var(--text-2); }
+.br-stat strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.br-firsts { display: flex; flex-wrap: wrap; gap: 6px; }
+.br-first { height: 24px; padding: 0 8px 0 4px; gap: 6px; font-weight: 400; border-left: 3px solid var(--agent); }
+
+.br-canvas { flex: 1; min-height: 0; overflow: auto; }
+.br-plane { position: relative; }
+.br-edges { position: absolute; inset: 0; pointer-events: none; }
+.br-edge { fill: none; stroke: var(--border-strong); stroke-width: 1.25; }
+.br-edge-root { stroke: var(--accent); stroke-width: 1.5; }
+.br-column {
+  position: absolute; top: 8px; max-width: 176px;
+  color: var(--text-3); font-size: 12px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.br-node {
+  position: absolute; width: 176px; height: 26px; padding: 0 8px; justify-content: flex-start; gap: 6px;
+  font-weight: 400; font-size: 12px; background: var(--surface); border-color: var(--border);
+}
+.br-node:hover { border-color: var(--agent); }
+.br-node-root { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); font-weight: 600; }
+.br-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--agent); flex: none; }
+.br-node-label { overflow: hidden; text-overflow: ellipsis; }
+
+.br-ranking { display: flex; flex-direction: column; overflow: auto; padding: 4px 0; }
+.br-rank {
+  display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 190px; gap: 12px;
+  height: 34px; padding: 0 12px; border: 0; border-radius: 0; background: transparent;
+  font-weight: 400; text-align: left;
+}
+.br-rank:hover { background: var(--surface-2); border: 0; }
+.br-rank-who { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+.br-rank-who strong { font-weight: 500; }
+.br-rank-reach { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.br-meter { position: relative; flex: none; width: 64px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.br-meter::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--share); background: var(--agent); }
