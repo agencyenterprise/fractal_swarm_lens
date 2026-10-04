@@ -27,4 +27,4 @@ These guides describe the `main` implementation, including the ACIArena scenario
 
 A trace records evidence. An analysis interprets it. An intervention creates another execution. Keep those three distinct when drawing conclusions. Cascade effects need not be harmful, and attack success does not by itself establish a cascade.
 
-Swarm Lens is evolving research infrastructure. CASPIAN detection accuracy remains unvalidated; MAST outputs are model judgments that need inspection. See [Research and methods](Research-and-methods).
+Swarm Lens is evolving research infrastructure. CASPIAN is an experimental feature and, to our knowledge, the first public implementation of the paper by [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240). MAST provides saved-trace analysis. See [Research and methods](Research-and-methods).

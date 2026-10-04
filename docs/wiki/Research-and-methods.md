@@ -4,11 +4,11 @@ Swarm Lens supports inspecting interactions and designing branch experiments. It
 
 ## Research context
 
-| Component | Role in this project | Evidence boundary |
+| Component | Role in this project | Research context |
 | --- | --- | --- |
-| [MAST](https://github.com/multi-agent-systems-failure-taxonomy/MAST) | Saved-trace LLM judgments using a published failure taxonomy | Judge outputs and cited evidence require review; not human ground truth |
-| [ACIArena](https://github.com/Greysahy/aciarena) | Paired control/attack example generation and recorded source interactions | Native task/attack grading is distinct from propagation or cascade labels |
-| [CASPIAN](https://github.com/caspian-detector/caspian) | Optional experimental detector implementation | Detection accuracy has not been validated; implementation tests are not benchmark replication |
+| [MAST](https://github.com/multi-agent-systems-failure-taxonomy/MAST) | Saved-trace LLM judgments using the taxonomy of [Cemri et al. (2025), arXiv:2503.13657](https://arxiv.org/abs/2503.13657) | Judge outputs and cited evidence require review; not human ground truth |
+| [ACIArena](https://github.com/Greysahy/aciarena) | Paired control/attack examples from [An et al. (2026), arXiv:2604.07775](https://arxiv.org/abs/2604.07775) | Native task/attack grading is distinct from propagation or cascade labels |
+| [CASPIAN](https://github.com/caspian-detector/caspian) | Optional experimental detector implementation | To our knowledge, the first public implementation of the CASPIAN paper — [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240) |
 
 Swarm Lens's present contribution is infrastructure: an ordered event model, inspectable provenance, branching and intervention workflows, and extensible analysis. These upstream projects supply methods or benchmark context; listing them does not imply their authors endorse this implementation.
 
