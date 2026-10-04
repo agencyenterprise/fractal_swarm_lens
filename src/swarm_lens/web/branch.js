@@ -1,21 +1,62 @@
 import { $, el, post, toast, time } from './ui.js';
-import { field, openDialog } from './dialog.js?v=4';
+import { field, openDialog } from './dialog.js';
+
+const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+// One line per fork action saying which branch it creates; menus and the inspector share them.
+export const forkTips = {
+  here: 'New branch after this event, with nothing changed',
+  prompt: name => `New branch where ${name} uses a new system prompt from here on`,
+  remove: name => `New branch where ${name} takes no further turns`,
+  restore: name => `New branch where ${name} takes turns again`,
+  goal: 'New branch where all agents work toward a new goal',
+  agent: 'New branch with an extra agent from here on',
+};
+
+function forkPoint(source) {
+  const point = el('div', 'fork-point');
+  const parts = [source.at && time(source.at), source.label, `from ${source.branchName}`].filter(Boolean);
+  point.append(el('strong', '', `Event ${source.cursor}`), el('span', 'muted', ` · ${parts.join(' · ')}`));
+  if (source.effect) point.append(el('p', 'fork-effect', source.effect));
+  return point;
+}
+
+function readyHeadline(info) {
+  if (info.resume_mode === 'trace_continuation') {
+    return `Ready to run with CrewAI · next: ${info.next_actor}, round ${info.next_round}`;
+  }
+  if (info.resume_mode === 'restart_task') return `Ready to run with CrewAI · restarts task ${info.next_task + 1}`;
+  return 'Ready to run with CrewAI';
+}
+
+function readyDetails(info, source, withChanges) {
+  const steps = Math.min(100, info.remaining_tasks);
+  const unit = info.resume_mode === 'trace_continuation' ? 'agent turn' : 'remaining task';
+  const lines = [`Runs ${plural(steps, unit)}${withChanges ? ' with your changes' : ''}, streaming new events into this branch.`];
+  if (info.resume_mode === 'trace_continuation') {
+    lines.push('Creates a new CrewAI execution from the saved agents, conversation, memories and current goal.',
+      info.summary, `Models: ${info.models.join(', ')}.`);
+    if (info.injection_agents.length) lines.push(`Preserves the recorded input injection for ${info.injection_agents.join(', ')}.`);
+    if (info.tool_names.length) lines.push(`Executable tools: ${info.tool_names.join(', ')}. Tools may run again.`);
+    lines.push('This reconstructs the saved state in CrewAI; it does not reproduce the original framework’s exact execution.');
+  }
+  if (info.resume_mode === 'restart_task') {
+    lines.push(`Starts a new execution of task ${info.next_task + 1} using context saved at this point. The fork stays at event ${source.cursor}; tools in this task may run again.`);
+  }
+  const node = el('details', 'fork-live-details');
+  node.append(el('summary', '', 'Details'), ...lines.map(line => el('p', '', line)));
+  return node;
+}
 
 // Every branch starts at the captured visual selection. Execution never moves it.
-export function branchDialog({ source, title = 'Fork at cursor', fields = [], change,
-  live, created }) {
-  const content = el('div');
-  const point = el('div', 'branch-point');
-  point.append(el('span', 'eyebrow', `FORK POINT · EVENT ${source.cursor}`),
-    el('strong', '', source.branchName),
-    el('span', '', `${time(source.at)} UTC · ${source.label || 'Selected timeline position'}`));
-  content.append(point, el('p', '', 'The new branch keeps this conversation’s history through the selected event.'));
+export function branchDialog({ source, title = 'Fork here', fields = [], change, live, created }) {
+  const content = el('div', 'fork-dialog');
   const name = field('Branch name', 'branch_name', source.defaultName);
   name.input.required = true;
   name.input.maxLength = 160;
-  content.append(name.fragment);
+  content.append(forkPoint(source), name.fragment);
   for (const item of fields) content.append(item.fragment);
-  const status = el('div', 'branch-live-status');
+  const status = el('div', 'fork-live');
   status.setAttribute('role', 'status');
   content.append(status);
   const requests = new Map();
@@ -23,14 +64,14 @@ export function branchDialog({ source, title = 'Fork at cursor', fields = [], ch
     ...(change ? { intervention: change(form) } : {}) });
   let previewRevision = 0;
   const { alternateButton } = openDialog(title, content, {
-    confirm: 'Create branch', pending: 'Creating branch…', kicker: 'BRANCH FROM TIMELINE',
+    confirm: 'Create branch', pending: 'Creating branch…', kicker: '',
     submit: async form => {
       const branch = await post(`/branches/${source.branchId}/fork`, bodyFor(form));
       await created(branch.id);
-      toast('Branch created at the selected event.');
+      toast('Branch created');
     },
     alternate: {
-      label: 'Create branch and run live', disabled: true, pending: 'Creating and starting…',
+      label: 'Create and run', disabled: true, pending: 'Starting…',
       submit: async form => {
         const body = bodyFor(form);
         // Recheck the final edited form; a stale preview must not authorize execution.
@@ -43,40 +84,35 @@ export function branchDialog({ source, title = 'Fork at cursor', fields = [], ch
       },
     },
   });
+  const showRunChoice = canRun => {
+    alternateButton.hidden = !canRun;
+    alternateButton.disabled = !canRun;
+    alternateButton.classList.toggle('primary', canRun);
+    $('#confirm-dialog').classList.toggle('primary', !canRun);
+  };
+  const showStatus = (state, text, extra) => {
+    status.dataset.state = state;
+    status.replaceChildren(el('span', 'fork-live-line', text));
+    if (extra) status.append(extra);
+  };
+  showRunChoice(false);
   const refresh = async () => {
     const revision = ++previewRevision;
     alternateButton.disabled = true;
-    status.dataset.state = 'pending';
-    status.textContent = 'Checking live execution at this position…';
+    showStatus('pending', 'Checking live execution…');
     try {
       const info = live.enabled
         ? await post(`/branches/${source.branchId}/execution/preview`, bodyFor(new FormData($('#dialog-form'))))
-        : { can_execute: false, reason: 'No execution framework is connected to this workspace.' };
+        : { can_execute: false, reason: 'No execution framework is connected.' };
       if (revision !== previewRevision || !content.isConnected || !$('#dialog').open) return;
       if ($('#dialog-form').getAttribute('aria-busy') === 'true') return;
-      alternateButton.disabled = !info.can_execute;
-      status.dataset.state = info.can_execute ? 'ready' : 'unavailable';
-      status.replaceChildren(el('strong', '', info.can_execute ? 'Ready to run with CrewAI' : 'Live execution unavailable here'),
-        ...(info.can_execute && info.resume_mode === 'trace_continuation' ? [
-          el('span', '', 'Creates a new CrewAI execution from the saved agents, conversation, memories and current goal.'),
-          el('span', '', info.summary),
-          el('span', '', `Next: ${info.next_actor} · round ${info.next_round}. Models: ${info.models.join(', ')}.`),
-          ...(info.injection_agents.length ? [el('span', '', `Preserves the recorded input injection for ${info.injection_agents.join(', ')}.`)] : []),
-          ...(info.tool_names.length ? [el('span', '', `Executable tools: ${info.tool_names.join(', ')}. Tools may run again.`)] : []),
-          el('span', '', 'This reconstructs the saved state in CrewAI; it does not reproduce the original framework’s exact execution.'),
-        ] : []),
-        ...(info.can_execute && info.resume_mode === 'restart_task' ? [el('span', '',
-          `Starts a new execution of task ${info.next_task + 1} using context saved at this point. The fork stays at event ${source.cursor}; tools in this task may run again.`)] : []),
-        el('span', '', info.can_execute
-          ? `Runs ${Math.min(100, info.remaining_tasks)} ${info.resume_mode === 'trace_continuation' ? 'agent turn' : 'remaining task'}${info.remaining_tasks === 1 ? '' : 's'}${change ? ' with your changes' : ''}, streaming new events into this branch.`
-          : info.reason),
-        ...(!info.can_execute ? [el('span', '', info.runtime_id
-          ? 'You can still create this branch. Choose an earlier saved event or adjust the change to run with this runtime.'
-          : 'You can still create this branch. Running it requires a compatible execution framework for this conversation.')] : []));
+      showRunChoice(info.can_execute);
+      if (info.can_execute) showStatus('ready', readyHeadline(info), readyDetails(info, source, Boolean(change)));
+      else showStatus('unavailable', `Live run unavailable · ${info.reason}`);
     } catch (error) {
       if (revision !== previewRevision || !content.isConnected) return;
-      status.dataset.state = 'unavailable';
-      status.textContent = error.message;
+      showRunChoice(false);
+      showStatus('unavailable', `Live run unavailable · ${error.message}`);
     }
   };
   for (const item of fields) {

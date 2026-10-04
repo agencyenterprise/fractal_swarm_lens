@@ -1,0 +1,103 @@
+/* Transcript (transcript.js): a chronological chat of the run up to the cursor. */
+
+.transcript { display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+
+.tx-toolbar {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  height: 44px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.tx-show { position: relative; flex: none; }
+button.tx-show-button { height: 28px; gap: 6px; padding: 0 9px; }
+.tx-show-label { color: var(--text-3); font-weight: 400; }
+.tx-show-summary { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-kinds { position: absolute; top: calc(100% + 4px); left: 0; min-width: 200px; }
+.tx-kind { display: flex; align-items: center; gap: 2px; padding-left: 10px; border-radius: var(--radius-sm); }
+.tx-kind:hover, .tx-kind:focus-within { background: var(--surface-2); }
+.tx-kind input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.menu button.tx-kind-only { flex: 1; height: 30px; padding: 0 8px; font-weight: 400; }
+.menu button.tx-kind-only:hover, .menu button.tx-kind-only:focus-visible { background: transparent; }
+.tx-kind-only .hint { visibility: hidden; font-size: 12px; }
+.tx-kind:hover .hint, .tx-kind-only:focus-visible .hint { visibility: visible; }
+.tx-kind-only:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+
+.tx-search { width: 220px; height: 28px; padding: 0 9px; }
+.tx-chip {
+  display: inline-flex; align-items: center; gap: 2px; height: 24px; padding-left: 9px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 500;
+}
+.tx-chip button.icon { width: 22px; height: 22px; color: inherit; }
+.tx-count { margin-left: auto; font-size: 12px; }
+
+.tx-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 24px; }
+.tx-page { display: flex; margin: 10px auto; }
+
+.tx-stage {
+  position: sticky; top: 0; z-index: 1;
+  padding: 6px 16px; border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(6px);
+  color: var(--text-2); font-size: 12px; font-weight: 600;
+}
+
+.tx-entry { position: relative; border-left: 2px solid transparent; cursor: pointer; }
+.tx-entry:hover { background: var(--surface-2); }
+.tx-entry:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tx-entry.tx-selected { border-left-color: var(--accent); background: var(--accent-soft); }
+.tx-entry.tx-at-cursor:not(.tx-selected) { border-left-color: var(--border-strong); }
+.tx-entry.tx-future { opacity: .45; }
+.tx-entry.tx-future:hover, .tx-entry.tx-future:focus-visible { opacity: .8; }
+
+.tx-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tx-time { margin-left: auto; flex: none; color: var(--text-3); font-size: 11px; }
+button.tx-comments {
+  flex: none; height: 18px; min-width: 22px; margin-left: auto; padding: 0 6px;
+  border: 0; border-radius: 9px 9px 9px 2px; background: var(--accent-soft); color: var(--accent-text);
+  font-size: 11px; font-weight: 600;
+}
+button.tx-comments:hover { background: var(--accent); color: var(--accent-fg); }
+.tx-comments + .tx-time { margin-left: 0; }
+
+.tx-message { padding: 12px 16px 12px 14px; }
+.tx-message + .tx-message { border-top: 1px solid var(--border); }
+.tx-speaker { font-weight: 600; }
+.tx-body {
+  --lines: 10;
+  max-height: calc(var(--lines) * 1.5em + 16px); overflow: hidden;
+  margin: 6px 0 0 30px; color: var(--text); line-height: 1.5;
+}
+.tx-expanded .tx-body { max-height: none; }
+button.tx-more { height: 24px; margin: 4px 0 0 24px; padding: 0 6px; color: var(--accent-text); font-size: 12px; }
+
+.tx-callout { margin: 6px 12px; padding: 8px 12px; border-left-width: 3px; border-radius: var(--radius-sm); }
+.tx-callout.tx-intervention { border-left-color: var(--warn); background: var(--warn-soft); }
+.tx-callout.tx-selected { box-shadow: 0 0 0 1px var(--accent); }
+.tx-callout-label { font-weight: 600; }
+.tx-intervention .tx-callout-label { color: var(--warn); }
+.tx-callout-agent { color: var(--text-2); }
+.tx-callout-text {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-top: 2px; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere;
+}
+
+.tx-row {
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+  padding: 4px 16px 4px 14px; color: var(--text-3); font-size: 12px;
+}
+.tx-row-kind { flex: none; color: var(--text-2); font-weight: 500; }
+.tx-row-agent { flex: none; color: var(--text-2); }
+.tx-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 900px) { .tx-show { position: relative; flex: none; }
+button.tx-show-button { height: 28px; gap: 6px; padding: 0 9px; }
+.tx-show-label { color: var(--text-3); font-weight: 400; }
+.tx-show-summary { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-kinds { position: absolute; top: calc(100% + 4px); left: 0; min-width: 200px; }
+.tx-kind { display: flex; align-items: center; gap: 2px; padding-left: 10px; border-radius: var(--radius-sm); }
+.tx-kind:hover, .tx-kind:focus-within { background: var(--surface-2); }
+.tx-kind input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.menu button.tx-kind-only { flex: 1; height: 30px; padding: 0 8px; font-weight: 400; }
+.menu button.tx-kind-only:hover, .menu button.tx-kind-only:focus-visible { background: transparent; }
+.tx-kind-only .hint { visibility: hidden; font-size: 12px; }
+.tx-kind:hover .hint, .tx-kind-only:focus-visible .hint { visibility: visible; }
+.tx-kind-only:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+
+.tx-search { width: 140px; } }

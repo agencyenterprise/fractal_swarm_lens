@@ -13,7 +13,7 @@ swarm-lens --data data --env-file .env --port 8765
 
 Set `OPENAI_API_KEY` on the server or in the selected `.env`. The default judge is now `MAST_MODEL=gpt-5.5`, as requested for this application. The upstream notebook used `o1`; this model choice is an explicit evaluation variant, recorded with the requested and resolved model names in each result. GPT-5.5 uses medium reasoning and omits the temperature parameter. Its context budget is 1,050,000 tokens, with 16,384 reserved for completion and 1,024 for framing margin. Set `MAST_CONTEXT_WINDOW` when configuring another model whose context limit is not registered. Credentials never reach the browser. Saved traces and results remain available without credentials; starting an analysis requires them.
 
-Open http://127.0.0.1:8765. Use **Import saved trace** to paste or upload a UTF-8 transcript, or select an existing Swarm Lens run. Raw imports preserve the transcript as `observation.recorded`, without inventing agent identities or timestamps. JSON/JSONL files are retained as text, not guessed into a schema. Upload the conversation itself without reference annotations that would reveal the desired judgment.
+Open http://127.0.0.1:8765. Use the core **Import trace** action (`POST /api/traces`) to paste or upload a UTF-8 transcript, or select an existing Swarm Lens run. Raw imports preserve the transcript as `observation.recorded`, without inventing agent identities or timestamps. JSON/JSONL files are retained as text, not guessed into a schema. Upload the conversation itself without reference annotations that would reveal the desired judgment.
 
 Select **MAST analysis**, indicate whether the trace is complete, then **Analyze saved trace**. This setup dialog opens the submitted job in the **MAST reports** workspace view. The report displays its progress, summary, all 14 answers, raw response, provenance, and a JSON download. Use **Timeline** to return to the same cursor, filters, and zoom, or **View analyzed snapshot** to move explicitly to the report's input boundary.
 
@@ -29,11 +29,11 @@ New reports from plugin version 0.3.0 include a separate evidence-localization r
 
 Click a trait row to expand its saved explanation and chronological context. Each occurrence lists its inclusive event span and counts of supporting, counterevidence, and context events. The initial view shows supporting and counterevidence entries with only the first cited message expanded; **Show full context** reveals the intervening events in their original order. Message cards render Markdown and LaTeX equations, show compact UTC timestamps, and offer an **Original text** toggle for the exact recorded content. Long messages scroll within the reader. Event links open the recorded event in the timeline and inspector. Opening details is read-only and never calls the judge. Older reports display an evidence-unavailable notice and the separately labeled overall summary; run a new analysis to obtain evidence.
 
-The message formatter is built from `frontend/mast-message.js` using Markdown-it and KaTeX, with a bundled local browser asset (`npm run build:mast-message`, included in `npm run build`). Equations use native MathML; no remote scripts, images, or fonts are loaded from message content. Recorded HTML remains text, and the original message is retained without rewriting or summarizing it.
+Messages use the explorer's shared formatter, built from `frontend/message-format.js` using Markdown-it and KaTeX into a bundled local browser asset (`npm run build:message-format`, included in `npm run build`) that loads on first use. Equations use native MathML; no remote scripts, images, or fonts are loaded from message content. Recorded HTML remains text, and the original message is retained without rewriting or summarizing it.
 
 The library returns this data in `analysis.output.evidence`, including the evidence version, request hash, model metadata, raw response, validation warnings, and details keyed by trait code. Event references are checked against the exact analyzed prefix, and positions are resolved from that input. Invalid references discard that trait's occurrences. Failure of the additional request preserves the original assessment with evidence marked unavailable. Raw transcript imports can cite their containing observation, but do not gain invented message identities.
 
-`web/mast_details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/mast-details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
+`web/plugins/mast/details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/plugins/mast/static/details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
 
 ## Sub-API and registration
 
@@ -43,7 +43,6 @@ The normal CLI includes the MAST router in the main FastAPI application and its 
 | --- | --- | --- |
 | GET | `/api/plugins/mast/capabilities` | Model, readiness, saved-trace mode, upstream revision |
 | GET | `/api/plugins/mast/taxonomy` | Definitions, question labels, ambiguity notes |
-| POST | `/api/plugins/mast/traces` | Import `{name, text, task?}` without calling a model |
 | POST | `/api/plugins/mast/analyses` | Submit `{branch_id, cursor, completeness?}`; receive HTTP 202 and job ID |
 | POST | `/api/plugins/mast/preview` | Check the same frozen snapshot and token budget without calling the judge |
 | GET | `/api/plugins/mast/analyses?branch_id=...` | Most recent 50 jobs for this branch |
@@ -58,7 +57,7 @@ For an application-owned composition root:
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.judge import OpenAIMastJudge
 from swarm_lens.observability.mast.service import MastJobs, MastService
-from swarm_lens.web.mast import mast_extension
+from swarm_lens.web.plugins.mast import mast_extension
 from swarm_lens.web.api import create_app
 
 service = MastService(framework, MastPlugin(OpenAIMastJudge()),
@@ -66,7 +65,7 @@ service = MastService(framework, MastPlugin(OpenAIMastJudge()),
 app = create_app(framework, artifacts, extensions=(mast_extension(service),))
 ```
 
-`/api/workspace` advertises web-plugin manifests; the browser connects MAST's renderer to its controls. Duplicate IDs/routes fail startup. Routes must use the plugin's namespace. The domain/application layers and CASPIAN remain independent of FastAPI.
+MAST is an ordinary [web plugin](../../integration.md#write-a-web-plugin): everything it adds lives in `src/swarm_lens/web/plugins/mast/`, and its browser module (`static/index.js`) installs the Reports view and the **Analyze with MAST…** action through the same host API any plugin uses. Duplicate IDs/routes fail startup. Routes must use the plugin's namespace. The domain/application layers and CASPIAN remain independent of FastAPI.
 
 ## Provenance and limits
 

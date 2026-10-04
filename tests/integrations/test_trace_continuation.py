@@ -93,6 +93,26 @@ def test_aci_mid_round_fork_native_execution_and_exact_delivery(framework, tmp_p
     assert plan['remaining_tasks'] == 61 and plan['next_round'] == 21
 
 
+def test_prompt_intervention_replaces_the_system_prompt_recorded_in_conversation_memory(framework, tmp_path):
+    parent = aciarena(framework, tmp_path, 'control')
+    original = framework.history(parent.id)
+    old_prompt = framework.state(parent.id).agents['debater_0'].system_prompt
+    point = next(e for e in original if e.kind == 'message.created'
+                 and e.data['metadata'].get('round') == 19 and e.data['sender_id'] == 'debater_0')
+    prompts = []
+    live = LiveService(framework, tmp_path/'live.sqlite', (runtime(framework, prompts),))
+    with TestClient(create_app(framework, live=live)) as client:
+        job = client.post(f'/api/branches/{parent.id}/fork-execute', json={
+            'cursor': point.position, 'name': 'New prompt', 'steps': 6, 'request_id': str(uuid4()),
+            'intervention': {'kind': 'agent.updated', 'data': {'id': 'debater_0', 'system_prompt': 'You are terse.'}}}).json()
+    assert live.job(job['id'])['status'] == 'completed', live.job(job['id'])
+    debater_0 = prompts[2]  # debater_1 and debater_2 finish round 19 first
+    assert 'You are terse.' in debater_0
+    assert max(old_prompt.splitlines(), key=len) not in debater_0
+    memory = json.loads(framework.state(parent.id).memories['conversation-debater_0'].content)
+    assert memory[0]['role'] == 'system'  # The recorded memory itself is unchanged
+
+
 def test_generic_connections_memories_changes_and_tool_registry(framework, tmp_path):
     parent = framework.create_run('Imported application')
     facts = [Fact('environment.updated', {'task': 'Calculate 19 + 23', 'goal': 'Use add_values'}, utc_now())]

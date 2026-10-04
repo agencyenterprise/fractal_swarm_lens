@@ -20,22 +20,22 @@ markdown.use(texmath, {
 
 // LLM messages often put display math inside a list paragraph without blank lines.
 // Keep Markdown's list structure while recognizing those bracketed expressions.
-markdown.inline.ruler.before('escape', 'mast_display_math', (state, silent) => {
+markdown.inline.ruler.before('escape', 'display_math', (state, silent) => {
   if (!state.src.startsWith('\\[', state.pos)) return false;
   const end = state.src.indexOf('\\]', state.pos + 2);
   if (end < 0) return false;
   if (!silent) {
-    const token = state.push('mast_display_math', '', 0);
+    const token = state.push('display_math', '', 0);
     token.content = state.src.slice(state.pos + 2, end);
   }
   state.pos = end + 2;
   return true;
 });
-markdown.renderer.rules.mast_display_math = (tokens, index) => katex.renderToString(tokens[index].content, {
+markdown.renderer.rules.display_math = (tokens, index) => katex.renderToString(tokens[index].content, {
   output: 'mathml', displayMode: true, trust: false, throwOnError: false,
   strict: 'ignore', maxExpand: 1000, maxSize: 20, macros: {},
 });
 
-export function renderMastMessage(text) {
+export function renderMessageHTML(text) {
   return markdown.render(text);
 }

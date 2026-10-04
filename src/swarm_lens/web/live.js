@@ -73,7 +73,7 @@ export class LiveView {
     const name = job.branch_name || 'CrewAI branch';
     const message = job.status === 'completed'
       ? `${name} completed${count === null ? '.' : ` · ${count} new events saved.`}`
-      : `${name} ${job.status}. ${job.error || 'Recorded events are preserved.'}`;
+      : `${name} ${job.status}.${job.error ? '' : ' Recorded events are preserved.'}`;
     this.notify(message, job.branch_id, job.status === 'completed');
   }
 
@@ -90,17 +90,19 @@ export class LiveView {
     clearInterval(this.elapsedTimer);
     const busy = active(job?.status) || (!job && capture?.status === 'capturing');
     $('#live-spinner').hidden = !busy;
+    // The pill appears only while something live is happening or just happened.
+    $('#live-controls').hidden = !this.enabled || (!job && !capture);
     $('#live-controls').dataset.status = busy ? 'running' : job?.status || capture?.status || 'idle';
-    const labels = { queued: 'Queued for CrewAI', running: 'Running with CrewAI', completed: 'Run completed',
+    const labels = { queued: 'Queued', running: 'Running', completed: 'Run completed',
       failed: 'Run failed', interrupted: 'Run interrupted' };
     $('#live-status').textContent = job ? labels[job.status] || job.status
-      : capture ? (capture.status === 'capturing' ? 'Collecting live events' : `Capture ${capture.status}`) : 'Saved history';
+      : capture ? (capture.status === 'capturing' ? 'Live' : `Capture ${capture.status}`) : '';
     $('#execution-error').textContent = job?.error || '';
     $('#execution-error').hidden = !job?.error;
     const started = job?.started_at || job?.created_at;
     const updateTime = () => {
       const seconds = Math.max(0, Math.floor(((job?.finished_at ? Date.parse(job.finished_at) : Date.now()) - Date.parse(started)) / 1000));
-      $('#live-elapsed').textContent = started ? `${seconds}s${job.finished_at ? ' elapsed' : ' elapsed · new events arrive as tasks run'}` : '';
+      $('#live-elapsed').textContent = started ? `${seconds}s` : '';
     };
     updateTime();
     if (busy && started) this.elapsedTimer = setInterval(updateTime, 1000);
@@ -108,7 +110,6 @@ export class LiveView {
 
   enable(enabled) {
     this.enabled = enabled;
-    $('#live-controls').hidden = !enabled;
   }
 
   pause() {
@@ -131,8 +132,7 @@ export class LiveView {
       const url = new URL(`/api/live/branches/${branch.id}/stream?after=${this.after}`, location.href);
       url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = this.socket = new WebSocket(url);
-      $('#live-connection').textContent = 'Connecting…';
-      socket.onopen = () => { if (generation === this.generation) $('#live-connection').textContent = 'Connected'; };
+      socket.onopen = () => { if (generation === this.generation) $('#live-connection').textContent = ''; };
       let chain = Promise.resolve();
       socket.onmessage = (event) => {
         chain = chain.then(async () => {
@@ -159,7 +159,7 @@ export class LiveView {
       };
       socket.onclose = () => {
         if (generation !== this.generation) return;
-        $('#live-connection').textContent = 'Disconnected · reconnecting…';
+        $('#live-connection').textContent = 'Reconnecting…';
         this.timer = setTimeout(open, 1500);
       };
     };

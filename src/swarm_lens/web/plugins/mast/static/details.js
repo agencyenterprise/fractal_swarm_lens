@@ -1,16 +1,40 @@
-import { el, button, api, failure } from "./ui.js";
-import { renderMastMessage } from "./mast-message.js";
+import { el, button, api, failure, tip } from "swarm-lens/ui.js";
+import { renderMarkdownInto, cancelRender } from "swarm-lens/markdown.js";
+
+const firstSentence = (text) => {
+  const line = text.trim().split("\n")[0];
+  return line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+};
+
+// One line per failure mode, from the taxonomy the judge was given. The definition is chosen by the
+// displayed name; where upstream files assign that name to another code, the tooltip says so.
+export function modeDefinitions(taxonomy) {
+  const byName = new Map(taxonomy.categories.map((category) => [category.definition_label, category.definition]));
+  return new Map(taxonomy.categories.map((category) => {
+    const definition = firstSentence(byName.get(category.label) ?? category.definition);
+    const swapped = category.label !== category.definition_label;
+    return [category.code, swapped ? `${definition}\nUpstream files give this name another code; see Upstream taxonomy notes.` : definition];
+  }));
+}
+
+const VERDICTS = {
+  true: ["Present", "The judge found this failure mode in the trace"],
+  false: ["Absent", "The judge did not find this failure mode"],
+  null: ["Unparsed", "The judge's answer for this mode could not be read"],
+};
 
 // Each row owns its disclosure and fetch lifecycle; opening it never runs a judge.
-export function mastTraitDetails(label, job, host) {
+// `definition` is the mode's one-line taxonomy definition, shown on hover.
+export function mastTraitDetails(label, job, host, definition) {
   const root = el("details", "mast-trait");
   const summary = el("summary", "mast-label-row");
   const name = el("div");
   const arrow = el("span", "mast-trait-arrow", "›");
   arrow.setAttribute("aria-hidden", "true");
-  name.append(arrow, el("span", "mast-code", label.code), el("span", "", label.label));
-  summary.append(name, el("span", `mast-badge ${label.present === true ? "present" : label.present === null ? "unknown" : ""}`,
-    label.present === null ? "Unparsed" : label.present ? "Present" : "Absent"));
+  name.append(arrow, el("span", "mast-code mono", label.code), el("span", "", label.label));
+  tip(name, definition);
+  const [verdict, verdictTip] = VERDICTS[label.present];
+  summary.append(name, tip(el("span", `badge mast-badge ${label.present === true ? "danger" : ""}`, verdict), verdictTip));
   const body = el("div", "mast-trait-body");
   body.setAttribute("aria-live", "polite");
   root.append(summary, body);
@@ -28,7 +52,8 @@ export function mastTraitDetails(label, job, host) {
         const section = el("section", "mast-occurrence");
         section.append(el("h5", "", `Occurrence ${index + 1} · events ${occurrence.start_position}–${occurrence.end_position}`),
           el("p", "mast-trait-text", occurrence.explanation),
-          button("View span end on timeline →", () => host.showSnapshot(job.branch_id, occurrence.end_position).catch(failure), "subtle"));
+          tip(button("View span end on timeline →", () => host.openTimeline(job.branch_id, occurrence.end_position).catch(failure), "ghost"),
+            `Open the timeline at event ${occurrence.end_position}`));
         const supportingCount = occurrence.events.filter(event => event.role === "supporting").length;
         const counterCount = occurrence.events.filter(event => event.role === "counterevidence").length;
         const contextCount = occurrence.events.filter(event => event.role === "context").length;
@@ -39,7 +64,7 @@ export function mastTraitDetails(label, job, host) {
           contextToggle.setAttribute("aria-pressed", String(expanded));
           contextToggle.textContent = expanded ? "Show evidence only" : `Show full context (${contextCount})`;
           for (const item of events.querySelectorAll(".mast-evidence-event.context")) item.hidden = !expanded;
-        }, "subtle");
+        }, "ghost");
         contextToggle.setAttribute("aria-pressed", "false");
         contextToggle.hidden = !contextCount;
         controls.append(contextToggle);
@@ -65,38 +90,45 @@ export function mastTraitDetails(label, job, host) {
           const tools = el("div", "mast-message-tools");
           const at = new Date(event.at);
           const timestamp = el("time", "muted", Number.isNaN(at.getTime()) ? event.at : `${at.toISOString().slice(0, 10)} · ${at.toISOString().slice(11, 19)} UTC`);
-          timestamp.title = event.at;
+          tip(timestamp, event.at);
           const original = button("Original text", () => {
             const showOriginal = original.getAttribute("aria-pressed") !== "true";
             original.setAttribute("aria-pressed", String(showOriginal));
             original.textContent = showOriginal ? "Formatted text" : "Original text";
-            if (showOriginal) content.replaceChildren(el("pre", "mast-message-original", event.text));
-            else renderContent();
-          }, "subtle");
+            if (showOriginal) {
+              cancelRender(content);
+              content.replaceChildren(el("pre", "mast-message-original", event.text));
+            } else render();
+          }, "ghost");
           original.setAttribute("aria-pressed", "false");
+          tip(original, "Switch between formatted and exact recorded text");
           tools.append(timestamp, original,
-            button("View event on timeline →", () => host.showEvidenceEvent(job.branch_id, event.position, event.event_id).catch(failure), "subtle mast-event-link"));
+            button("View event on timeline →", () => host.openTimeline(job.branch_id, event.position, event.event_id).catch(failure), "ghost mast-event-link"));
+          // Marked only after success, so reopening a message retries a failed render.
           let rendered = false;
-          function renderContent() {
+          async function renderContent() {
             // JSON tool/state payloads stay structured; conversation text gets Markdown + math.
             try {
               const value = JSON.parse(event.text);
               if (value && typeof value === "object") {
                 content.replaceChildren(el("pre", "mast-message-original", JSON.stringify(value, null, 2)));
+                rendered = true;
                 return;
               }
             } catch { /* Ordinary message text. */ }
-            content.innerHTML = renderMastMessage(event.text);
+            await renderMarkdownInto(content, event.text);
+            rendered = true;
           }
+          const render = () => renderContent().catch(failure);
           message.addEventListener("toggle", () => {
-            if (message.open && !rendered) { renderContent(); rendered = true; }
+            if (message.open && !rendered) render();
           });
           message.append(heading, tools, content);
           // Start with one readable message, not dozens of fully expanded responses.
           if (!openedFirst && event.role !== "context") {
             message.open = true;
-            renderContent();
-            rendered = openedFirst = true;
+            render();
+            openedFirst = true;
           }
           item.append(message);
           events.append(item);
@@ -115,7 +147,7 @@ export function mastTraitDetails(label, job, host) {
         body.append(context);
       }
       body.append(button(`View analyzed snapshot · events 1–${job.cursor} →`,
-        () => host.showSnapshot(job.branch_id, job.cursor).catch(failure), "subtle"));
+        () => host.openTimeline(job.branch_id, job.cursor).catch(failure), "ghost"));
       loaded = true;
     } catch (error) {
       body.replaceChildren(el("p", "mast-error", error.message), button("Retry", load));

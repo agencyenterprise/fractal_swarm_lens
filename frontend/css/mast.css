@@ -1,0 +1,165 @@
+/* MAST reports view, analyze/import dialogs (web/plugins/mast/static/index.js) and the fork dialog (branch.js). */
+
+.mast-view {
+  display: grid; grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0; overflow: hidden; background: var(--bg);
+}
+.mast-view > .mast-empty { grid-column: 1 / -1; }
+
+/* Saved reports */
+.mast-list {
+  display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 10px 8px; overflow-y: auto;
+  border-right: 1px solid var(--border); background: var(--surface);
+}
+.mast-list-header { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px 8px; }
+.mast-list-header button { height: 26px; }
+.mast-list-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 8px; border-radius: var(--radius-sm); color: var(--text);
+}
+.mast-list-item:hover { background: var(--surface-2); text-decoration: none; }
+.mast-list-item[aria-current="page"] { background: var(--accent-soft); }
+.mast-list-text { display: flex; flex-direction: column; min-width: 0; }
+.mast-list-text strong { font-weight: 500; }
+.mast-list-text .muted { font-size: 12px; }
+
+/* Report */
+.mast-report {
+  display: flex; flex-direction: column; gap: 20px; min-height: 0;
+  padding: 24px 32px 48px; overflow-y: auto;
+}
+.mast-report > * { width: 100%; max-width: 780px; }
+.mast-report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.mast-report-title h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
+.mast-report-title p { margin-top: 2px; }
+.mast-report-title .mast-about { max-width: 72ch; margin-top: 4px; font-size: 12px; line-height: 1.5; }
+.mast-report-actions { display: flex; gap: 2px; }
+
+.mast-outcome { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mast-stat {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.mast-stat strong { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.mast-stat strong.alarming { color: var(--danger); }
+.mast-stat span { color: var(--text-3); font-size: 12px; }
+
+.mast-summary { color: var(--text); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+
+.mast-failures { display: flex; flex-direction: column; gap: 6px; }
+.mast-failures > h3 { margin-top: 8px; }
+.mast-failures > h3:first-child { margin-top: 0; }
+.mast-modes {
+  margin: 0; padding: 0; list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.mast-mode { display: flex; align-items: center; gap: 12px; padding: 9px 14px; }
+.mast-mode + .mast-mode { border-top: 1px solid var(--border); }
+.mast-mode .mono { flex: none; width: 28px; color: var(--text-3); }
+.mast-mode-label { flex: 1; min-width: 0; }
+.mast-absent { margin-top: 6px; }
+.mast-absent .mast-modes { margin-top: 6px; }
+.mast-absent .mast-mode-label { color: var(--text-2); }
+
+.mast-note { font-size: 12px; }
+.mast-notes { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+.mast-details summary { padding: 4px 0; color: var(--text-2); cursor: pointer; }
+.mast-details summary:hover { color: var(--text); }
+.mast-details > .metadata-box { max-height: 360px; margin-top: 4px; }
+.mast-error { color: var(--danger); }
+
+.mast-progress {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text-2);
+}
+.mast-progress::before {
+  content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--accent); border-right-color: transparent; animation: spin .7s linear infinite;
+}
+
+.mast-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  height: 100%; padding: 32px 16px; color: var(--text-2); text-align: center;
+}
+
+/* Analyze and import dialogs */
+.mast-dialog { display: flex; flex-direction: column; gap: 12px; }
+.mast-field-label { color: var(--text-2); font-size: 12px; font-weight: 500; margin-bottom: -6px; }
+.mast-dialog .segmented { align-self: flex-start; }
+.mast-size { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); }
+.mast-size::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
+.mast-size[data-state="ready"]::before { background: var(--accent); }
+.mast-size[data-state="error"] { color: var(--danger); }
+.mast-size[data-state="error"]::before { background: var(--danger); }
+.mast-dialog input[type="file"] { padding: 5px; color: var(--text-2); }
+
+/* Fork dialog */
+.fork-dialog { display: flex; flex-direction: column; gap: 12px; }
+.fork-point {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); overflow-wrap: anywhere;
+}
+.fork-point strong { font-weight: 600; }
+.fork-live { display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
+.fork-live-line { display: flex; align-items: flex-start; gap: 8px; }
+.fork-live-line::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
+.fork-live[data-state="pending"] .fork-live-line::before { animation: pulse 1.4s ease-in-out infinite; }
+.fork-live[data-state="ready"] .fork-live-line { color: var(--text); }
+.fork-live[data-state="ready"] .fork-live-line::before { background: var(--accent); }
+.fork-live[data-state="unavailable"] { color: var(--text-3); }
+.fork-live-details { padding-left: 15px; }
+.fork-live-details summary { color: var(--text-3); font-size: 12px; cursor: pointer; }
+.fork-live-details summary:hover { color: var(--text-2); }
+.fork-live-details p { margin-top: 4px; color: var(--text-2); font-size: 12px; }
+
+@media (max-width: 900px) {
+  .mast-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .mast-list { max-height: 160px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .mast-report { padding: 16px; }
+}
+
+/* Trait rows expand into saved evidence (web/plugins/mast/static/details.js). */
+.mast-trait > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 6px; border-radius: var(--radius-sm); cursor: pointer; list-style: none; }
+.mast-trait > summary::-webkit-details-marker { display: none; }
+.mast-trait > summary:hover { background: var(--surface-2); }
+.mast-trait > summary > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mast-trait-arrow { color: var(--text-3); transition: transform .15s; }
+.mast-trait[open] > summary .mast-trait-arrow { transform: rotate(90deg); }
+.mast-code { color: var(--text-3); }
+.mast-trait-body { padding: 4px 6px 16px 28px; color: var(--text-2); }
+.mast-trait-text { margin: 6px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mast-occurrence { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.mast-occurrence h5 { margin: 0; color: var(--text); font-size: 13px; font-weight: 600; }
+.mast-evidence-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 12px; }
+.mast-evidence-timeline { margin: 10px 0 0 4px; padding: 0 0 0 14px; list-style: none; border-left: 2px solid var(--border); }
+.mast-evidence-event { position: relative; padding: 0 0 10px 6px; }
+.mast-evidence-event::before { content: ""; position: absolute; top: 12px; left: -20px; width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+.mast-evidence-event.supporting::before { background: var(--danger); }
+.mast-evidence-event.counterevidence::before { background: var(--accent); }
+.mast-evidence-message { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.mast-evidence-message > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.mast-evidence-message > summary::-webkit-details-marker { display: none; }
+.mast-evidence-message > summary:hover { background: var(--surface-2); }
+.mast-evidence-identity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.mast-evidence-identity strong { color: var(--text); font-weight: 600; }
+.mast-evidence-role { align-self: start; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 11px; }
+.supporting .mast-evidence-role { background: var(--danger-soft); color: var(--danger); }
+.counterevidence .mast-evidence-role { background: var(--accent-soft); color: var(--accent-text); }
+.mast-evidence-preview { grid-column: 1 / -1; overflow: hidden; color: var(--text-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.mast-evidence-message[open] .mast-evidence-preview { display: none; }
+.mast-message-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 0 12px 8px; border-bottom: 1px solid var(--border); }
+.mast-message-tools time { margin-right: auto; font-size: 11px; }
+.mast-message-content { max-height: 32rem; padding: 12px 16px; overflow: auto; overscroll-behavior: contain; color: var(--text); line-height: 1.65; overflow-wrap: anywhere; }
+.mast-message-content > * + * { margin-top: 10px; }
+.mast-message-content ul { padding-left: 22px; list-style: disc; }
+.mast-message-content ol { padding-left: 22px; list-style: decimal; }
+.mast-message-content h1, .mast-message-content h2, .mast-message-content h3, .mast-message-content h4 { font-size: 14px; font-weight: 600; }
+.mast-message-content blockquote { margin: 0; padding: 4px 12px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.mast-message-content code { padding: 1px 4px; border-radius: 4px; background: var(--surface-2); font: 12px var(--mono); }
+.mast-message-content pre { padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); white-space: pre-wrap; }
+.mast-message-content pre code { padding: 0; background: transparent; }
+.mast-message-content .mast-message-original { margin: 0; font: 12px/1.6 var(--mono); }
+.mast-message-content table { border-collapse: collapse; font-size: 12px; }
+.mast-message-content th, .mast-message-content td { padding: 5px 9px; border: 1px solid var(--border); text-align: left; }
+.mast-message-content math[display="block"] { display: block; margin: 10px 0; overflow-x: auto; }
+.fork-effect { margin-top: 4px; color: var(--text); }

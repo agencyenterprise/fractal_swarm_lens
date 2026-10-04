@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { mastTraitDetails } from '../../src/swarm_lens/web/mast-details.js';
+import { mastTraitDetails, modeDefinitions } from '../../src/swarm_lens/web/plugins/mast/static/details.js';
+// The formatter loads lazily in the app; warm the module cache so renders settle within one tick here.
+await import('../../src/swarm_lens/web/message-format.js');
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 15));
 const job = { id: 'report', branch_id: 'child', cursor: 20 };
@@ -16,8 +18,7 @@ function setup(t, fetchDetail) {
     return fetchDetail();
   };
   const row = mastTraitDetails(label, job, {
-    showSnapshot: async (...args) => navigation.push(['snapshot', ...args]),
-    showEvidenceEvent: async (...args) => navigation.push(['event', ...args]),
+    openTimeline: async (...args) => navigation.push(args),
   });
   document.body.append(row);
   t.after(() => dom.window.close());
@@ -54,7 +55,7 @@ test('disclosure loads once, renders recorded text safely, and opens exact branc
   assert.equal(row.querySelector('.context').hidden, true);
   row.querySelector('.supporting .mast-event-link').click();
   await settle();
-  assert.deepEqual(navigation, [['event', 'child', 5, 'e5']]);
+  assert.deepEqual(navigation, [['child', 5, 'e5']]);
   row.open = false;
   await settle();
   row.open = true;
@@ -83,12 +84,13 @@ test('message reader formats Markdown and math, preserves original text, and ope
   assert.equal(content.querySelectorAll('math').length, 1);
   assert.match(content.querySelector('math').textContent, /×/);
   assert.equal(row.querySelector('time').textContent, '2026-10-04 · 00:00:00 UTC');
-  assert.equal(row.querySelector('time').title, '2026-10-04T00:00:00.123456Z');
+  assert.equal(row.querySelector('time').dataset.tip, '2026-10-04T00:00:00.123456Z');
   const original = row.querySelector('.supporting .mast-message-tools button');
   original.click();
   assert.equal(content.querySelector('pre').textContent, text);
   assert.equal(original.getAttribute('aria-pressed'), 'true');
   original.click();
+  await settle();
   assert.equal(content.querySelectorAll('math').length, 1);
   const context = row.querySelector('.context');
   assert.equal(context.querySelector('.mast-message-content').textContent, '');
@@ -133,4 +135,15 @@ test('absent and unparsed traits also have accessible native disclosures', t => 
     assert.equal(trait.firstElementChild.tagName, 'SUMMARY');
     assert.equal(trait.querySelector('.mast-badge').textContent, present === null ? 'Unparsed' : 'Absent');
   }
+});
+
+test('failure-mode tooltips use the definition of the displayed name and flag upstream code swaps', () => {
+  const definitions = modeDefinitions({ categories: [
+    { code: '1.3', label: 'Step Repetition', definition_label: 'Step Repetition', definition: 'Repeats a finished step. More detail.\n\nExample.' },
+    { code: '3.2', label: 'No or Incorrect Verification', definition_label: 'Weak Verification', definition: 'Checks exist but are shallow.' },
+    { code: '3.3', label: 'Weak Verification', definition_label: 'No or Incorrect Verification', definition: 'Omission of proper checking.' },
+  ] });
+  assert.equal(definitions.get('1.3'), 'Repeats a finished step.');
+  assert.match(definitions.get('3.2'), /^Omission of proper checking\.\nUpstream files give this name another code/);
+  assert.match(definitions.get('3.3'), /^Checks exist but are shallow\./);
 });

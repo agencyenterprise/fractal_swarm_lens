@@ -120,3 +120,23 @@ test('discovered conversations preserve selection and dialog cleanup removes por
   disposePickers(form);
   assert.equal(document.body.contains(picker.positioner), false);
 });
+
+test('a star toggles a favorite without selecting it, and the filter shows favorites only', async t => {
+  const starred = new Set();
+  const favorites = { has: value => starred.has(value), toggle: value => (starred.delete(value) || starred.add(value)) };
+  const { picker } = fixture(t, { label: 'Run', heading: 'Runs', searchable: true, value: 'a', favorites, options: [
+    { value: 'a', label: 'First run' }, { value: 'b', label: 'Second run' },
+  ] });
+  const changes = [];
+  picker.onchange = event => changes.push(event.target.value);
+  const star = picker.rows[1].row.querySelector('.picker-star');
+  star.click();
+  await settle();
+  assert.equal(picker.value, 'a', 'starring must not select the option');
+  assert.deepEqual(changes, []);
+  assert.equal(star.getAttribute('aria-pressed'), 'true');
+  picker.heading.querySelector('.picker-favorites-filter').click();
+  await settle();
+  assert.deepEqual(picker.rows.map(row => row.item.value), ['b']);
+  assert.match(picker.heading.textContent, /Runs · 1 of 2/);
+});

@@ -10,7 +10,7 @@ from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.method import assets, make_prompt, parse_response
 from swarm_lens.observability.mast.service import MastJobs, MastService
 from swarm_lens.web.api import create_app
-from swarm_lens.web.mast import mast_extension
+from swarm_lens.web.plugins.mast import mast_extension
 
 
 def assessment(*, named=False):
@@ -83,8 +83,9 @@ def test_api_discovery_import_and_analysis_persist_after_restart(service):
     with TestClient(app(service)) as client:
         manifest = client.get("/api/workspace").json()["capabilities"]["web_plugins"][0]
         assert manifest["id"] == "mast" and manifest["modes"] == ["saved_trace"]
+        assert "export function install" in client.get(manifest["ui"]["module"]).text
         assert client.get("/api/plugins/mast/taxonomy").json()["revision"] == assets()["revision"]
-        trace = client.post("/api/plugins/mast/traces", json={"name": "Saved conversation", "text": "A: Done.\nA: Done."})
+        trace = client.post("/api/traces", json={"name": "Saved conversation", "text": "A: Done.\nA: Done."})
         assert trace.status_code == 201
         branch = trace.json()["branch"]
         assert not service.plugin.judge.prompts
@@ -191,7 +192,7 @@ def test_validation_disabled_credentials_and_origin_policy(service, branch):
         assert client.post(url, json=payload, headers={"Origin": "https://unrelated.example"}).status_code == 403
         assert client.post(url, json={**payload, "cursor": 999}).status_code == 400
         assert client.post(url, json={**payload, "live": True}).status_code == 422
-        assert client.post("/api/plugins/mast/traces", json={"name": " ", "text": ""}).status_code == 422
+        assert client.post("/api/traces", json={"name": " ", "text": ""}).status_code == 422
         service.plugin.judge.ready = False
         assert client.post(url, json=payload).status_code == 400
         assert not service.plugin.judge.prompts

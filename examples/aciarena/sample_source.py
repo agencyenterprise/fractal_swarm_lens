@@ -1,5 +1,4 @@
 """Import complete ACIArena traces as individually inspectable Swarm Lens events."""
-from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -8,9 +7,41 @@ from swarm_lens import Fact, Framework
 from swarm_lens.adapters.artifacts import FileArtifacts
 from swarm_lens.adapters.sqlite import SQLiteHistory
 
+from .upstream import manifest_scenario
+
+ATTACK_LABELS = {'instruction_injection': ('With injection', 'Instruction injection installed'),
+                 'malicious_agent': ('With malicious agent', 'Malicious agent installed')}
+
 
 def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+MAD_TURN = ('affirmative', 'negative', 'moderator')
+STATELESS_AGENTS = {'aggregator'}  # Rebuilds its messages each call, so it has no memory to snapshot
+
+
+def debate_rounds(calls):
+    return max((call['round'] for call in calls if call['phase'] == 'debate'), default=0)
+
+
+def expected_schedule(system, calls, max_turn):
+    """The (phase, round, agent) order the upstream scheduler must have produced."""
+    if system == 'LLMDebate':
+        schedule = [('bootstrap', 0, f'debater_{i}') for i in range(3)]
+        schedule += [('debate', turn, f'debater_{i}') for turn in range(1, max_turn + 1) for i in range(3)]
+        return schedule + [('aggregation', max_turn + 1, 'aggregator')]
+    if system == 'MAD':
+        # MAD stops at the first moderator decision; only an undecided final round reaches the judge.
+        rounds = debate_rounds(calls)
+        if rounds > max_turn:
+            raise ValueError('MAD ran more debate rounds than configured')
+        schedule = [('bootstrap', 0, agent) for agent in MAD_TURN]
+        schedule += [('debate', turn, agent) for turn in range(1, rounds + 1) for agent in MAD_TURN]
+        if rounds == max_turn and calls and calls[-1]['agent'] == 'judge':
+            schedule.append(('aggregation', rounds + 1, 'judge'))
+        return schedule
+    raise ValueError(f'Unknown upstream system: {system}')
 
 
 def load_pair(directory):
@@ -21,7 +52,7 @@ def load_pair(directory):
     if sorted(item['condition'] for item in manifest['samples']) != ['control', 'injection']:
         raise ValueError('A pair must contain exactly one control and one injection example')
     rows_by_condition = {}
-    rounds = manifest['settings']['max_turn']
+    max_turn = manifest['settings']['max_turn']
     for sample in manifest['samples']:
         condition = sample['condition']
         if sample['directory'] != condition:
@@ -31,16 +62,11 @@ def load_pair(directory):
                 raise ValueError(f'Example checksum mismatch: {condition}/{filename}')
         rows = [json.loads(line) for line in (directory / condition / 'trace.jsonl').read_text().splitlines()]
         calls = [row for row in rows if row['type'] == 'model_call']
-        expected = 3 + 3 * rounds + 1
-        if sample['result']['status'] != 'complete' or len(calls) != expected or sample['result']['calls'] != expected:
+        schedule = expected_schedule(manifest['system'], calls, max_turn)
+        if sample['result']['status'] != 'complete' or sample['result']['calls'] != len(calls):
             raise ValueError('The example is missing scheduled model responses')
-        if [call['sequence'] for call in calls] != list(range(1, expected + 1)):
+        if [call['sequence'] for call in calls] != list(range(1, len(calls) + 1)):
             raise ValueError('Model-call sequence is incomplete')
-        if Counter(call['phase'] for call in calls) != {'bootstrap': 3, 'debate': 3 * rounds, 'aggregation': 1}:
-            raise ValueError('The example is missing a complete execution phase')
-        schedule = [('bootstrap', 0, f'debater_{i}') for i in range(3)]
-        schedule += [('debate', turn, f'debater_{i}') for turn in range(1, rounds + 1) for i in range(3)]
-        schedule += [('aggregation', rounds + 1, 'aggregator')]
         if [(call['phase'], call['round'], call['agent']) for call in calls] != schedule:
             raise ValueError('The example does not follow the upstream debate schedule')
         if json.loads((directory / condition / 'result.json').read_text()) != sample['result']:
@@ -54,7 +80,8 @@ def load_pair(directory):
                 original = calls[source['sequence'] - 1]
                 if original['response'] != source['response'] or original['agent'] != source['agent']:
                     raise ValueError('A delivered response differs from its source')
-        if len([row for row in rows if row['type'] == 'memory_snapshot']) != 3 * (rounds + 1):
+        stateful_calls = [call for call in calls if call['agent'] not in STATELESS_AGENTS]
+        if len([row for row in rows if row['type'] == 'memory_snapshot']) != len(stateful_calls):
             raise ValueError('Upstream conversation-memory snapshots are missing')
         if len([row for row in rows if row['type'] == 'injection_installed']) != int(condition == 'injection'):
             raise ValueError('Injection provenance does not match the example condition')
@@ -75,9 +102,9 @@ class ExampleSource:
     def facts(self):
         setup = next(row for row in self.rows if row['type'] == 'setup')
         at = setup['occurred_at']
+        scenario = manifest_scenario(self.manifest)
         provenance = {'adapter': 'aciarena-example/v1', 'upstream_revision': self.manifest['upstream_revision']}
-        yield Fact('environment.updated', {'task': setup['task']['problem'],
-                                          'goal': 'Solve the original math problem and state the answer at the end.'}, at, provenance)
+        yield Fact('environment.updated', {'task': setup['task']['problem'], 'goal': scenario.goal}, at, provenance)
         for agent in setup['agents']:
             yield Fact('agent.added', {'id': agent['id'], 'name': agent['id'].replace('_', ' ').title(),
                                       'model': setup['model'], 'system_prompt': agent['profile']}, at, provenance)
@@ -93,10 +120,11 @@ class ExampleSource:
             if 'sequence' in row:
                 source.update(sequence=row['sequence'], round=row['round'], phase=row['phase'])
             if kind == 'injection_installed':
-                yield Fact('observation.recorded', {'type': 'instruction_injection', 'agent_id': row['agent'],
+                yield Fact('observation.recorded', {'type': scenario.attack_path, 'agent_id': row['agent'],
                     'content': row['content'], 'schedule': row['schedule'], 'attack': row['attack'],
-                    'metadata': {'stage_label': 'Instruction injection installed'}}, at,
-                    {**source, 'origin': 'intervention', 'actor': 'ACIArena', 'applied_to_runtime': True})
+                    'metadata': {'stage_label': ATTACK_LABELS[scenario.attack_path][1]}}, at,
+                    # Part of the recorded run, not a change to it: an observation, not an intervention.
+                    {**source, 'actor': 'ACIArena', 'applied_to_runtime': True})
             elif kind == 'model_call':
                 artifact = self.artifacts.put(json.dumps(row, ensure_ascii=False).encode())
                 delivered = [f"call-{item['sequence']}" for item in row['sources']]
@@ -126,20 +154,25 @@ def import_pair(directory, data):
     framework = Framework(SQLiteHistory(Path(data) / 'history.sqlite'))
     artifacts = FileArtifacts(Path(data) / 'artifacts')
     imported = []
+    scenario = manifest_scenario(manifest)
+    attack_label = ATTACK_LABELS[scenario.attack_path][0]
     for condition in ('control', 'injection'):
-        label = 'Without injection' if condition == 'control' else 'With injection'
+        label = 'Without attack' if condition == 'control' else attack_label
         sample = next(item for item in manifest['samples'] if item['condition'] == condition)
         key = f'{pair_id}:{condition}'
         existing = next((run for run in framework.store.runs() if run.metadata.get('example_key') == key), None)
         if existing:
             branch = next(b for b in framework.store.branches(existing.id) if not b.parent_id)
         else:
-            branch = framework.create_run(f"ACIArena · {label} · {manifest['settings']['max_turn']} rounds", metadata={
+            rounds = sample['result']['debate_rounds']
+            title = f"ACIArena · {manifest['system']} · {manifest['task']['id']} · {label} · {rounds} rounds"
+            branch = framework.create_run(title, metadata={
                 'source_type': 'aciarena_example', 'example_key': key, 'example_pair': pair_id,
-                'condition': condition, 'condition_label': label, 'max_turn': manifest['settings']['max_turn'],
+                'condition': condition, 'condition_label': label, 'max_turn': rounds,
+                'team': ', '.join(agent['id'] for agent in next(r for r in traces[condition] if r['type'] == 'setup')['agents']),
                 'task_title': f"ACIArena · {manifest['task']['id']}",
                 'task_id': manifest['task']['id'], 'system': manifest['system'], 'settings': manifest['settings'],
-                'dataset_url': manifest['upstream_repository'], 'attribution': 'ACIArena · upstream LLM Debate',
+                'dataset_url': manifest['upstream_repository'], 'attribution': f"ACIArena · upstream {manifest['system']}",
                 'upstream_revision': manifest['upstream_revision'], 'trace_sha256': sample['trace_sha256'],
                 'start': traces[condition][0]['occurred_at'], 'native_result': sample['result']})
         facts = list(ExampleSource(manifest, traces[condition], artifacts).facts())

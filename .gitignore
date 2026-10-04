@@ -9,6 +9,7 @@ __pycache__/
 .direnv/
 data/
 data-*/
+benchmarks/results/
 *.sqlite*
 .DS_Store
 

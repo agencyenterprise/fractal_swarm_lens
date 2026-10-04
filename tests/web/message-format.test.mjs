@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { renderMastMessage } from '../../frontend/mast-message.js';
+import { renderMessageHTML } from '../../frontend/message-format.js';
 
-const render = text => JSDOM.fragment(renderMastMessage(text));
+const render = text => JSDOM.fragment(renderMessageHTML(text));
 
 test('formats numbered reasoning, emphasis, tables, and equations inside list paragraphs', () => {
   const body = render(String.raw`Let's break down the problem step by step.

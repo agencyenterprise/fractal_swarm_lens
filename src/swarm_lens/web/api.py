@@ -4,14 +4,18 @@ from functools import lru_cache
 from contextlib import asynccontextmanager
 import json
 from pathlib import Path
+import re
+from urllib.parse import quote
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from swarm_lens import Framework
 from swarm_lens.core.models import Conflict, DomainError
+from .extensions import WebExtension
 from .live import BranchIntervention
 
 
@@ -33,9 +37,48 @@ class AnalysisRequest(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class TraceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=1, max_length=200_000)
+    task: str = Field(default="", max_length=10_000)
+
+
 class CheckpointRequest(BaseModel):
     cursor: int | None = Field(default=None, ge=0)
     message: str = "Visual explorer checkpoint"
+
+
+class CommentRequest(BaseModel):
+    event_id: str
+    author: str
+    text: str
+    parent_id: str | None = None
+
+
+class CommentEdit(BaseModel):
+    text: str | None = None
+    resolved: bool | None = None
+
+
+BUNDLE_LIMIT_BYTES = 64 * 1024 * 1024
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def read_bundle(request: Request) -> object:
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > BUNDLE_LIMIT_BYTES:
+            raise HTTPException(413, f"A run bundle is limited to {BUNDLE_LIMIT_BYTES} bytes")
+    try:
+        return json.loads(body)
+    except ValueError as exc:
+        raise DomainError("A run bundle must be valid JSON") from exc
+
+
+def download_disposition(run_name: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", run_name).strip("-.") or "run"
+    return f'attachment; filename="{stem}.swarm-lens.json"; filename*=UTF-8\'\'{quote(run_name, safe="")}.swarm-lens.json'
 
 
 def event_summary(event):
@@ -58,7 +101,22 @@ def event_summary(event):
             "model": d.get("model") if family == "agent" else None,
             "entity_id": d.get("id"), "reply_to_id": d.get("reply_to_id"),
             "stage_label": d.get("metadata", {}).get("stage_label"),
+            "delivered_sources": event.source.get("delivered_sources"),
             "channel_name": d.get("name") if family == "channel" else None}
+
+
+def include_extensions(app: FastAPI, extensions: tuple[WebExtension, ...]) -> None:
+    existing = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
+    for extension in extensions:
+        for route in extension.router.routes:
+            if not route.path.startswith(f"{extension.api_prefix}/"):
+                raise ValueError(f"Plugin {extension.id} routes must start with {extension.api_prefix}/")
+            for method in getattr(route, "methods", ()):
+                key = (route.path, method)
+                if key in existing:
+                    raise ValueError(f"Duplicate plugin route: {method} {route.path}")
+                existing.add(key)
+        app.include_router(extension.router)
 
 
 def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None) -> FastAPI:
@@ -83,7 +141,7 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
     @app.middleware("http")
     async def local_mutations(request: Request, call_next):
         origin = request.headers.get("origin")
-        if request.method == "POST" and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+        if request.method not in SAFE_METHODS and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
             return JSONResponse({"detail": "Cross-origin mutations are not accepted"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -104,7 +162,11 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
                 "branches": [asdict(branch) for run in runs for branch in framework.store.branches(run.id)],
                 "capabilities": {**framework.capabilities(),
                                  "live": {"enabled": live is not None, "runtimes": list(live.runtimes) if live else []},
-                                 "web_plugins": [extension.manifest() for extension in extensions]}}
+                                 "web_plugins": [extension.describe() for extension in extensions]}}
+
+    @app.post("/api/traces", status_code=201)
+    def import_trace(request: TraceRequest):
+        return {"branch": asdict(framework.import_transcript(request.name, request.text, request.task))}
 
     @app.get("/api/branches/{branch_id}/timeline")
     def timeline(branch_id: str):
@@ -166,6 +228,33 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
     def checkpoint(branch_id: str, request: CheckpointRequest):
         return {"commit": framework.checkpoint(branch_id, request.cursor, request.message)}
 
+    @app.get("/api/branches/{branch_id}/comments")
+    def comments(branch_id: str):
+        return {"comments": [asdict(comment) for comment in framework.comments(branch_id)]}
+
+    @app.post("/api/branches/{branch_id}/comments", status_code=201)
+    def add_comment(branch_id: str, request: CommentRequest):
+        return asdict(framework.comment(branch_id, request.event_id, request.author, request.text, request.parent_id))
+
+    @app.patch("/api/comments/{comment_id}")
+    def edit_comment(comment_id: str, request: CommentEdit):
+        return asdict(framework.edit_comment(comment_id, text=request.text, resolved=request.resolved))
+
+    @app.delete("/api/comments/{comment_id}", status_code=204)
+    def delete_comment(comment_id: str):
+        framework.delete_comment(comment_id)
+        return Response(status_code=204)
+
+    @app.get("/api/runs/{run_id}/export")
+    def export_run(run_id: str):
+        bundle = framework.export_run(run_id)
+        return JSONResponse(bundle, headers={"Content-Disposition": download_disposition(bundle["run"]["name"])})
+
+    @app.post("/api/runs/import", status_code=201)
+    async def import_run(request: Request):
+        branch = await run_in_threadpool(framework.import_run, await read_bundle(request))
+        return {"branch": asdict(branch)}
+
     @app.get("/api/compare")
     def compare(left: str, right: str, left_cursor: int | None = None, right_cursor: int | None = None):
         return framework.diff(left, right, left_cursor, right_cursor)
@@ -179,22 +268,16 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
         except (ValueError, FileNotFoundError) as exc:
             raise DomainError("Unknown artifact") from exc
 
-    existing = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
-    for extension in extensions:
-        for route in extension.router.routes:
-            if not route.path.startswith(f"/api/plugins/{extension.id}/"):
-                raise ValueError("Plugin routes must use their own API namespace")
-            for method in getattr(route, "methods", ()):
-                key = (route.path, method)
-                if key in existing:
-                    raise ValueError("Duplicate plugin route")
-                existing.add(key)
-        app.include_router(extension.router)
+    include_extensions(app, extensions)
 
     if live:
         from .live import live_router
         app.include_router(live_router(live, event_summary))
 
+    # Plugin mounts come first: the broader /assets mount would otherwise answer their paths.
+    for extension in extensions:
+        if extension.assets is not None:
+            app.mount(extension.assets_url, StaticFiles(directory=extension.assets), name=f"plugin-{extension.id}")
     web = Path(__file__).parent
     app.mount("/assets", StaticFiles(directory=web), name="assets")
 

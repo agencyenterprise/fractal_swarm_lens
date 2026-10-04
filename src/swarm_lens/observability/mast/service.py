@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import sqlite3
 
-from swarm_lens.core.models import Conflict, DomainError, Fact, new_id, utc_now
+from swarm_lens.core.models import Conflict, DomainError, new_id, utc_now
 
 
 class MastJobs:
@@ -133,22 +133,3 @@ class MastService:
                           error_type=kind)
         record["finished_at"] = utc_now()
         self.jobs.update(record)
-
-    def import_trace(self, name, text, task=""):
-        if not name.strip() or not text.strip():
-            raise DomainError("A trace needs a name and nonempty content")
-        if len(text) > self.plugin.max_trace_characters:
-            raise DomainError("Trace exceeds the configured MAST import limit")
-        at, digest = utc_now(), hashlib.sha256(text.encode()).hexdigest()
-        facts = [Fact("environment.updated", {"task": task or name}, at),
-                 Fact("observation.recorded", {"type": "imported_trace", "content": text}, at,
-                      {"origin": "import", "format": "raw_text", "sha256": digest,
-                       "timing": "import time; original timing remains in the trace"})]
-
-        class Source:
-            def facts(self):
-                yield from facts
-
-        branch = self.framework.create_run(name, {"source_type": "saved_trace", "sha256": digest})
-        self.framework.ingest(branch.id, Source())
-        return self.framework.store.branch(branch.id)
