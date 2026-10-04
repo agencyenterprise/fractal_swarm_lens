@@ -7,7 +7,7 @@ const prefix = "/plugins/mast";
 const active = new Set(["queued", "running"]);
 const statuses = {
   completed: { label: "Completed", tone: "accent", tip: "The judge returned a full assessment" },
-  needs_review: { label: "Needs review", tone: "", tip: "The judge's response was unfinished; check the raw response" },
+  needs_review: { label: "Needs review", tone: "", tip: "Some judgments or evidence need review; inspect the saved results" },
   queued: { label: "Queued", tone: "", tip: "Waiting for a free analysis slot" },
   running: { label: "Analyzing", tone: "", tip: "The judge is reading the trace" },
   failed: { label: "Failed", tone: "danger", tip: "The analysis stopped with an error; nothing was classified" },
@@ -15,7 +15,12 @@ const statuses = {
 };
 const MAST_PAPER = "https://arxiv.org/abs/2503.13657";
 const MAST_TAXONOMY = "https://github.com/multi-agent-systems-failure-taxonomy/MAST";
-const completenessOptions = [["unknown", "Unknown"], ["complete", "Complete"], ["partial", "Partial"]];
+const completenessOptions = [
+  ["unknown", "Unknown", "Choose this when you do not know whether the selected recording covers the full execution. MAST will treat the ending as uncertain."],
+  ["complete", "Complete", "The selected recording covers the execution from start to its actual end, whether the task succeeded or failed. Complete describes the recording, not task success."],
+  ["partial", "Partial", "The selected recording ends mid-run or omits part of the execution, such as an earlier timeline cursor. MAST should not mistake that cutoff for agents abandoning the task."],
+];
+const completenessHelp = "Describes how much of the execution was recorded, not whether the task succeeded.\n\nUnknown: coverage is not known.\nComplete: the entire execution is included.\nPartial: only part of the execution is included.\n\nThis helps MAST distinguish a recording cutoff from task termination.";
 
 function statusBadge(status) {
   const { label, tone, tip: hint } = statuses[status] || { label: status, tone: "" };
@@ -143,19 +148,48 @@ function provenance(job, output) {
   }, null, 2);
 }
 
+function savedStages(job) {
+  const list = el("div", "mast-notes");
+  const stages = [...(job.stages || [])].sort((a, b) => Number(a.phase !== "chunk") - Number(b.phase !== "chunk") || a.index - b.index);
+  for (const stage of stages) {
+    const label = stage.phase === "chunk"
+      ? `Chunk ${stage.index} · events ${stage.start_position}–${stage.end_position}`
+      : `Reconciliation ${stage.index}${stage.final ? " · final" : ""}`;
+    const body = el("div");
+    body.append(el("p", "", stage.summary || "No parsed summary."));
+    body.append(externalLink("Saved input and result (JSON)", `/api/artifacts/${encodeURIComponent(stage.artifact)}`));
+    list.append(details(label, body));
+  }
+  return list;
+}
+
 function progressRow(job) {
   const row = el("div", "mast-progress with-spinner");
   row.setAttribute("role", "status");
-  row.textContent = `Analyzing events 1–${job.cursor} with ${job.judge.model}…`;
+  const progress = job.progress;
+  if (progress?.phase === "reconciliation") {
+    row.textContent = `Reconciling ${progress.total_chunks} chunks · step ${progress.reconciliation_step}…`;
+  } else if (progress?.phase === "chunks" && Array.isArray(progress.active_chunks)) {
+    const action = progress.stopping ? "Finishing in-flight calls after an error" : "Analyzing chunks";
+    const activeChunks = progress.active_chunks.map(c => `${c.index} (events ${c.start_position}–${c.end_position})`).join(", ");
+    row.textContent = `${action} · ${progress.completed_chunks} of ${progress.total_chunks} saved · up to ${progress.workers} workers${activeChunks ? ` · In progress: ${activeChunks}` : ""}…`;
+  } else if (progress?.phase === "chunks") {
+    row.textContent = `Analyzing chunk ${progress.current_chunk} of ${progress.total_chunks} · events ${progress.start_position}–${progress.end_position}…`;
+  } else {
+    row.textContent = `Analyzing events 1–${job.cursor} with ${job.judge.model}…`;
+  }
   return row;
 }
 
 function renderReport(root, job, host, definitions) {
   root.replaceChildren(reportHeader(job, host));
   if (job.error) root.append(el("p", "mast-error", job.error));
+  if (job.provider_error) root.append(details("Provider diagnostics", JSON.stringify(job.provider_error, null, 2)));
+  if (job.stages?.length) root.append(details(`${job.stages.length} saved analysis stages`, savedStages(job)));
   if (active.has(job.status)) return root.append(progressRow(job));
   if (!job.analysis) return root.append(el("p", "muted", "No assessment was produced."));
   const output = job.analysis.output.report;
+  if (output.chunking) root.append(el("p", "muted", `${output.chunking.chunk_count} chunks · ${output.chunking.reconciliation_steps} reconciliation steps. ${output.chunking.limitation}`));
   root.append(outcomeStrip(output));
   if (output.summary) root.append(el("p", "mast-summary", output.summary));
   root.append(failureModes(output.labels, job, host, definitions), el("p", "muted mast-note", "LLM assessment, not human reviewed."));
@@ -197,13 +231,13 @@ function segmented(label, options, value, onChange) {
   const group = el("div", "segmented");
   group.setAttribute("role", "group");
   group.setAttribute("aria-label", label);
-  const buttons = options.map(([optionValue, optionLabel]) => {
+  const buttons = options.map(([optionValue, optionLabel, hint]) => {
     const control = button(optionLabel, () => {
       for (const other of buttons) other.setAttribute("aria-pressed", String(other === control));
       onChange(optionValue);
     });
     control.setAttribute("aria-pressed", String(optionValue === value));
-    return control;
+    return tip(control, hint);
   });
   group.append(...buttons);
   return group;
@@ -211,6 +245,7 @@ function segmented(label, options, value, onChange) {
 
 function sizeCheckText(preview) {
   if (!preview.can_analyze) return preview.reason || "This snapshot cannot be analyzed.";
+  if (preview.strategy === "chunked") return `Ready · ${formatNumber(preview.event_count)} events in ${preview.chunk_count} chunks · up to ${preview.workers || 1} workers · results will be reconciled`;
   if (preview.estimated_input_tokens === undefined) return `Fits · ${formatNumber(preview.event_count)} events`;
   return `Fits · ${formatNumber(preview.estimated_input_tokens)} of ${formatNumber(preview.input_token_limit)} tokens`;
 }
@@ -226,13 +261,15 @@ function analyzeDialog(manifest, selection, host) {
   let ready = false;
   let generation = 0;
   const root = el("div", "mast-dialog");
-  const caption = el("span", "mast-field-label", "Trace completeness");
+  const caption = tip(el("span", "mast-field-label", "Trace completeness ⓘ"), completenessHelp);
+  caption.tabIndex = 0;
   const status = el("p", "mast-size");
+  const requests = el("p", "muted");
   status.setAttribute("role", "status");
   root.append(caption, segmented("Trace completeness", completenessOptions, completeness, (value) => {
     completeness = value;
     checkInput();
-  }), status, el("p", "muted", `Sends events 1–${selection.cursor} to OpenAI ${manifest.judge.model}, then one more request to locate evidence for each trait.`));
+  }), status, requests);
   if (!manifest.judge.ready) root.append(el("p", "mast-error", manifest.judge.reason));
   const body = () => ({ branch_id: selection.branchId, cursor: selection.cursor, completeness });
   openDialog("Analyze with MAST", root, { kicker: "", confirm: "Analyze", pending: "Starting…",
@@ -253,6 +290,9 @@ function analyzeDialog(manifest, selection, host) {
       const preview = await post(`${prefix}/preview`, body());
       if (!isCurrent(ticket)) return;
       ready = preview.can_analyze;
+      requests.textContent = preview.strategy === "chunked"
+        ? `Sends the selected trace to OpenAI ${manifest.judge.model} in ${preview.chunk_count} chunks, with up to two requests per chunk for judgments and evidence, followed by reconciliation requests. All chunks and the combined report are saved.`
+        : `Sends events 1–${selection.cursor} to OpenAI ${manifest.judge.model}, then one more request to locate evidence for each trait.`;
       show(sizeCheckText(preview), ready ? "ready" : "error");
     } catch (error) {
       if (!isCurrent(ticket)) return;

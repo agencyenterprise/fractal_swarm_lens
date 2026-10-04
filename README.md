@@ -107,6 +107,8 @@ Rebuild after editing frontend styles or `frontend/components.js`. Commit the ge
 
 ## Validation
 
+GitHub Actions runs the Python suite (including MAST and CrewAI integration tests) and the frontend build/tests on every pull request. Provider calls in these tests use offline fixtures; no API keys are required. CI checks the bundled MAST assets against the pinned `vendor/mast` source. Optional upstream ACIArena tests require its submodule and extra dependencies and are skipped in this workflow.
+
 ```sh
 python -m pytest -q
 ```

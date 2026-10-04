@@ -100,6 +100,9 @@ function showTip(target) {
   if (!text || !target.isConnected) return hideTip();
   if (tipState.target && tipState.target !== target) describedBy(tipState.target, false);
   const node = tipNode();
+  // A modal is in the top layer; a body-level tooltip would sit behind its backdrop.
+  const host = target.closest("dialog[open]") || document.body;
+  if (node.parentElement !== host) host.append(node);
   node.textContent = text;
   node.hidden = false;
   placeTip(node, target);

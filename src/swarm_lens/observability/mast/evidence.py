@@ -113,6 +113,8 @@ def generate_evidence(judge, trace, labels, categories):
     except Exception as exc:
         # Keep the original classification even if this additional request fails.
         # Provider exception messages may contain sensitive request information.
-        result.update(error_type=type(exc).__name__, warnings=[
+        from .errors import provider_failure
+        message, diagnostic = provider_failure(exc)
+        result.update(error_type=type(exc).__name__, provider_error=diagnostic, warnings=[message,
             "Trait evidence could not be generated or validated. The original assessment is retained."])
     return result

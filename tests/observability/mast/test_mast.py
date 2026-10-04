@@ -209,7 +209,24 @@ def test_duplicate_extension_ids_rejected(service):
         create_app(service.framework, extensions=(extension, extension))
 
 
-def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path):
+def test_safe_provider_diagnostics_persist_in_failed_job(service, branch):
+    import httpx
+    import openai
+    def fail(prompt):
+        raise openai.BadRequestError("PRIVATE", body={"code": "context_length_exceeded", "message": "PRIVATE"},
+            response=httpx.Response(400, request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions")))
+    service.plugin.judge.complete = fail
+    job = service.submit(branch.id, 4, "unknown")
+    service.execute(job["id"])
+    result = service.jobs.get(job["id"])
+    assert result["provider_error"]["code"] == "context_length_exceeded"
+    assert "token count" in result["error"]
+    assert "PRIVATE" not in json.dumps(result)
+    assert "analysis" not in result
+
+
+@pytest.mark.parametrize('version', ['0.3.0', '0.5.0'])
+def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path, version):
     import hashlib
     import sqlite3
     from swarm_lens import Framework
@@ -223,9 +240,13 @@ def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path)
     output["evidence"] = {"status": "complete", "traits": {"1.3": {"status": "located", "explanation": "Repeated.",
         "occurrences": [{"start_position": 2, "end_position": 2, "supporting_event_ids": [event_id],
                          "counterevidence_event_ids": [], "explanation": "Said twice."}]}}}
-    job = {"id": "old-job", "plugin_id": "mast", "plugin_version": "0.3.0", "branch_id": branch.id, "cursor": 2,
+    job = {"id": "old-job", "plugin_id": "mast", "plugin_version": version, "branch_id": branch.id, "cursor": 2,
            "created_at": "2026-10-01T00:00:00+00:00", "status": "completed", "config": {"completeness": "unknown"},
            "judge": {"model": "old-judge"}, "analysis": {"id": "old-job", "cursor": 2, "output": output}}
+    if version == '0.5.0':
+        output['chunking'] = {'chunk_count': 2, 'workers': 3, 'reconciliation_steps': 1}
+        artifact = FileArtifacts(tmp_path / 'artifacts').put(b'{"summary":"Saved chunk finding"}')
+        job['stages'] = [{'phase': 'chunk', 'index': 1, 'artifact': artifact}]
     with sqlite3.connect(tmp_path / "mast.sqlite") as db:
         db.execute("CREATE TABLE mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, "
                    "status TEXT NOT NULL, record TEXT NOT NULL)")
@@ -237,8 +258,12 @@ def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path)
         with TestClient(build_app(tmp_path)) as client:
             jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch.id}).json()["jobs"]
             assert [item["id"] for item in jobs] == ["old-job"]
-            report = client.get("/api/plugins/mast/analyses/old-job").json()["analysis"]["output"]["report"]
-            assert report["labels"] == output["labels"]
+            saved = client.get("/api/plugins/mast/analyses/old-job").json()
+            report = saved["analysis"]["output"]["report"]
+            assert report == output
+            if version == '0.5.0':
+                assert saved['stages'] == job['stages']
+                assert client.get('/api/artifacts/' + artifact).json() == {'summary': 'Saved chunk finding'}
             [marker] = client.get(f"/api/branches/{branch.id}/annotations").json()["annotations"]
             assert (marker["seq_from"], marker["cited_event_ids"], marker["plugin"]) == (2, [event_id], "mast")
     assert hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest() == before

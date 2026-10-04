@@ -22,7 +22,8 @@ def mast_extension(service):
     def manifest():
         return {"version": service.plugin.version, "title": "MAST trace analysis", "modes": ["saved_trace"],
                 "judge": service.plugin.judge.describe(), "upstream_revision": assets()["revision"],
-                "max_trace_characters": service.plugin.max_trace_characters}
+                "max_trace_characters": service.plugin.max_trace_characters, "chunked_analysis": True,
+                "workers": service.plugin.workers}
 
     @router.get("/capabilities")
     def capabilities():
