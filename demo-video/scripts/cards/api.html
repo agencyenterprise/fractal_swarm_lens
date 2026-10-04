@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent or web</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { display: grid; gap: 44px; justify-items: center; }
+  h1 { margin: 0; font-size: 80px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; text-align: center; }
+  .slam { opacity: 0; transform: scale(1.1); filter: blur(10px); }
+  .slam.in { animation: slam .32s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes slam { to { opacity: 1; transform: none; filter: none; } }
+  .term { width: 1500px; }
+  .body { padding: 26px 34px 30px; font-size: 25px; line-height: 1.5; height: 380px; white-space: pre-wrap; }
+  .cmd::before { content: "$ "; color: var(--muted); font-weight: 700; }
+  .cmd { color: var(--ink); }
+  .out { color: #2d63b5; margin-bottom: 14px; }
+  .caret { display: inline-block; width: 12px; height: 25px; background: var(--ink); vertical-align: -4px; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <h1 class="slam" id="title">Same operations from the UI or the HTTP API</h1>
+      <div class="term window rise" style="--d:.15s">
+        <div class="window-bar"><i></i><i></i><i></i><span style="margin-left:12px">your coding agent, calling the Swarm Lens HTTP API</span></div>
+        <div class="body mono" id="out"></div>
+      </div>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  // play(transcript) receives commands and outputs captured from real API calls at record time.
+  const out = document.getElementById("out");
+  async function typeTranscript(transcript) {
+    for (const { cmd, out: result } of transcript) {
+      const line = document.createElement("div");
+      line.className = "cmd";
+      out.append(line);
+      const caret = document.createElement("span");
+      caret.className = "caret";
+      for (let i = 0; i < cmd.length; i += 3) {
+        line.textContent = cmd.slice(0, i + 3);
+        line.append(caret);
+        if (i % 9 === 0) cue("key");
+        await wait(14);
+      }
+      caret.remove();
+      cue("enter");
+      await wait(140);
+      const response = document.createElement("div");
+      response.className = "out";
+      response.textContent = result;
+      out.append(response);
+      await wait(260);
+    }
+  }
+  window.play = (transcript) => {
+    document.body.classList.add("play");
+    document.getElementById("title").classList.add("in");
+    cue("slam");
+    wait(350).then(() => typeTranscript(transcript));
+    return 4.2;
+  };
+</script>
+</body>
+</html>
