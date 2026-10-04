@@ -64,6 +64,7 @@ def event_summary(event):
             "model": d.get("model") if family == "agent" else None,
             "entity_id": d.get("id"), "reply_to_id": d.get("reply_to_id"),
             "stage_label": d.get("metadata", {}).get("stage_label"),
+            "delivered_sources": event.source.get("delivered_sources"),
             "channel_name": d.get("name") if family == "channel" else None}
 
 
