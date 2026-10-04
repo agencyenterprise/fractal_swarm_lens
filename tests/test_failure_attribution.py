@@ -10,7 +10,7 @@ import pytest
 from swarm_lens import Fact, PluginService
 from swarm_lens.adapters.jobs import JobStore
 from swarm_lens.adapters.openai_chat import ModelError
-from swarm_lens.plugins.failure_attribution import FailureAttribution, FixMessage
+from swarm_lens.plugins.failure_attribution import Case, FailureAttribution, FixMessage
 from swarm_lens.web.api import create_app
 
 AT = "2026-01-01T12:00:00+00:00"
@@ -135,7 +135,7 @@ def test_agreeing_strategies_pin_the_suspect_from_records_without_hidden_prompts
     assert pin["data"]["prior_check"].startswith("no prior check")
     assert [s["strategy"] for s in pin["data"]["strategies"]] == ["all_at_once", "step_by_step", "binary_search"]
     assert pin["data"]["fork_and_fix"] == {"plugin": "fix-message", "at": first.position - 1,
-                                           "replaces_event_id": first.id, "agent_id": "d0"}
+                                           "replaces_event_id": first.id, "agent_id": "d0", "channel_id": "d"}
     assert all(HIDDEN_PROMPT not in prompt for prompt in judge.prompts)
     full = steps_in(judge.prompts[0])
     assert full[0] == {"context": "system", "text": "Question: A or B?"}
@@ -192,6 +192,24 @@ def test_budget_holds_when_usage_is_missing_and_provider_text_never_reaches_the_
     client = client_for(framework, tmp_path / "c", failing)
     job = analyze(client, debate, {})
     assert job["status"] == "failed" and secret not in job["error"] and annotations(client, debate) == []
+
+
+def test_a_malformed_answer_is_not_cached_and_an_unknown_agent_is_a_model_error(framework, debate, tmp_path):
+    class Malformed(ScriptedJudge):
+        def complete_json(self, *args):
+            response = super().complete_json(*args)
+            return {**response, "data": {key: value for key, value in response["data"].items() if key != "reason"}}
+
+    bad = Malformed(target=0)
+    job = analyze(client_for(framework, tmp_path, bad), debate, {})
+    assert job["status"] == "failed" and "did not match" in job["error"] and len(bad.prompts) == 1
+    good = ScriptedJudge(target=0)
+    assert analyze(client_for(framework, tmp_path, good), debate, {})["status"] == "completed"
+    assert len(good.prompts) == 1, "the bad answer was cached"
+
+    case = Case("", [], {"d0": "Agent A"})
+    with pytest.raises(ModelError, match="not in this run"):
+        case.agent_for("Agent Z")
 
 
 def test_identical_concurrent_jobs_pay_for_one_call(framework, debate, tmp_path):

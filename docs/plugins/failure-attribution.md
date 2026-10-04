@@ -32,13 +32,15 @@ and the best step-level accuracy is 25.5%. Treat every finding as a hypothesis t
   another agent's step is recorded as `invalid_citation` and never pinned or repaired.
 - A report records the model, every call (cached or not, cost, request id) and the names the judge saw.
 
-The judge reads messages and agent tool calls only, as JSON records, one per line. Records from an agent
-carry a step number; other messages are context. The task, success rule and outcome go in a separate JSON
+The judge reads messages and agent tool calls (with their results) only, as JSON records, one per line.
+Records from an agent carry a step number; other messages are context. The task, success rule and outcome go in a separate JSON
 "run facts" record. Because every text is a JSON string, a message that says "Step 0 - ..." cannot pose as
 a step, and the system prompt marks all run text as untrusted data. This
 reduces prompt injection from the trace; it does not remove it. Observations and memory writes are never
-shown, because they can hold hidden prompts. In ACIArena, the installed attacker's instructions are
-recorded as an observation and in its memory. Binary search needs at least two agent steps.
+shown, because they can hold hidden prompts. Tool results are shown, and they can carry injected text the same
+way observations do. In ACIArena, the installed attacker's instructions are
+recorded as an observation and in its memory. Binary search needs at least two agent steps. Submitting a job
+sends these records and the run facts to OpenAI.
 
 ### Params
 
@@ -63,7 +65,7 @@ $0.025 cached input, $2.00 output; gpt-5-nano $0.05, $0.005, $0.40.
 
 The `fix-message` intervention ("Fork with Fork and fix a message...") forks at an event and posts a
 replacement message from a chosen agent in a chosen channel. To replace a suspect message, fork at the
-event just before it (`data.fork_and_fix.at`), then replay the branch with the existing Create and run flow.
+event just before it (`data.fork_and_fix.at`; the hint also names the message's `channel_id`), then replay the branch with the existing Create and run flow.
 If the outcome flips, that supports the pin but does not prove it is the only cause: several fixes can
 work, and replays are stochastic.
 

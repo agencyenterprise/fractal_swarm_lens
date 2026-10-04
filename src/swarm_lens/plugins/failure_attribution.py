@@ -4,9 +4,9 @@ Method: "Which Agent Causes Task Failures and When?" (Zhang et al., ICML 2025). 
 reference code (github.com/mingyin1/Agents_Failure_Attribution) with structured answers. The paper reports
 54% agent-level and at most 25.5% step-level accuracy, so every finding is a suspect, not ground truth.
 
-The judge reads only messages and agent tool calls, serialized as JSON records so trace text cannot pose as
-a step. Observations and memory writes are never shown: they can hold hidden prompts, such as an installed
-attacker's instructions.
+The judge reads only messages and agent tool calls with their results, serialized as JSON records so trace
+text cannot pose as a step. Observations and memory writes are never shown: they can hold hidden prompts, such
+as an installed attacker's instructions. Tool results are shown and can carry injected text the same way.
 """
 from collections import Counter
 from dataclasses import dataclass
@@ -75,6 +75,7 @@ class Record:
     kind: str
     speaker: str
     text: str
+    channel_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,8 +108,8 @@ class Budget:
         cached = self.cache_dir / f"{key}.json"
         guard = key_lock(key)
         with guard.lock:
-            if cached.exists():
-                answer = json.loads(cached.read_text())
+            answer = json.loads(cached.read_text()) if cached.exists() else None
+            if answer is not None and conforms(answer["data"], schema):  # older caches stored answers unchecked
                 self.calls.append({"strategy": strategy, "cached": True, "cost_usd": 0.0,
                                    "request_id": answer["request_id"]})
                 return answer["data"]
@@ -120,6 +121,10 @@ class Budget:
                 self._charge(strategy, exc.usage, worst, request_id=None)
                 raise
             self._charge(strategy, response["usage"], worst, response["request_id"])
+            if not conforms(response["data"], schema):
+                # Billed but not cached, like a failed call: a cached bad answer would fail every rerun.
+                raise ModelError("The judge's answer did not match the requested structure.", "SchemaMismatch",
+                                 response["usage"])
             self._store(cached, {"data": response["data"], "request_id": response["request_id"],
                                  "model": response["model"]})
             return response["data"]
@@ -165,10 +170,25 @@ class Budget:
         os.replace(partial, path)
 
 
+def conforms(value, schema):
+    """Whether `value` fits the subset of JSON schema the strategies ask for: objects, strings, integers,
+    booleans and enums."""
+    if "enum" in schema and value not in schema["enum"]:
+        return False
+    kind = schema.get("type")
+    if kind == "object":
+        properties = schema.get("properties", {})
+        return (isinstance(value, dict) and all(key in value for key in schema.get("required", ()))
+                and all(key in properties and conforms(item, properties[key]) for key, item in value.items()))
+    return {"string": isinstance(value, str), "boolean": type(value) is bool,
+            "integer": type(value) is int}.get(kind, True)
+
+
 # ---------- what the judge reads ----------
 
 def records(view, start, end):
-    """Messages with an agent sender and agent tool calls are steps; other messages are context."""
+    """Messages with an agent sender and agent tool calls (with their results) are steps; other messages are
+    context."""
     rows, index = [], 0
     for event in view.events(start, end):
         data = event.data
@@ -182,7 +202,8 @@ def records(view, start, end):
             text = f"tool {data['tool_name']} args={json.dumps(data.get('arguments'), ensure_ascii=False)} result={outcome}"
         else:
             continue
-        rows.append(Record(index if agent else None, agent, event.id, event.position, event.kind, speaker, text))
+        rows.append(Record(index if agent else None, agent, event.id, event.position, event.kind, speaker, text,
+                           data.get("channel_id")))
         index += bool(agent)
     return rows
 
@@ -225,7 +246,10 @@ class Case:
         return "\n".join(lines)
 
     def agent_for(self, label):
-        return next(agent for agent, shown in self.names.items() if shown == label)
+        agent = next((agent for agent, shown in self.names.items() if shown == label), None)
+        if agent is None:  # a bare StopIteration here would surface from the analyze generator as RuntimeError
+            raise ModelError("The judge named an agent that is not in this run.", "UnknownAgent")
+        return agent
 
 
 def build_case(view, start, end, params):
@@ -331,7 +355,8 @@ class FailureAttribution:
     id, version = "failure-attribution", "1.0.0"
     title = f"Failure attribution ({DISCLAIMER})"
     description = ("An LLM judge names the agent and step that most likely caused a failed run (Who&When, "
-                   f"ICML 2025). Findings are a {DISCLAIMER}; the paper reports 54% agent accuracy.")
+                   f"ICML 2025). Findings are a {DISCLAIMER}; the paper reports 54% agent accuracy. Submitting a "
+                   "job sends the run's messages, tool calls and tool results to OpenAI.")
 
     class Params(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -344,7 +369,9 @@ class FailureAttribution:
         pseudonymize: bool = Field(False, title="Pseudonymize step labels",
                                    description="Steps show shuffled Agent A, B, ... instead of agent ids; names "
                                                "inside message text are not removed")
-        model: Literal["gpt-5-mini", "gpt-5-nano"] = Field("gpt-5-mini", title="Judge model")
+        model: Literal["gpt-5-mini", "gpt-5-nano"] = Field(
+            "gpt-5-mini", title="Judge model",
+            description="OpenAI model that receives the run's content when the job is submitted")
         reasoning_effort: Literal["minimal", "low", "medium", "high"] = Field("low", title="Reasoning effort")
         budget_usd: float = Field(0.25, gt=0, le=5, title="Budget (USD)",
                                   description="Hard cap for new judge calls in this analysis; cached calls are free")
@@ -404,6 +431,8 @@ def findings(verdicts, rule, start, end):
     if pin.kind == "message.created":
         data["fork_and_fix"] = {"plugin": FixMessage.id, "at": pin.position - 1, "replaces_event_id": pin.event_id,
                                 "agent_id": suspect}
+        if pin.channel_id:
+            data["fork_and_fix"]["channel_id"] = pin.channel_id
     yield Annotation(pin.position, pin.position, "suspect", suspect, score=count / len(verdicts), data=data,
                      cited_event_ids=tuple(dict.fromkeys(verdict.step.event_id for verdict in backing)))
 
