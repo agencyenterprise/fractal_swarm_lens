@@ -32,6 +32,22 @@ export function button(label, action, className = "") {
   node.addEventListener("click", action);
   return node;
 }
+// A row of toggle buttons; exactly one is pressed.
+export function segmented(label, options, value, onChange) {
+  const group = el("div", "segmented");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", label);
+  const buttons = options.map(([optionValue, optionLabel]) => {
+    const control = button(optionLabel, () => {
+      for (const other of buttons) other.setAttribute("aria-pressed", String(other === control));
+      onChange(optionValue);
+    });
+    control.setAttribute("aria-pressed", String(optionValue === value));
+    return control;
+  });
+  group.append(...buttons);
+  return group;
+}
 export function section(title, text) {
   const node = el("section", "inspector-section");
   node.append(el("h3", "", title));

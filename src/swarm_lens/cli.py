@@ -6,6 +6,7 @@ from .adapters.artifacts import FileArtifacts
 from .adapters.git import GitVersions
 from .adapters.sqlite import SQLiteHistory
 from .plugins import ActivityPlugin
+from .observability.http_calls import HttpCallsPlugin
 
 
 def main():
@@ -21,6 +22,7 @@ def main():
     args = parser.parse_args()
     import uvicorn
     from .web.api import create_app
+    from .web.http_calls import http_calls_extension
     from .web.mast import mast_extension
     from .web.timeline_report import TimelineService, timeline_extension
     from .adapters.jobs import JobStore
@@ -39,7 +41,7 @@ def main():
 
     framework = Framework(SQLiteHistory(args.data / "history.sqlite"),
                           versions=GitVersions(args.data / "history.git"),
-                          plugins=(ActivityPlugin(), TimelinePlugin(OpenAIChat(
+                          plugins=(ActivityPlugin(), HttpCallsPlugin(), TimelinePlugin(OpenAIChat(
                               env_prefix="TIMELINE", extra="timeline", default_model="gpt-5.6-sol",
                               max_completion_tokens=32_768, max_retries=2))))
     artifacts = FileArtifacts(args.data / "artifacts")
@@ -63,7 +65,8 @@ def main():
     mast = MastService(framework, MastPlugin(OpenAIMastJudge()),
                        JobStore(args.data / "mast.sqlite", "mast", "MAST"), artifacts)
     timeline = TimelineService(framework, JobStore(args.data / "timeline.sqlite", "timeline", "timeline"))
-    uvicorn.run(create_app(framework, artifacts, extensions=(mast_extension(mast), timeline_extension(timeline)),
+    uvicorn.run(create_app(framework, artifacts, extensions=(mast_extension(mast), timeline_extension(timeline),
+                                                       http_calls_extension(framework)),
                            live=live),
                 host=args.host, port=args.port)
 

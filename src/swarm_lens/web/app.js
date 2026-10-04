@@ -8,6 +8,9 @@ import { Transcript } from "./transcript.js";
 import { renderInspector } from "./inspect.js";
 import { installCompare } from "./compare.js";
 import { installMast } from "./mast.js";
+import { installTimeline } from "./timeline-report.js";
+import { installHttpCalls } from "./http-calls.js";
+import { Reports } from "./reports.js";
 import { field, openDialog } from "./dialog.js";
 import { branchDialog } from "./branch.js";
 import { Picker } from "./components.js?v=1";
@@ -30,6 +33,13 @@ const details = new Map();
 const timelines = new Map();
 const menuActions = [];
 let seekTicket = 0, inspectorTicket = 0, seekTimer, playTimer;
+
+// Web plugin installers by manifest `ui.renderer`; a new plugin UI adds one entry here.
+const pluginRenderers = {
+  mast: installMast,
+  timeline: installTimeline,
+  http_calls: installHttpCalls,
+};
 
 // A set of ids kept in this browser; favorites stay personal until runs carry shared metadata.
 function browserSet(key) {
@@ -72,6 +82,13 @@ const comments = new Comments({
 });
 const workspaceViews = new WorkspaceViews((id) => openWorkspaceView(id, workspaceViews.entries.get(id).params));
 workspaceViews.register({ id: "timeline", title: "Timeline", panel: $("#workspace-timeline") });
+const reports = new Reports({
+  selection: () => view.branch && { branchId: view.branch.id },
+  registerView: (config) => workspaceViews.register(config),
+  openView: openWorkspaceView,
+  setViewParams,
+  openMenu,
+});
 
 const liveView = new LiveView({
   selection: () => view.branch && { branchId: view.branch.id, cursor: view.cursor, head: view.branch.head,
@@ -638,28 +655,27 @@ document.addEventListener("keydown", (event) => {
 
 // Startup
 
+function setViewParams(id, params) {
+  if (workspaceViews.current !== id) return;
+  workspaceViews.entries.get(id).params = params;
+  saveRoute();
+}
+
 function pluginHost(manifest) {
   return {
     selection: () => view.branch ? { branchId: view.branch.id, cursor: view.cursor, name: view.run.name,
       branchName: view.branch.name } : null,
     registerView: (config) => workspaceViews.register(config),
     openView: openWorkspaceView,
+    addReports: (source) => reports.add({ ...source, plugin: manifest.id }),
     openReport: async (job) => {
       if (view.branch?.id !== job.branch_id) await loadBranch(job.branch_id, job.cursor);
-      openWorkspaceView("mast", { report: job.id });
+      openWorkspaceView("reports", { report: job.id, plugin: job.plugin_id });
     },
-    setViewParams: (id, params) => {
-      if (workspaceViews.current !== id) return;
-      workspaceViews.entries.get(id).params = params;
-      saveRoute();
-    },
+    setViewParams,
     showSnapshot: (branchId, cursor) => openTimelineAt(branchId, cursor),
-    showEvidenceEvent: async (branchId, cursor, eventId) => {
-      await openTimelineAt(branchId, cursor);
-      const event = view.events.find((item) => item.id === eventId);
-      if (!event) throw new Error("This evidence event is not in the selected history.");
-      await selectEvent(event);
-    },
+    showEvent: (branchId, position) => openEventAt(branchId, position, (event) => event.position === position),
+    showEvidenceEvent: (branchId, cursor, eventId) => openEventAt(branchId, cursor, (event) => event.id === eventId),
     addAction: (action) => menuActions.push({ ...action, plugin: manifest.title }),
     registerVisualization,
   };
@@ -671,26 +687,28 @@ async function openTimelineAt(branchId, cursor) {
   openWorkspaceView("timeline");
 }
 
+async function openEventAt(branchId, cursor, matches) {
+  await openTimelineAt(branchId, cursor);
+  const event = view.events.find(matches);
+  if (!event) throw new Error("This event is not in the selected history.");
+  await selectEvent(event);
+}
+
 let pluginsInstalled = false;
 function installPlugins() {
   if (pluginsInstalled) return;
   pluginsInstalled = true;
-  const renderers = { mast: installMast };
   installCompare({
     registerView: (config) => workspaceViews.register(config),
     context: () => ({ workspace: view.workspace, run: view.run, branch: view.branch, cursor: view.cursor }),
     loadTimeline,
     loadDetail,
     openTimeline: (branchId, cursor) => openTimelineAt(branchId, cursor).catch(failure),
-    setViewParams: (params) => {
-      if (workspaceViews.current !== "compare") return;
-      workspaceViews.entries.get("compare").params = params;
-      saveRoute();
-    },
+    setViewParams: (params) => setViewParams("compare", params),
     favoriteRuns,
   });
   for (const manifest of view.workspace.capabilities.web_plugins || []) {
-    renderers[manifest.ui?.renderer]?.(manifest, pluginHost(manifest));
+    pluginRenderers[manifest.ui?.renderer]?.(manifest, pluginHost(manifest));
   }
   if (view.workspace.capabilities.plugins?.some((plugin) => plugin.id === "activity")) {
     menuActions.push({ plugin: "Activity", label: "Activity summary", onClick: runActivityAnalysis });

@@ -91,9 +91,12 @@ test('cells after the cursor are dimmed and a cell click selects its first match
   const view = phraseSpread.mount(root, { select: event => selected.push(event), selectAgent() {},
     loadDetail: async event => ({ id: event.id, data: { content: event.preview } }) }, toolbar);
   view.update({ events, cursor: 4, selectedId: null, agents });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.match(root.querySelector('.ps-tip').textContent, /track a phrase to color the grid/);
   const input = toolbar.querySelector('input');
   input.value = 'zorvak';
   input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' }));
+  assert.equal(root.querySelector('.ps-tip'), null);
   const cell = (row, column) => root.querySelectorAll('.ps-grid > .ps-cell')[row * 4 + column];
   assert.equal(cell(1, 1).classList.contains('is-future'), false);
   assert.equal(cell(2, 2).classList.contains('is-future'), true);

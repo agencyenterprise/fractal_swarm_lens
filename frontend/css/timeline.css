@@ -1,7 +1,7 @@
 /* Event timeline (timeline.js). Layout constants mirror LABEL_WIDTH, ROW and RULER in the module. */
 
 .tl {
-  --tl-label-w: 150px;
+  --tl-label-w: 176px;
   --tl-ruler-h: 40px;
   position: relative;
   display: flex;
@@ -54,11 +54,16 @@
 }
 .tl-corner {
   position: sticky; left: 0; z-index: 3;
-  width: var(--tl-label-w); height: 100%;
+  display: flex; align-items: flex-end; gap: 4px;
+  width: var(--tl-label-w); height: 100%; padding: 0 6px 7px 12px;
   border-right: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text-3); font-size: 11px; line-height: 20px;
   cursor: default;
 }
+.tl-hidden-count { font-variant-numeric: tabular-nums; }
+.tl .tl-show-all { height: 20px; padding: 0 5px; color: var(--accent-text); font-size: 11px; font-weight: 500; }
+.tl .tl-show-all:hover { background: var(--accent-soft); color: var(--accent-text); }
 .tl-ruler-track { position: absolute; inset: 0; }
 .tl-stage-label {
   position: absolute; top: 0; bottom: 0;
@@ -103,19 +108,43 @@
   background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--border-strong) 55%, transparent) 4px 5px);
 }
 
+/* Lane identity: --lane is the owner's agent hue (timeline.js); neutral lanes keep the surface. */
 .tl-lanes { position: relative; }
-.tl-lane { display: flex; height: 34px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.tl-lane {
+  --lane: var(--text-3);
+  --tl-row-tint: 4%;
+  --tl-label-tint: 7%;
+  display: flex; height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--lane) var(--tl-row-tint), transparent);
+}
+[data-theme="dark"] .tl-lane { --tl-row-tint: 6%; --tl-label-tint: 10%; }
+.tl-lane.is-neutral { --tl-row-tint: 0%; --tl-label-tint: 0%; }
 .tl-label {
   position: sticky; left: 0; z-index: 4;
-  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
-  width: var(--tl-label-w); height: 100%; padding: 0 10px;
-  border: 0; border-right: 1px solid var(--border); border-radius: 0;
-  background: var(--surface); color: var(--text); font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  width: var(--tl-label-w); height: 100%; padding: 0 6px 0 12px;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--lane) var(--tl-label-tint), var(--surface));
+  box-shadow: inset 3px 0 0 var(--lane);
+  color: var(--text-2);
 }
-button.tl-label:hover { background: var(--surface-2); border-color: var(--border); }
-.tl-lane:not(.is-agent) .tl-label { color: var(--text-2); font-weight: 400; }
+.tl-lane.is-neutral .tl-label { box-shadow: inset 3px 0 0 var(--border-strong); }
+.tl-lane-toggle { flex: none; accent-color: var(--lane); cursor: pointer; }
+.tl-lane.is-neutral .tl-lane-toggle { accent-color: var(--text-2); }
+.tl .tl-lane-open {
+  display: flex; flex: 1; align-items: center; justify-content: flex-start; gap: 8px; min-width: 0;
+  height: 28px; margin-left: -4px; padding: 0 4px;
+  border: 0; background: transparent; color: var(--text); font-weight: 500;
+}
+.tl .tl-lane-open:hover { background: color-mix(in srgb, var(--lane) 14%, transparent); }
 .tl-lane-name { min-width: 0; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tl-avatar { box-shadow: inset 0 0 0 1.5px var(--c, transparent); }
+.tl-avatar {
+  background: color-mix(in srgb, var(--lane) 16%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px var(--lane);
+  color: var(--lane);
+}
+.tl-lane.is-neutral .tl-avatar { background: var(--surface-2); box-shadow: none; color: var(--text-2); }
 
 .tl-links { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
 .tl-link { fill: none; stroke-width: 1; opacity: .2; }

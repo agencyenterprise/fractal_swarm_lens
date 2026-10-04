@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { timelineTime, gapDuration } from '../../src/swarm_lens/web/timeline-time.js';
 import { EventTimeline } from '../../src/swarm_lens/web/timeline.js';
+import { colors } from '../../src/swarm_lens/web/ui.js';
 import { WorkspaceViews } from '../../src/swarm_lens/web/workspace.js';
 
 const base = Date.parse('2026-10-03T08:45:00Z');
@@ -15,7 +16,7 @@ const history = [event(1, 0, {kind: 'agent.added', agent_name: 'Debater'}),
   event(3, 0), event(4, 15), event(5, 30),
   event(6, 30, {kind: 'environment.updated', agent_id: null, intervention: true}),
   event(7, 15*3600), event(8, 15*3600 + 15), event(9, 15*3600 + 30)];
-const branch = { id: 'child', parent_id: 'parent', fork_position: 5, head: 9 };
+const branch = { id: 'child', run_id: 'run-1', parent_id: 'parent', fork_position: 5, head: 9 };
 
 test('hours between a fork and continuation collapse without changing recorded timestamps', () => {
   const before = structuredClone(history);
@@ -54,9 +55,10 @@ test('out-of-order timestamps do not reorder timeline event cursors', () => {
 const injection = event(10, 15*3600 + 31, {kind: 'observation.recorded', label: 'instruction_injection',
   intervention: true, stage_label: 'Instruction injection installed'});
 
-function setup(events = history) {
-  const dom = new JSDOM(readFileSync(new URL('../../src/swarm_lens/web/index.html', import.meta.url), 'utf8'));
-  for (const key of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Event'])
+function setup(events = history, runBranch = branch) {
+  const dom = new JSDOM(readFileSync(new URL('../../src/swarm_lens/web/index.html', import.meta.url), 'utf8'),
+    { url: 'http://localhost/' });
+  for (const key of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Event', 'localStorage'])
     globalThis[key] = key === 'window' ? dom.window : dom.window[key];
   dom.window.HTMLElement.prototype.scrollTo = function (left, top) {
     this.scrollLeft = left;
@@ -64,17 +66,20 @@ function setup(events = history) {
   };
   globalThis.ResizeObserver = class { observe() {} };
   globalThis.requestAnimationFrame = callback => { callback(); return 1; };
-  const calls = { seek: [], select: [], context: [] };
+  const calls = { seek: [], select: [], context: [], play: 0 };
   const root = document.querySelector('#timeline');
-  const timeline = new EventTimeline(root, {
-    onSeek: p => calls.seek.push(p), onSelect: e => calls.select.push(e.id),
-    onContext: (e, p) => calls.context.push([e?.id ?? null, p]), onAgent() {}, onPlay() {} });
-  const viewport = root.querySelector('.tl-viewport');
-  Object.defineProperty(viewport, 'clientWidth', { value: 1100 });
-  viewport.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1100 });
-  timeline.setData(events, branch);
-  timeline.setCursor(9, true);
-  return { root, timeline, viewport, calls };
+  const mount = () => {
+    const timeline = new EventTimeline(root, {
+      onSeek: p => calls.seek.push(p), onSelect: e => calls.select.push(e.id),
+      onContext: (e, p) => calls.context.push([e?.id ?? null, p]), onAgent() {}, onPlay() { calls.play++; } });
+    const viewport = root.querySelector('.tl-viewport');
+    Object.defineProperty(viewport, 'clientWidth', { value: 1100 });
+    viewport.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1100 });
+    timeline.setData(events, runBranch);
+    timeline.setCursor(9, true);
+    return { timeline, viewport };
+  };
+  return { root, calls, remount: mount, ...mount() };
 }
 
 const marker = (root, position) => root.querySelector(`.tl-marker[data-position="${position}"]`);
@@ -171,4 +176,80 @@ test('changing branches discards old horizontal scroll without breaking report v
   viewport.scrollLeft = 25; // The new branch has already positioned its cursor.
   frames.forEach(frame => frame());
   assert.equal(viewport.scrollLeft, 25, 'The previous branch must not overwrite the new cursor position');
+});
+
+// Two reviewers, each with an inbox, plus a shared board and a human message.
+const say = (position, agent, channel, extra = {}) => event(position, position, { agent_id: agent, channel_id: channel, ...extra });
+const board = [
+  event(1, 0, {kind: 'agent.added', agent_id: 'r1', agent_name: 'reviewer_1', channel_id: null}),
+  event(2, 0, {kind: 'agent.added', agent_id: 'r2', agent_name: 'reviewer_2', channel_id: null}),
+  event(3, 0, {kind: 'channel.created', agent_id: null, entity_id: 'inbox-r1', channel_name: 'reviewer_1 inbox', channel_id: null}),
+  event(4, 0, {kind: 'channel.created', agent_id: null, entity_id: 'board', channel_name: 'Board', channel_id: null}),
+  say(5, 'r1', 'inbox-r1'), say(6, 'r2', 'board'), say(7, 'r1', 'board'), say(8, null, 'board'), say(9, 'r2', 'board')];
+const boardBranch = { id: 'main', run_id: 'run-board', parent_id: null, fork_position: 0, head: 9 };
+const lane = (root, id) => root.querySelector(`.tl-lane[data-lane-id="${id}"]`);
+const laneNames = root => [...root.querySelectorAll('.tl-lane-name')].map(node => node.textContent);
+const hide = (root, id) => {
+  const toggle = lane(root, id).querySelector('.tl-lane-toggle');
+  toggle.checked = false;
+  toggle.dispatchEvent(new window.Event('change'));
+};
+
+test('lanes take their agent color; an inbox takes its owner color; shared lanes stay neutral', () => {
+  const { root } = setup(board, boardBranch);
+  assert.deepEqual(laneNames(root), ['reviewer_1 inbox', 'Board', 'reviewer_1', 'reviewer_2', 'Human']);
+  assert.equal(lane(root, 'r1').style.getPropertyValue('--lane'), colors[0]);
+  assert.equal(lane(root, 'r2').style.getPropertyValue('--lane'), colors[1]);
+  assert.equal(lane(root, 'inbox-r1').style.getPropertyValue('--lane'), colors[0]);
+  for (const id of ['board', '__human']) {
+    assert.ok(lane(root, id).classList.contains('is-neutral'));
+    assert.equal(lane(root, id).style.getPropertyValue('--lane'), '');
+  }
+  assert.equal(marker(root, 6).style.getPropertyValue('--c'), colors[1], 'markers and lanes share one palette');
+  assert.equal(lane(root, 'r1').querySelector('.tl-lane-toggle').getAttribute('aria-label'), 'Show reviewer_1 lane');
+});
+
+test('unchecking a lane hides its row, markers and connections, and is remembered for the run', () => {
+  const { root, remount } = setup(board, boardBranch);
+  const links = () => root.querySelectorAll('.tl-link').length;
+  assert.equal(links(), 5);
+  hide(root, 'r2');
+  assert.equal(lane(root, 'r2'), null);
+  assert.ok(!marker(root, 6) && !marker(root, 9) && marker(root, 7), 'only reviewer_2 markers leave');
+  assert.equal(links(), 3);
+  assert.equal(document.activeElement, lane(root, '__human').querySelector('.tl-lane-toggle'), 'focus moves to the next lane');
+  hide(root, 'board');
+  assert.equal(links(), 1, 'connections into a hidden channel leave with it');
+  assert.equal(root.querySelector('.tl-hidden-count').textContent, '2 hidden');
+  assert.equal(root.querySelector('.tl-corner').title, 'Board, reviewer_2');
+  assert.deepEqual(JSON.parse(localStorage.getItem('swarm-lens.timeline.hidden-lanes.run-board')), ['r2', 'board']);
+  remount();
+  assert.deepEqual(laneNames(root), ['reviewer_1 inbox', 'reviewer_1', 'Human']);
+});
+
+test('"Show all" restores every hidden lane and forgets the choice', () => {
+  const { root, timeline } = setup(board, boardBranch);
+  hide(root, 'r1');
+  hide(root, 'inbox-r1');
+  root.querySelector('.tl-show-all').click();
+  assert.equal(laneNames(root).length, 5);
+  assert.equal(root.querySelector('.tl-corner').childElementCount, 0);
+  assert.equal(localStorage.getItem('swarm-lens.timeline.hidden-lanes.run-board'), null);
+  assert.equal(document.activeElement, root.querySelector('.tl-lane-toggle'));
+  hide(root, 'r1');
+  timeline.setData(board, { ...boardBranch, id: 'fork', run_id: 'run-other' });
+  assert.equal(laneNames(root).length, 5, 'another run has its own hidden lanes');
+});
+
+test('space on a lane checkbox toggles it instead of starting playback', () => {
+  const { root, calls } = setup(board, boardBranch);
+  const press = target => {
+    const key = new window.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    target.dispatchEvent(key);
+    return key.defaultPrevented;
+  };
+  assert.equal(press(lane(root, 'r1').querySelector('.tl-lane-toggle')), false);
+  assert.equal(calls.play, 0);
+  assert.equal(press(root.querySelector('.tl-viewport')), true);
+  assert.equal(calls.play, 1);
 });

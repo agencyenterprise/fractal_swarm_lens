@@ -2,6 +2,8 @@
 
 Observability is an optional framework extension. The core reducer, history stores, and source contracts do not depend on a particular method or numerical library.
 
+[HTTP calls per website](http_calls/README.md) is a model-free saved-trace plugin with a synchronous `/api/plugins/http_calls` router; it is the smallest complete example of a plugin with its own UI renderer.
+
 [MAST](mast/README.md) is the on-demand LLM analysis plugin for saved traces. It uses a separate job service and a composed `/api/plugins/mast` router, discovered by the web UI at startup. It does not implement the streaming `ObservabilityMethod` below. CASPIAN remains an experimental library method with no dedicated web API.
 
 Each method lives under `src/swarm_lens/observability/<method>/`, with its own `tests/observability/<method>/`, `docs/observability/<method>/`, and `examples/observability/<method>/`. [CASPIAN](caspian/README.md) is the first implementation. Importing `swarm_lens.observability` does not import NumPy.

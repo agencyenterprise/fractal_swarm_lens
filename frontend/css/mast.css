@@ -1,47 +1,4 @@
-/* MAST reports view, analyze/import dialogs (mast.js) and the fork dialog (branch.js). */
-
-.mast-view {
-  display: grid; grid-template-columns: 240px minmax(0, 1fr);
-  min-height: 0; overflow: hidden; background: var(--bg);
-}
-.mast-view > .mast-empty { grid-column: 1 / -1; }
-
-/* Saved reports */
-.mast-list {
-  display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 10px 8px; overflow-y: auto;
-  border-right: 1px solid var(--border); background: var(--surface);
-}
-.mast-list-header { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px 8px; }
-.mast-list-header button { height: 26px; }
-.mast-list-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 7px 8px; border-radius: var(--radius-sm); color: var(--text);
-}
-.mast-list-item:hover { background: var(--surface-2); text-decoration: none; }
-.mast-list-item[aria-current="page"] { background: var(--accent-soft); }
-.mast-list-text { display: flex; flex-direction: column; min-width: 0; }
-.mast-list-text strong { font-weight: 500; }
-.mast-list-text .muted { font-size: 12px; }
-
-/* Report */
-.mast-report {
-  display: flex; flex-direction: column; gap: 20px; min-height: 0;
-  padding: 24px 32px 48px; overflow-y: auto;
-}
-.mast-report > * { width: 100%; max-width: 780px; }
-.mast-report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.mast-report-title h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
-.mast-report-title p { margin-top: 2px; }
-.mast-report-actions { display: flex; gap: 2px; }
-
-.mast-outcome { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.mast-stat {
-  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
-}
-.mast-stat strong { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.mast-stat strong.alarming { color: var(--danger); }
-.mast-stat span { color: var(--text-3); font-size: 12px; }
+/* MAST report body (mast.js) and the fork dialog (branch.js). The report shell is in reports.css. */
 
 .mast-summary { color: var(--text); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
 
@@ -52,45 +9,11 @@
   margin: 0; padding: 0; list-style: none;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
-.mast-mode { display: flex; align-items: center; gap: 12px; padding: 9px 14px; }
-.mast-mode + .mast-mode { border-top: 1px solid var(--border); }
-.mast-mode .mono { flex: none; width: 28px; color: var(--text-3); }
-.mast-mode-label { flex: 1; min-width: 0; }
 .mast-absent { margin-top: 6px; }
 .mast-absent .mast-modes { margin-top: 6px; }
-.mast-absent .mast-mode-label { color: var(--text-2); }
 
-.mast-note { font-size: 12px; }
 .mast-notes { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
-.mast-details summary { padding: 4px 0; color: var(--text-2); cursor: pointer; }
-.mast-details summary:hover { color: var(--text); }
-.mast-details > .metadata-box { max-height: 360px; margin-top: 4px; }
 .mast-error { color: var(--danger); }
-
-.mast-progress {
-  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text-2);
-}
-.mast-progress::before {
-  content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%;
-  border: 2px solid var(--accent); border-right-color: transparent; animation: spin .7s linear infinite;
-}
-
-.mast-empty {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-  height: 100%; padding: 32px 16px; color: var(--text-2); text-align: center;
-}
-
-/* Analyze and import dialogs */
-.mast-dialog { display: flex; flex-direction: column; gap: 12px; }
-.mast-field-label { color: var(--text-2); font-size: 12px; font-weight: 500; margin-bottom: -6px; }
-.mast-dialog .segmented { align-self: flex-start; }
-.mast-size { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); }
-.mast-size::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
-.mast-size[data-state="ready"]::before { background: var(--accent); }
-.mast-size[data-state="error"] { color: var(--danger); }
-.mast-size[data-state="error"]::before { background: var(--danger); }
-.mast-dialog input[type="file"] { padding: 5px; color: var(--text-2); }
 
 /* Fork dialog */
 .fork-dialog { display: flex; flex-direction: column; gap: 12px; }
@@ -110,12 +33,6 @@
 .fork-live-details summary { color: var(--text-3); font-size: 12px; cursor: pointer; }
 .fork-live-details summary:hover { color: var(--text-2); }
 .fork-live-details p { margin-top: 4px; color: var(--text-2); font-size: 12px; }
-
-@media (max-width: 900px) {
-  .mast-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .mast-list { max-height: 160px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .mast-report { padding: 16px; }
-}
 
 /* Trait rows expand into saved evidence (mast-details.js). */
 .mast-trait > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 6px; border-radius: var(--radius-sm); cursor: pointer; list-style: none; }

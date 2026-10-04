@@ -23,6 +23,8 @@ Every method returns milestones and open threads in the same schema. A history t
 
 ## Use
 
+Agent CLI or web interface, up to you: open **Plugins → Misalignment detection → Long-context LLM judge…** in the explorer, or have an agent or script call the HTTP API below.
+
 ```sh
 curl -X POST localhost:8765/api/branches/BRANCH_ID/analyses \
   -H 'Content-Type: application/json' \
@@ -41,6 +43,10 @@ Configuration keys: `method` (`orchestrated`, `single`, `goal_tree`; default `or
 - `GET /api/plugins/timeline/analyses?branch_id=...` and `GET /api/plugins/timeline/analyses/{id}`.
 
 A failed job keeps a plain `error`, its `error_type` and `error_detail`, and the `usage` and `calls` spent before the failure. Jobs pending at startup are marked `interrupted`; they are never repeated automatically.
+
+## Explorer
+
+**Long-context LLM judge…** (section **Misalignment detection**) in the ⋯ menu under Plugins opens a start dialog: choose the method (and the chunk size for orchestrated) and read the free preview of events, estimated tokens, and planned chunks or sections, or why the model is not ready. **Analyze** queues the job and opens it in **Reports**, next to MAST reports. A completed report shows the flags to review, the milestones on a vertical timeline in run order with misalignment flags toned by severity 1–3 (**Flags only** hides the rest), and the open threads. Each cited position is a chip that selects that event in the explorer. Failed and interrupted jobs show their error, its detail, and the usage spent.
 
 ## Limitations
 

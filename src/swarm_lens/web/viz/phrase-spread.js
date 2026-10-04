@@ -293,7 +293,9 @@ class PhraseSpreadView {
       parts.push(el("span", "muted", `Scanned first ${formatNumber(progress.size)} of ${formatNumber(progress.total)} messages`),
         button("Scan all", () => this.expandScan(), "ghost ps-action"));
     }
-    if (!spread && progress.scanned === progress.size && !this.scanError) parts.push(...this.suggestionNodes());
+    if (!spread && progress.scanned === progress.size && !this.scanError) {
+      parts.push(...this.suggestionNodes(), el("span", "ps-tip", "Pick a word or track a phrase to color the grid"));
+    }
     this.status.replaceChildren(...parts);
   }
 

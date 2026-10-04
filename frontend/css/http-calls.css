@@ -1,0 +1,75 @@
+/* HTTP calls per website modal (http-calls.js). Series hues are validated for both themes. */
+
+dialog:has(.http-calls) { width: min(880px, calc(100% - 32px)); }
+
+.http-calls {
+  --http-s1: #2a78d6; --http-s2: #eb6834; --http-s3: #1baf7a; --http-s4: #eda100; --http-s5: #e87ba4;
+  --http-other: var(--text-3);
+}
+:root[data-theme="dark"] .http-calls {
+  --http-s1: #3987e5; --http-s2: #d95926; --http-s3: #199e70; --http-s4: #c98500; --http-s5: #d55181;
+}
+.http-calls .s1 { --series: var(--http-s1); }
+.http-calls .s2 { --series: var(--http-s2); }
+.http-calls .s3 { --series: var(--http-s3); }
+.http-calls .s4 { --series: var(--http-s4); }
+.http-calls .s5 { --series: var(--http-s5); }
+.http-calls .other { --series: var(--http-other); }
+
+.http-report { display: flex; flex-direction: column; gap: 14px; }
+.http-progress, .http-empty { color: var(--text-2); }
+.http-empty { font-size: 14px; font-weight: 500; color: var(--text); }
+.http-error { color: var(--danger); }
+.http-note { font-size: 12px; }
+
+.http-swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--series); }
+.other > .http-swatch, .other .http-swatch { background: repeating-linear-gradient(135deg, var(--series) 0 2px, transparent 2px 4px); }
+
+.http-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: 12px; }
+.http-legend li { display: flex; align-items: center; gap: 6px; }
+
+/* Chart */
+.http-chart-frame { position: relative; }
+.http-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.http-grid { stroke: var(--border); stroke-width: 1; }
+.http-axis { fill: var(--text-3); font: 11px var(--font); font-variant-numeric: tabular-nums; }
+.http-line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.http-line.other { stroke-dasharray: 4 3; }
+.http-crosshair { stroke: var(--border-strong); stroke-width: 1; }
+.http-hover { fill: transparent; }
+.http-spike { cursor: pointer; outline: none; }
+.http-spike circle { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+.http-spike text { fill: var(--text); font: 600 11px var(--font); }
+.http-spike:hover circle, .http-spike:focus-visible circle { stroke: var(--warn); stroke-width: 3; }
+
+.http-tooltip {
+  position: absolute; top: 0; z-index: 2; display: flex; flex-direction: column; gap: 2px;
+  width: max-content; max-width: 280px; margin-left: 10px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-lg); font-size: 12px; pointer-events: none;
+}
+.http-tooltip.flip { transform: translateX(calc(-100% - 20px)); }
+.http-tip-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: var(--text-2); }
+.http-tip-row .mono { color: var(--text); text-align: right; }
+
+/* Spikes */
+.http-spikes { display: flex; flex-wrap: wrap; gap: 6px; }
+.http-spikes > h3 { flex-basis: 100%; }
+.http-spike-chip {
+  display: flex; align-items: baseline; gap: 8px; height: auto; padding: 6px 10px;
+  border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--text);
+}
+.http-spike-chip .muted { font-size: 12px; }
+
+/* Table */
+.http-table-frame { max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.http-table { width: 100%; border-collapse: collapse; }
+.http-table th {
+  position: sticky; top: 0; padding: 6px 10px; background: var(--surface-2);
+  color: var(--text-3); font-size: 12px; font-weight: 500; text-align: left;
+}
+.http-table td { padding: 4px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
+.http-table td.mono { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.http-site { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 4px; border: 0; background: none; color: var(--text); }
+.http-site:hover { background: none; }
+.http-site:hover span { text-decoration: underline; }

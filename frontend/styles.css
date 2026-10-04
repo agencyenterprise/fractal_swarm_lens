@@ -5,7 +5,10 @@
 @import "./css/inspector.css";
 @import "./css/comments.css";
 @import "./css/compare.css";
+@import "./css/reports.css";
 @import "./css/mast.css";
+@import "./css/timeline-report.css";
+@import "./css/http-calls.css";
 @import "./css/visualizations.css";
 @import "./css/viz-blast-radius.css";
 @import "./css/viz-phrase-spread.css";

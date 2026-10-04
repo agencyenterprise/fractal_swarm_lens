@@ -9,6 +9,7 @@
 }
 .ps-summary { color: var(--text); }
 .ps-error { color: var(--danger); }
+.ps-tip { color: var(--text-3); font-size: 11px; }
 .ps-action { height: 24px; padding: 0 8px; font-size: 12px; color: var(--accent-text); }
 .ps-chip { height: 24px; padding: 0 4px 0 9px; border-radius: 999px; font: 12px var(--mono); }
 .ps-chip-count {

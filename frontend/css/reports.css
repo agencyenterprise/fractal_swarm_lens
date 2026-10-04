@@ -1,0 +1,81 @@
+/* Reports tab, shared report parts, and analysis start dialogs (reports.js). */
+
+.reports-view {
+  display: grid; grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0; overflow: hidden; background: var(--bg);
+}
+.reports-view > .report-empty { grid-column: 1 / -1; }
+
+/* Saved reports */
+.report-list {
+  display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 10px 8px; overflow-y: auto;
+  border-right: 1px solid var(--border); background: var(--surface);
+}
+.report-list-header { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 6px 8px; }
+.report-list-header button { height: 26px; }
+.report-list-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 8px; border-radius: var(--radius-sm); color: var(--text);
+}
+.report-list-item:hover { background: var(--surface-2); text-decoration: none; }
+.report-list-item[aria-current="page"] { background: var(--accent-soft); }
+.report-list-text { display: flex; flex-direction: column; min-width: 0; }
+.report-list-text strong { font-weight: 500; }
+.report-list-text .muted { font-size: 12px; }
+
+/* Report */
+.report {
+  display: flex; flex-direction: column; gap: 20px; min-height: 0;
+  padding: 24px 32px 48px; overflow-y: auto;
+}
+.report > * { width: 100%; max-width: 780px; }
+.report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.report-title h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
+.report-title p { margin-top: 2px; }
+.report-actions { display: flex; gap: 2px; }
+
+.report-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.report-stat {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.report-stat strong { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.report-stat strong.alarming { color: var(--danger); }
+.report-stat span { color: var(--text-3); font-size: 12px; }
+
+.report-note { font-size: 12px; }
+.report-details summary { padding: 4px 0; color: var(--text-2); cursor: pointer; }
+.report-details summary:hover { color: var(--text); }
+.report-details > .metadata-box { max-height: 360px; margin-top: 4px; }
+.report-error { color: var(--danger); }
+
+.report-progress {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text-2);
+}
+.report-progress::before {
+  content: ""; flex: none; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--accent); border-right-color: transparent; animation: spin .7s linear infinite;
+}
+
+.report-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  height: 100%; padding: 32px 16px; color: var(--text-2); text-align: center;
+}
+
+/* Start dialogs: inputs, then a free preview whose dot turns green when the analysis can start. */
+.analysis-dialog { display: flex; flex-direction: column; gap: 12px; }
+.analysis-field-label { color: var(--text-2); font-size: 12px; font-weight: 500; margin-bottom: -6px; }
+.analysis-dialog .segmented { align-self: flex-start; }
+.analysis-check { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); }
+.analysis-check::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
+.analysis-check[data-state="pending"]::before { animation: pulse 1.4s ease-in-out infinite; }
+.analysis-check[data-state="ready"]::before { background: var(--accent); }
+.analysis-check[data-state="error"] { color: var(--danger); }
+.analysis-check[data-state="error"]::before { background: var(--danger); }
+
+@media (max-width: 900px) {
+  .reports-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .report-list { max-height: 160px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .report { padding: 16px; }
+}

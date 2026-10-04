@@ -1,8 +1,9 @@
 import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar } from "./ui.js";
 import { timelineTime, gapDuration } from "./timeline-time.js";
 
-const LABEL_WIDTH = 150, ROW = 34, RULER = 40, COMMENT_ROW = 18, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
+const LABEL_WIDTH = 176, ROW = 34, RULER = 40, COMMENT_ROW = 18, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
 const STORAGE_KEY = "swarm-lens.timeline.view";
+const HIDDEN_LANES_KEY = "swarm-lens.timeline.hidden-lanes";
 const VIEW_OPTIONS = [
   ["message", "Messages", true],
   ["intervention", "Changes", true],
@@ -37,23 +38,43 @@ function flagText(event, tone) {
   return "";
 }
 
-function loadView() {
-  const view = Object.fromEntries(VIEW_OPTIONS.map(([key, , on]) => [key, on]));
+function readStored(key) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    for (const key of Object.keys(view)) if (typeof saved[key] === "boolean") view[key] = saved[key];
+    return JSON.parse(localStorage.getItem(key));
   } catch {
-    // Storage can be unavailable (private mode, tests); defaults apply.
+    return null; // Storage can be unavailable (private mode, tests); defaults apply.
   }
-  return view;
 }
 
-function saveView(view) {
+// `null` removes the key, so restoring a default leaves nothing behind.
+function writeStored(key, value) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(view));
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Not persisting a display preference is harmless.
   }
+}
+
+function loadView() {
+  const view = Object.fromEntries(VIEW_OPTIONS.map(([key, , on]) => [key, on]));
+  const saved = readStored(STORAGE_KEY) || {};
+  for (const key of Object.keys(view)) if (typeof saved[key] === "boolean") view[key] = saved[key];
+  return view;
+}
+
+const saveView = (view) => writeStored(STORAGE_KEY, view);
+
+// Hidden lanes are remembered per run: agent and channel ids are shared by every branch of a run.
+const hiddenLanesKey = (runId) => `${HIDDEN_LANES_KEY}.${runId}`;
+
+function loadHiddenLanes(runId) {
+  const saved = runId ? readStored(hiddenLanesKey(runId)) : null;
+  return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === "string") : []);
+}
+
+function saveHiddenLanes(runId, hidden) {
+  if (runId) writeStored(hiddenLanesKey(runId), hidden.size ? [...hidden] : null);
 }
 
 function icon([d, filled]) {
@@ -133,6 +154,14 @@ function collectChannels(events) {
   return [...channels.values()];
 }
 
+// A channel named after an agent ("reviewer_1 inbox") belongs to it; the longest matching name wins.
+function channelOwner(channel, agents) {
+  const owner = Object.values(agents)
+    .filter(({ name }) => name && (channel.name === name || channel.name.startsWith(`${name} `)))
+    .reduce((best, agent) => (agent.name.length > (best?.name.length ?? 0) ? agent : best), null);
+  return owner?.id ?? null;
+}
+
 // Consecutive events that share a stage form one band; flagged moments do not split bands.
 function stageBands(ordered, tones) {
   const bands = [];
@@ -169,6 +198,9 @@ export class EventTimeline {
     this.shown = [];
     this.xs = [];
     this.lanes = [];
+    this.laneOptions = [];
+    this.runId = undefined;
+    this.hiddenLanes = new Set();
     this.threads = [];
     this.notes = [];
     this.rulerHeight = RULER;
@@ -227,7 +259,8 @@ export class EventTimeline {
     this.rulerTrack = el("div", "tl-ruler-track");
     this.handle = el("div", "tl-handle");
     this.handle.setAttribute("aria-hidden", "true");
-    this.ruler.append(el("div", "tl-corner"), this.rulerTrack, this.handle);
+    this.corner = el("div", "tl-corner");
+    this.ruler.append(this.corner, this.rulerTrack, this.handle);
     this.laneLayer = el("div", "tl-lanes");
     this.linkLayer = svg("svg", { class: "tl-links", "aria-hidden": "true" });
     this.markerLayer = el("div", "tl-markers");
@@ -335,6 +368,10 @@ export class EventTimeline {
     this.tones = new Map(events.map((event) => [event.id, toneOf(event)]));
     this.agents = collectAgents(events);
     this.channels = collectChannels(events);
+    if ((branch?.run_id ?? null) !== this.runId) {
+      this.runId = branch?.run_id ?? null;
+      this.hiddenLanes = loadHiddenLanes(this.runId);
+    }
     if (branchChanged) {
       this.scaleMode = "auto";
       this.selected = null;
@@ -384,20 +421,30 @@ export class EventTimeline {
     return event.kind === "message.created" ? "__human" : "__system";
   }
 
-  // Visible events and lanes; depends on the View toggles.
+  // Agents and the channels named after them share a hue; shared channels, Human and System stay neutral.
+  laneColor(lane) {
+    if (lane.kind === "agent") return color(lane.id, this.agents);
+    const owner = lane.kind === "channel" && channelOwner(lane, this.agents);
+    return owner ? color(owner, this.agents) : null;
+  }
+
+  // Visible events and lanes; depends on the View toggles and the lanes the user hid.
   refresh() {
     const shown = this.ordered.filter((event) => this.isShown(event));
     // One channel receives every message, so its lane and the links into it carry no information.
     const routed = this.channels.length > 1;
     this.connectionsOption.hidden = !routed;
-    this.lanes = [
+    const lanes = [
       ...(routed ? this.channels.map((channel) => ({ ...channel, kind: "channel" })) : []),
       ...Object.values(this.agents).map((agent) => ({ ...agent, kind: "agent" })),
     ];
     if (this.events.some((event) => event.kind === "message.created" && !event.agent_id))
-      this.lanes.push({ id: "__human", name: "Human", kind: "human" });
+      lanes.push({ id: "__human", name: "Human", kind: "human" });
     if (shown.some((event) => this.laneFor(event) === "__system"))
-      this.lanes.push({ id: "__system", name: "System", kind: "system" });
+      lanes.push({ id: "__system", name: "System", kind: "system" });
+    this.laneOptions = lanes.map((lane) => ({ ...lane, color: this.laneColor(lane) }));
+    // A hidden lane takes its markers and the connections that touch it along.
+    this.lanes = this.laneOptions.filter((lane) => !this.hiddenLanes.has(lane.id));
     this.laneIndex = new Map(this.lanes.map((lane, index) => [lane.id, index]));
     this.shown = shown.filter((event) => this.laneIndex.has(this.laneFor(event)));
     this.layout();
@@ -488,25 +535,59 @@ export class EventTimeline {
   buildLanes() {
     this.laneLayer.replaceChildren(...this.lanes.map((lane) => {
       const row = el("div", `tl-lane is-${lane.kind}`);
+      row.dataset.laneId = lane.id;
+      if (lane.color) row.style.setProperty("--lane", lane.color);
+      else row.classList.add("is-neutral");
       row.append(this.laneLabel(lane));
       return row;
     }));
+    this.buildHiddenSummary();
   }
 
   laneLabel(lane) {
+    const label = el("div", "tl-label");
+    label.title = lane.name;
+    const toggle = el("input", "tl-lane-toggle");
+    toggle.type = "checkbox";
+    toggle.checked = true;
+    toggle.setAttribute("aria-label", `Show ${lane.name} lane`);
+    toggle.addEventListener("change", () => this.hideLane(lane.id));
+    const face = lane.kind === "channel" ? el("span", "avatar tl-avatar", "#") : avatar(lane, "avatar tl-avatar");
     const name = el("span", "tl-lane-name", lane.name);
     if (lane.kind === "agent") {
-      const label = button("", () => this.handlers.onAgent(lane.id), "tl-label");
-      const face = avatar(lane, "avatar tl-avatar");
-      face.style.setProperty("--c", color(lane.id, this.agents));
-      label.append(face, name);
-      label.title = lane.name;
-      return label;
-    }
-    const label = el("div", "tl-label");
-    label.append(lane.kind === "channel" ? el("span", "avatar tl-avatar", "#") : avatar(lane, "avatar tl-avatar"), name);
-    label.title = lane.name;
+      const open = button("", () => this.handlers.onAgent(lane.id), "tl-lane-open");
+      open.append(face, name);
+      label.append(toggle, open);
+    } else label.append(toggle, face, name);
     return label;
+  }
+
+  // "N hidden · Show all" in the ruler corner, above the label column.
+  buildHiddenSummary() {
+    const hidden = this.laneOptions.filter((lane) => this.hiddenLanes.has(lane.id));
+    this.corner.replaceChildren();
+    this.corner.title = hidden.map((lane) => lane.name).join(", ");
+    if (!hidden.length) return;
+    const restore = button("Show all", () => this.showAllLanes(), "ghost tl-show-all");
+    restore.setAttribute("aria-label", `Show all lanes (${hidden.length} hidden)`);
+    this.corner.append(el("span", "tl-hidden-count", `${hidden.length} hidden`), el("span", "tl-dot", "·"), restore);
+  }
+
+  hideLane(laneId) {
+    const index = this.lanes.findIndex((lane) => lane.id === laneId);
+    this.hiddenLanes.add(laneId);
+    saveHiddenLanes(this.runId, this.hiddenLanes);
+    this.refresh();
+    // Keep keyboard focus in the label column: the next lane, else the previous one, else "Show all".
+    const toggles = this.laneLayer.querySelectorAll(".tl-lane-toggle");
+    (toggles[Math.min(index, toggles.length - 1)] || this.corner.querySelector(".tl-show-all"))?.focus();
+  }
+
+  showAllLanes() {
+    this.hiddenLanes.clear();
+    saveHiddenLanes(this.runId, this.hiddenLanes);
+    this.refresh();
+    this.laneLayer.querySelector(".tl-lane-toggle")?.focus();
   }
 
   forkX() {
@@ -765,13 +846,13 @@ export class EventTimeline {
       return;
     }
     if (this.menu.contains(event.target)) return;
-    const onHeaderButton = event.target.closest?.(".tl-header button, .tl-note");
+    const onControl = event.target.closest?.(".tl-header button, .tl-note, .tl-label, .tl-corner");
     const rows = this.shown.length ? this.shown : this.ordered;
     let position;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") position = this.stepTarget(event.key === "ArrowLeft" ? -1 : 1)?.position;
     else if (event.key === "Home") position = rows[0]?.position;
     else if (event.key === "End") position = rows.at(-1)?.position;
-    else if (event.key === " " && !onHeaderButton) {
+    else if (event.key === " " && !onControl) {
       event.preventDefault();
       this.handlers.onPlay();
       return;
@@ -943,7 +1024,7 @@ export const lanesVisualization = {
   title: "Lanes",
   about: {
     question: "When did each agent act?",
-    read: "One row per agent. Each dot is one event at the time it happened; faded dots come after the cursor. Orange flags are changes made on a fork, and a dashed line marks where this branch forked.",
+    read: "One row per agent, tinted in its color. Untick a lane to hide it. Each dot is one event at the time it happened; faded dots come after the cursor. Orange flags are changes made on a fork, and a dashed line marks where this branch forked.",
     method: "Recorded timestamps. Gaps longer than a minute are folded (View → Compact gaps).",
   },
   mount(root, actions, toolbar) {

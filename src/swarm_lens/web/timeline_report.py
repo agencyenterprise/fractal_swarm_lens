@@ -88,7 +88,7 @@ def timeline_extension(service):
     router = APIRouter(prefix=PREFIX, tags=["Timeline"], lifespan=lifespan)
 
     def manifest():
-        return {"id": "timeline", "version": service.plugin.version, "title": "Timeline of relevant events",
+        return {"id": "timeline", "version": service.plugin.version, "title": "Misalignment detection",
                 "modes": ["saved_trace"], "api_prefix": PREFIX, "ui": {"renderer": "timeline"},
                 "model": service.plugin.llm.describe(), "config": config_schema()}
 

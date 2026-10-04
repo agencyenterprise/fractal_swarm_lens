@@ -111,12 +111,12 @@ export function mastTraitDetails(label, job, host) {
         body.append(section);
       }
       if (detail.definition) {
-        const definition = el("details", "mast-details");
+        const definition = el("details", "report-details");
         definition.append(el("summary", "", "Trait definition"), el("p", "mast-trait-text", detail.definition));
         body.append(definition);
       }
       if (detail.summary) {
-        const context = el("details", "mast-details");
+        const context = el("details", "report-details");
         context.append(el("summary", "", "Overall assessment summary"), el("p", "mast-trait-text", detail.summary));
         body.append(context);
       }
