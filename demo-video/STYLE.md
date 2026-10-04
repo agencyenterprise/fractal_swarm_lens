@@ -18,7 +18,7 @@ These rules come from the review rounds on this video. Follow them when you chan
 ## What to say
 - Data agnostic: any agentic dataset maps to agents, channels, messages, memory, tool calls and environment through one small adapter.
 - Built for long, text-heavy runs: each text stored once and compressed, snapshots store only changes.
-- Plugins, explained at length: built-in plugins ship with it (MAST, Activity, the views Lanes, Influence, Blast radius, Phrase spread, Echo, Activity); on top of that you can write your own easily, it is documented, and a plugin can add analyses, views, UI and interventions. Your coding agent (Claude Code, Codex, any CLI) can write them. Same operations from the UI or the HTTP API.
+- Plugins, explained at length: built-in plugins ship with it (MAST, Activity, and the views Lanes, Influence, Blast radius, Phrase spread, Echo); on top of that you can write your own easily, it is documented, and a plugin can add analyses, views, UI and interventions. Your coding agent (Claude Code, Codex, any CLI) can write them. Same operations from the UI or the HTTP API.
 - Keep all visualizations in one section ("Many lenses on the same run"); do not fragment it.
 - Do not use "No LLM judge needed"; LLM-judged views are part of the plan.
 

@@ -10,6 +10,7 @@ Requires numpy, opencv-python, Pillow and ffmpeg.
 """
 import argparse
 import json
+import os
 import subprocess
 import tempfile
 import wave
@@ -25,7 +26,7 @@ W, H, FPS = 1920, 1080, 30
 RATE = 48000
 BPM = 120
 BEAT = 60 / BPM
-FONT = "/System/Library/Fonts/SFNS.ttf"
+FONT = os.environ.get("DEMO_FONT", "/System/Library/Fonts/SFNS.ttf")  # macOS system font by default
 INK, ACCENT, WARN = (27, 27, 26), (15, 123, 104), (194, 65, 12)
 TRANSITION_SECONDS = {"cut": 0.0, "whip": 0.3, "zoom": 0.36, "wipe": 0.4, "fade": 0.3}
 

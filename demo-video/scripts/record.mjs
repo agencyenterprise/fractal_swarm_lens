@@ -589,7 +589,7 @@ async function apiTranscript() {
 }
 
 // Code excerpts are read verbatim at record time: the local checkout, or the merged plugin PR on GitHub.
-const REPO = process.env.SWARM_LENS_REPO ?? "/Users/jessica/AEStudio/agi/fractal_swarm_lens-ui-revamp";
+const REPO = process.env.SWARM_LENS_REPO ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GITHUB_REPO = "agencyenterprise/fractal_swarm_lens";
 const PLUGIN_COMMIT = "45ec084997455628baa363f3bb1b485fe859cb13"; // merge of PR #7 (web plugins ship their own frontend)
 
@@ -611,7 +611,7 @@ const CARD_DATA = {
     files: [
       { label: "src/swarm_lens/application/ports.py", lines: repoLines("src/swarm_lens/application/ports.py", [[48, 51]]) },
       { label: "examples/aciarena/sample_source.py", lines: repoLines("examples/aciarena/sample_source.py",
-        [[71, 71], [75, 75], [81, 83], [108, 109], [115, 115]]) },
+        [[98, 98], [102, 102], [108, 110], [135, 136], [142, 142]]) },
     ],
   }),
   "g0-builtin": () => ({
