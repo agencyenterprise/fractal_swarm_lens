@@ -42,6 +42,17 @@ test('lanes draw one arrow per adoption from the read message, badge the holdout
   assert.match(node.querySelector('.stance-flip').textContent, /y · event 9 · a → b · toward x/);
 });
 
+test('the read-basis badge says timing only when every flip used timing, partly timing when mixed', async t => {
+  await page(t);
+  const { renderLanes } = await import('../../src/swarm_lens/plugins/stance_lanes/assets/lanes.js');
+  const badge = read_basis => renderLanes({ ...report, read_basis }, { open: () => {}, openRead: () => {}, fork: () => {} })
+    .querySelector('.stance-head').textContent;
+  assert.match(badge(['delivered_sources']), /read-sets recorded/);
+  assert.match(badge(['timing']), /timing only/);
+  assert.match(badge(['delivered_sources', 'timing']), /partly timing/);
+  assert.doesNotMatch(badge(['delivered_sources', 'timing']), /timing only/);
+});
+
 test('flip actions open the exact events and fork at the event before the flip', async t => {
   const window = await page(t);
   const { flipActions } = await import('../../src/swarm_lens/plugins/stance_lanes/assets/index.js');

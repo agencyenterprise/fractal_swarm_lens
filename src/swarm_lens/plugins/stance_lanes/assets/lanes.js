@@ -63,8 +63,11 @@ function header(report) {
   head.append(el("h2", "", "Stance lanes"), chip);
   if (report.first_stances_differ) head.append(tip(el("span", "badge", "first stances differ"),
     "Agents did not share one stance in their first message"));
-  const basis = report.read_basis.includes("timing") ? ["timing only", "warn",
+  const timed = report.read_basis.includes("timing");
+  const basis = timed && report.read_basis.length === 1 ? ["timing only", "warn",
     "No delivered_sources on these messages: arrows assume each peer's latest earlier message was read"]
+    : timed ? ["partly timing", "warn",
+      "Some flips lack delivered_sources: their arrows assume each peer's latest earlier message was read"]
     : ["read-sets recorded", "accent", "Arrows start at the exact peer message the agent read"];
   if (report.flips.length) head.append(tip(el("span", `badge ${basis[1]}`, basis[0]), basis[2]));
   const source = report.stance_source === "regex" ? `regex ${report.pattern}` : `llm: ${report.stance_question}`;

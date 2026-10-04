@@ -1,7 +1,7 @@
 """Optional LLM stance labeller: answers a user-set stance question for each message, ten per call.
 
 Each call sees the labels already used in this run, so one position keeps one label. Every request is cached
-on disk by its full content, so re-running an analysis costs nothing.
+on disk by its full content once its reply validates, so re-running an analysis costs nothing.
 """
 from __future__ import annotations
 
@@ -63,29 +63,33 @@ class LLMStanceLabeller:
         messages = [{"role": "system", "content": SYSTEM},
                     {"role": "user", "content": f"TASK:\n{task[:3000]}\n\nQUESTION: {question}\n\n"
                                                 f"LABELS ALREADY USED: {json.dumps(vocabulary)}\n\n{numbered}"}]
-        by_index = indexed(self._cached(messages), len(batch))
+        by_index = self._cached(messages, lambda reply: indexed(reply, len(batch)))
         missing = [k for k in range(len(batch)) if k not in by_index]
         if missing:
             repair = [*messages, {"role": "assistant", "content": json.dumps({"stances": [
                 {"i": k, "stance": v} for k, v in sorted(by_index.items())]})},
                       {"role": "user", "content": f"You skipped messages {missing}. Label exactly those."}]
-            for k, stance in indexed(self._cached(repair), len(batch)).items():
-                by_index.setdefault(k, stance)
-        if any(k not in by_index for k in range(len(batch))):
-            raise DomainError("The stance labeller skipped messages twice; try again or use a regex pattern")
+
+            def repaired(reply) -> dict[int, str | None]:
+                labels = {**indexed(reply, len(batch)), **by_index}
+                if any(k not in labels for k in missing):
+                    raise DomainError("The stance labeller skipped messages twice; try again or use a regex pattern")
+                return labels
+            by_index = self._cached(repair, repaired)
         return [by_index[k] for k in range(len(batch))]
 
-    def _cached(self, messages: list[dict]) -> dict:
+    def _cached(self, messages: list[dict], parse: Callable[[dict], dict[int, str | None]]) -> dict[int, str | None]:
         request = json.dumps({"model": self.model, "messages": messages}, sort_keys=True)
         path = self.cache_dir / f"{hashlib.sha256(request.encode()).hexdigest()}.json"
         if path.exists():
-            return json.loads(path.read_text())
+            return parse(json.loads(path.read_text()))
         reply = self.complete(messages)
+        parsed = parse(reply)  # validate first: a cached bad reply would fail every retry the same way
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         partial = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
         partial.write_text(json.dumps(reply))
         os.replace(partial, path)  # readers never see a half-written file
-        return reply
+        return parsed
 
 
 def indexed(reply, size: int) -> dict[int, str | None]:

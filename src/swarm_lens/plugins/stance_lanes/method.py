@@ -64,7 +64,8 @@ class Params(BaseModel):
     stance_source: Literal["regex", "llm"] = Field(
         "regex", title="Stance source",
         description="regex: the last match of your pattern in each message. llm: a model answers your stance "
-                    "question for each message.")
+                    "question for each message; the messages and the arguments of the agents' tool calls are sent "
+                    "to OpenAI (gpt-4o-mini) with the server's OPENAI_API_KEY.")
     pattern: str | None = Field(
         None, title="Stance pattern",
         description="Regex with a capture group; the first group of the last match is the stance. "

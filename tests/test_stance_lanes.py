@@ -159,3 +159,22 @@ def test_a_malformed_llm_reply_fails_the_job_instead_of_becoming_a_stance(framew
         "stances": [{"i": 0, "stance": {"answer": "B"}}, {"i": 1, "stance": "a"}]})
     job = run(client_for(framework, tmp_path, StanceLanes(labeller)), branch, LLM)
     assert job["status"] == "failed" and "not text" in job["error"]
+
+
+def test_a_bad_llm_reply_is_not_cached_so_a_retry_asks_the_model_again(framework, tmp_path):
+    branch = debate(framework, ["BA"])
+    good = {"stances": [{"i": 0, "stance": "b"}, {"i": 1, "stance": "a"}]}
+    replies = iter([{"oops": []}, {"stances": [{"i": 0, "stance": "b"}]}, {"stances": []}, good])
+    calls = []
+
+    def complete(messages):
+        calls.append(messages)
+        return next(replies)
+
+    client = client_for(framework, tmp_path, StanceLanes(LLMStanceLabeller(tmp_path / "cache", complete=complete)))
+    assert "without a stances list" in run(client, branch, LLM)["error"]
+    assert "skipped messages twice" in run(client, branch, LLM)["error"]
+    assert len(calls) == 3
+    report = analyze(client, branch, {**LLM, "min_messages": 1})["report"]
+    assert len(calls) == 4 and calls[3][-1]["content"] == "You skipped messages [1]. Label exactly those."
+    assert [[c["stance"] for c in lane["cells"]] for lane in report["lanes"]] == [["b"], ["a"]]
