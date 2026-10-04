@@ -13,8 +13,4 @@
 <h2>Workspaces</h2>
 <p><code>--data PATH</code> selects local storage. <code>data/</code> and <code>data/mast-integration/</code> are separate workspaces even within one checkout. Runs are not added by pulling code. Import saved examples or exchange an exported run bundle to share conversations.</p>
 <p>History lives in <code>history.sqlite</code>; live jobs and MAST jobs have supporting stores, alongside artifacts and Git checkpoints. Back up the complete workspace when preserving an experiment. A live SQLite WAL may contain committed data: stop processes and use a consistent SQLite backup, rather than copying only an active database file.</p>
-<h2>Storage v2</h2>
-<p>The storage implementation introduced in PR #6 stores long content through a compressed text table and snapshots as bounded delta chains. Public framework reads reconstruct original content. Raw SQL readers must account for content digests.</p>
-<p>Opening an older workspace with this code migrates its schema to v2. <strong>Stop every server, collector, and script using it, then back up the workspace before upgrading.</strong> Older code cannot safely use the migrated database; restore the backup to return to it.</p>
-<p>Migration retains existing inline text and snapshots. It does not retroactively compact all old rows. Entirely new versions of growing conversation memories can still cause quadratic growth; whole-text deduplication is not chunk-level deduplication. State reads may be slower even when writes and storage improve.</p>
 <div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Architecture-and-storage.md">View Markdown source ↗</a></div></main></div></body></html>
