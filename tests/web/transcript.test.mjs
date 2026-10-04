@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
-const dom = new JSDOM('<!doctype html><section id="transcript"></section><div id="toast" hidden></div>');
+const dom = new JSDOM('<!doctype html><section id="transcript"></section><div id="toast" hidden></div>', { url: 'http://localhost/' });
 const observed = new Set();
 Object.assign(globalThis, {
   window: dom.window,
   document: dom.window.document,
+  localStorage: dom.window.localStorage,
   requestAnimationFrame: (callback) => callback(),
   IntersectionObserver: class {
     constructor(callback, options) { this.callback = callback; this.options = options; }
@@ -94,4 +95,49 @@ test('long histories window 150 entries before the cursor and 50 after, paging b
   assert.equal(pageButton('Show earlier'), undefined);
   pageButton('Show later').click();
   assert.equal(ids().at(-1), 'e300');
+});
+
+test('the Show menu filters by event kind, "only this" picks one kind, and the choice persists', () => {
+  const root = document.createElement('section');
+  document.body.append(root);
+  const selected = [];
+  const mixed = [
+    message(1, 'a', null, 'Hello'),
+    { id: 't2', position: 2, kind: 'tool.started', agent_id: 'a', preview: 'search("x")' },
+    { id: 'm3', position: 3, kind: 'memory.written', agent_id: 'b', preview: 'key: plan\\nvalue:\n be brief' },
+    { id: 'c4', position: 4, kind: 'agent.updated', agent_id: 'b', intervention: true, preview: 'New prompt' },
+    { id: 'o5', position: 5, kind: 'observation.recorded', label: 'note', preview: 'Seen' },
+  ];
+  const props = { events: mixed, agents, cursor: 5, selectedId: null, agentId: null };
+  const ids = () => [...root.querySelectorAll('.tx-entry')].map((node) => node.dataset.id);
+  const transcript = new Transcript(root, { onSelect: (event) => selected.push(event.id), loadDetail: async () => ({}), onClearAgent() {} });
+  transcript.render(props);
+  const show = root.querySelector('.tx-show-button');
+  assert.deepEqual(ids(), ['e1', 'c4']);
+  assert.equal(show.textContent, 'ShowMessages, Changes');
+
+  show.click();
+  assert.equal(show.getAttribute('aria-expanded'), 'true');
+  root.querySelector('[aria-label="Show only Tools"]').click();
+  assert.deepEqual(ids(), ['t2']);
+  const memory = root.querySelector('input[aria-label="Memory"]');
+  memory.checked = true;
+  memory.dispatchEvent(new window.Event('change'));
+  assert.deepEqual(ids(), ['t2', 'm3']);
+  assert.equal(root.querySelector('.tx-show-summary').textContent, 'Tools, Memory');
+  assert.equal(root.querySelector('[data-id="m3"] .tx-row-text').textContent, 'key: plan value: be brief');
+  root.querySelector('[data-id="m3"]').click();
+  assert.deepEqual(selected, ['m3']);
+
+  root.querySelector('.tx-kinds').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(show.getAttribute('aria-expanded'), 'false');
+  show.click();
+  document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
+  assert.ok(root.querySelector('.tx-kinds').hidden);
+
+  const reopened = document.createElement('section');
+  new Transcript(reopened, { onSelect() {}, loadDetail: async () => ({}), onClearAgent() {} }).render(props);
+  assert.deepEqual([...reopened.querySelectorAll('.tx-entry')].map((node) => node.dataset.id), ['t2', 'm3']);
+  localStorage.clear();
+  root.remove();
 });

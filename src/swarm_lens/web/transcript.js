@@ -3,9 +3,16 @@ import { renderMarkdownInto } from "./markdown.js";
 
 const PAGE = 150;
 const LATER_PAGE = 50;
-const MESSAGE_TONES = new Set(["message", "intervention"]);
 const CALLOUT_TONES = new Set(["intervention"]);
-const ALL_TONES = new Set(["message", "observation", "intervention", "tool", "memory"]);
+const KINDS = [
+  ["message", "Messages"],
+  ["intervention", "Changes"],
+  ["tool", "Tools"],
+  ["memory", "Memory"],
+  ["observation", "Observations"],
+];
+const DEFAULT_KINDS = ["message", "intervention"];
+const KINDS_KEY = "swarm-lens:transcript-kinds";
 const INTERVENTION_LABELS = {
   "agent.updated": "Prompt changed",
   "agent.removed": "Agent removed",
@@ -19,13 +26,37 @@ export function interventionLabel(event) {
   return INTERVENTION_LABELS[event.kind] || event.stage_label || "Intervention";
 }
 
+// Short button text for the kinds shown, e.g. "Messages, Changes" or "3 kinds".
+export function kindsSummary(kinds) {
+  if (kinds.size === KINDS.length) return "All";
+  if (!kinds.size) return "None";
+  if (kinds.size > 2) return `${kinds.size} kinds`;
+  return KINDS.filter(([kind]) => kinds.has(kind)).map(([, label]) => label).join(", ");
+}
+
+// Previews of serialized data carry escaped newlines; a one-line row reads them as spaces.
+function oneLine(text) {
+  return (text || "").replace(/(?:\\n|\s)+/g, " ").trim();
+}
+
+function loadKinds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KINDS_KEY));
+    if (Array.isArray(saved)) return new Set(saved.filter((kind) => KINDS.some(([known]) => known === kind)));
+  } catch { /* Storage unavailable or corrupt; fall back to the defaults. */ }
+  return new Set(DEFAULT_KINDS);
+}
+
+function saveKinds(kinds) {
+  try { localStorage.setItem(KINDS_KEY, JSON.stringify([...kinds])); } catch { /* The choice lasts for this visit. */ }
+}
+
 // Events the transcript shows for the given filters, oldest first.
-export function visibleEvents(events, { agentId, mode, query, agents }) {
-  const tones = mode === "all" ? ALL_TONES : MESSAGE_TONES;
+export function visibleEvents(events, { agentId, kinds, query, agents }) {
   const needle = query.trim().toLowerCase();
   return events.filter((event) =>
     (!agentId || event.agent_id === agentId)
-    && tones.has(eventTone(event))
+    && kinds.has(eventTone(event))
     && (!needle || `${speakerName(event, agents)} ${event.preview || ""}`.toLowerCase().includes(needle)));
 }
 
@@ -47,7 +78,7 @@ export class Transcript {
   constructor(root, { onSelect, loadDetail, onClearAgent }) {
     this.root = root;
     this.handlers = { onSelect, loadDetail, onClearAgent };
-    this.mode = "messages";
+    this.kinds = loadKinds();
     this.query = "";
     this.extra = { before: 0, after: 0 };
     this.nodes = new Map();
@@ -61,18 +92,14 @@ export class Transcript {
     });
     this.lateObserver = new IntersectionObserver((entries) => this.onIntersect(entries), { root: this.list });
     document.addEventListener("keydown", (event) => this.onGlobalKey(event));
+    document.addEventListener("pointerdown", (event) => {
+      if (!this.picker.contains(event.target)) this.closeKinds();
+    });
   }
 
   buildShell() {
     this.toolbar = el("div", "tx-toolbar");
-    this.modes = el("div", "segmented");
-    this.modes.setAttribute("role", "group");
-    this.modes.setAttribute("aria-label", "Show");
-    for (const [mode, label] of [["messages", "Messages"], ["all", "All"]]) {
-      const node = button(label, () => this.setFilter({ mode }));
-      node.dataset.mode = mode;
-      this.modes.append(node);
-    }
+    this.buildKindPicker();
     this.search = el("input", "tx-search");
     this.search.type = "search";
     this.search.placeholder = "Search";
@@ -87,12 +114,77 @@ export class Transcript {
     });
     this.chip = el("span", "tx-chip");
     this.count = el("span", "tx-count muted");
-    this.toolbar.append(this.modes, this.search, this.chip, this.count);
+    this.toolbar.append(this.picker, this.search, this.chip, this.count);
     this.list = el("div", "tx-list");
     this.earlier = button("Show earlier", () => this.showMore("before", PAGE), "ghost tx-page");
     this.later = button("Show later", () => this.showMore("after", LATER_PAGE), "ghost tx-page");
     this.empty = el("p", "empty");
     this.root.replaceChildren(this.toolbar, this.list);
+  }
+
+  // A "Show" button opening checkboxes per event kind; clicking a kind's name shows only that kind.
+  buildKindPicker() {
+    this.picker = el("div", "tx-show");
+    this.showButton = button("", () => this.toggleKinds(), "tx-show-button");
+    this.showButton.setAttribute("aria-haspopup", "true");
+    this.showButton.setAttribute("aria-expanded", "false");
+    this.showSummary = el("span", "tx-show-summary");
+    this.showButton.append(el("span", "tx-show-label", "Show"), this.showSummary);
+    this.kindPanel = el("div", "menu tx-kinds");
+    this.kindPanel.setAttribute("role", "group");
+    this.kindPanel.setAttribute("aria-label", "Event kinds");
+    this.kindPanel.hidden = true;
+    this.kindBoxes = new Map(KINDS.map(([kind, label]) => [kind, this.kindRow(kind, label)]));
+    this.picker.append(this.showButton, this.kindPanel);
+    this.picker.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || this.kindPanel.hidden) return;
+      event.stopPropagation();
+      this.closeKinds();
+      this.showButton.focus();
+    });
+    this.syncKinds();
+  }
+
+  kindRow(kind, label) {
+    const row = el("div", "tx-kind");
+    const box = el("input");
+    box.type = "checkbox";
+    box.setAttribute("aria-label", label);
+    box.addEventListener("change", () => {
+      const kinds = new Set(this.kinds);
+      if (box.checked) kinds.add(kind);
+      else kinds.delete(kind);
+      this.setKinds(kinds);
+    });
+    const only = button(label, () => this.setKinds(new Set([kind])), "tx-kind-only");
+    only.setAttribute("aria-label", `Show only ${label}`);
+    only.append(el("span", "hint", "Only"));
+    row.append(box, only);
+    this.kindPanel.append(row);
+    return box;
+  }
+
+  toggleKinds() {
+    if (!this.kindPanel.hidden) return this.closeKinds();
+    this.kindPanel.hidden = false;
+    this.showButton.setAttribute("aria-expanded", "true");
+    this.kindPanel.querySelector("input").focus();
+  }
+
+  closeKinds() {
+    this.kindPanel.hidden = true;
+    this.showButton.setAttribute("aria-expanded", "false");
+  }
+
+  setKinds(kinds) {
+    saveKinds(kinds);
+    this.setFilter({ kinds });
+    this.syncKinds();
+  }
+
+  syncKinds() {
+    for (const [kind, box] of this.kindBoxes) box.checked = this.kinds.has(kind);
+    this.showSummary.textContent = kindsSummary(this.kinds);
   }
 
   render(props) {
@@ -121,7 +213,7 @@ export class Transcript {
 
   update({ scroll }) {
     const { events, agents, cursor, selectedId, agentId } = this.props;
-    const matching = visibleEvents(events, { agentId, mode: this.mode, query: this.query, agents });
+    const matching = visibleEvents(events, { agentId, kinds: this.kinds, query: this.query, agents });
     const split = matching.findIndex((event) => event.position > cursor);
     const boundary = split === -1 ? matching.length : split;
     const start = Math.max(0, boundary - PAGE - this.extra.before);
@@ -159,8 +251,7 @@ export class Transcript {
   }
 
   renderToolbar(total, agents, agentId) {
-    for (const node of this.modes.children) node.setAttribute("aria-pressed", String(node.dataset.mode === this.mode));
-    const noun = this.mode === "messages" ? "message" : "event";
+    const noun = this.kinds.size === 1 && this.kinds.has("message") ? "message" : "event";
     this.count.textContent = `${formatNumber(total)} ${noun}${total === 1 ? "" : "s"}`;
     this.chip.hidden = !agentId;
     if (!agentId) return;
@@ -256,7 +347,7 @@ export class Transcript {
     const agent = this.props.agents[event.agent_id];
     node.append(el("span", "tx-row-kind", kind));
     if (agent) node.append(el("span", "tx-row-agent", agent.name));
-    node.append(el("span", "tx-row-text", (event.preview || "").replace(/\s+/g, " ")), el("time", "tx-time mono", time(event.at)));
+    node.append(el("span", "tx-row-text", oneLine(event.preview)), el("time", "tx-time mono", time(event.at)));
     return node;
   }
 
