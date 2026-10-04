@@ -1,0 +1,22 @@
+{
+  "name": "swarm-lens-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:components && npm run build:styles",
+    "build:components": "esbuild frontend/components.js --bundle --format=esm --target=es2022 --minify --outfile=src/swarm_lens/web/components.js",
+    "build:styles": "tailwindcss -i frontend/styles.css -o src/swarm_lens/web/tailwind.css --minify",
+    "test": "node --test tests/web/*.test.mjs"
+  },
+  "dependencies": {
+    "@zag-js/combobox": "1.44.0",
+    "@zag-js/select": "1.44.0",
+    "@zag-js/vanilla": "1.44.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "esbuild": "0.28.2",
+    "jsdom": "29.1.1",
+    "tailwindcss": "4.3.0"
+  }
+}

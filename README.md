@@ -2,6 +2,12 @@
 
 A self-hosted framework for observing, replaying, branching, and intervening in agent systems. The included AI Village application demonstrates how a developer maps one source system into the framework's primitives. Dataset interpretation belongs to that application.
 
+## Project priorities
+
+Swarm Lens supports saved traces and live collection over the same event history. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for importing and analyzing traces. [CrewAI live collection and branch execution](examples/crewai/README.md) use a pinned adapter, durable ingestion, WebSocket updates, registered application runtimes, and a continuation adapter for imported conversations. ACIArena continuations preserve the debater/aggregator round structure; other traces use an explicit round-robin schedule and registered tools. Docker deployment remains a priority. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
+
+CASPIAN stays as an optional experimental plugin. We have not validated that it reliably detects cascade effects; executable code and equation-level tests do not establish detection accuracy. Observability and trace collection must remain useful independently of CASPIAN.
+
 ## Run the included explorer
 
 Python 3.11+ and Git are required. The local demo workspace stores selected AI Village data, SQLite history, model-response artifacts, and Git checkpoints under `data/`. These files and all environment files are excluded from Git.
@@ -54,16 +60,36 @@ The AI Village example reconstructs observations. A changed prompt does not gene
 
 This is a working foundation, not a claim of deployment readiness at arbitrary scale. Before exposing it to a team, supply application authentication and deployment configuration. A larger workload needs paged history/state reads, snapshot retention, and asynchronous runtime jobs. These changes fit the existing outer adapters and application services.
 
+## Observability methods
+
+For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,mast]`, configure the server's `OPENAI_API_KEY`, and launch the usual explorer. **Import saved trace** collects a transcript locally; **MAST analysis** runs the upstream 14-category judge on a saved snapshot and retains the result. MAST does not run live. Its sub-API is `/api/plugins/mast`; CASPIAN has no dedicated API.
+
+Optional methods live under `swarm_lens.observability`, independently of the core. The first is a paper-based [CASPIAN implementation](docs/observability/caspian/README.md) with streaming conditional influence estimation, spectral detection, and role/path attribution. Install `.[caspian]`. Applications supply observed source/target vectors through a versioned history adapter; no AI Village schema is embedded in the method.
+
+The [paper coverage map](docs/observability/caspian/coverage.md) records equation-level tests, missing author artifacts, reconstruction choices, and mathematical limitations of the published rules. This is not a reproduction of the paper's reported benchmark accuracy or latency. Runnable synthetic, attribution, and nested-branch examples are under `examples/observability/caspian/`; `python -m examples.ai_village.caspian` audits the Village mapping's missing evidence without fabricating scores. See the [method extension contract](docs/observability/README.md).
+
+## Frontend development
+
+The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Shared controls and dialogs are styled in `frontend/styles.css`; the specialized timeline geometry remains in `src/swarm_lens/web/style.css`.
+
+```sh
+npm ci
+npm run build
+npm test
+```
+
+Rebuild after editing frontend styles or `frontend/components.js`. Commit the generated `src/swarm_lens/web/tailwind.css` and `components.js` alongside their sources. These assets ship with the Python package, so running the application requires neither Node.js nor a CDN.
+
 ## Validation
 
 ```sh
 python -m pytest -q
 ```
 
-For the supplied Conda runtime, which has a `readline`/pytest capture incompatibility:
+For the supplied Conda runtime, disable its incompatible pytest capture and OpenMP initialization after fork:
 
 ```sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -p no:capture -q
+KMP_INIT_AT_FORK=FALSE PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -p no:capture -q
 ```
 
 Tests cover nested historical forks, restart/replay, isolation, stale/concurrent writes, atomic batches, relational references, tool lifecycle, runtime extension behavior, plugin mutation, Git parentage, and API cursor boundaries. Browser checks cover event menus, expansion/resizing, filters, and an actual intervention branch with a verified diff.
@@ -73,3 +99,7 @@ Tests cover nested historical forks, restart/replay, isolation, stale/concurrent
 A useful next tool is an agent-assisted application generator: give it a source schema and sample rows; it writes a `Source` implementation, provenance mappings, and representative fixtures for a developer to review. That tool should live separately from this framework. The developer owns how their source maps into agents, channels, tasks, ordering, and state. The framework then runs the application using those explicit decisions.
 
 AI Village data is attributed to AI Digest / AI Village. Local provider icons come from LobeHub Icons under its [MIT license](src/swarm_lens/web/logos/LICENSE); names and logos identify providers. See [third-party notices](THIRD_PARTY.md).
+
+### ACIArena LLM Debate pilot
+
+Run the pinned upstream benchmark with paired benign/name-disclosure cases and real OpenAI embeddings. See [setup, protocol, and limitations](examples/aciarena/README.md). CASPIAN remains inside this repository.

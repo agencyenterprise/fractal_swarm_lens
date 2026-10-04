@@ -4,26 +4,31 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Swarm Lens · Explorer</title>
-    <link rel="stylesheet" href="/assets/style.css" />
+    <link rel="icon" href="/assets/logos/swarm-lens.ico?v=2" type="image/x-icon" sizes="16x16 32x32 48x48 64x64" />
+    <link rel="stylesheet" href="/assets/tailwind.css?v=2" />
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">S<span>·</span>L</span
-        ><span
+        <picture class="brand-mark" aria-hidden="true">
+          <source media="(prefers-reduced-motion: reduce)" srcset="/assets/logos/swarm-lens.png?v=2" />
+          <img src="/assets/logos/swarm-lens.gif?v=2" width="48" height="48" alt="" decoding="async" />
+        </picture>
+        <span
           >swarm<span class="brand-light">lens</span
           ><small>OBSERVE · BRANCH · EXPLORE</small></span
         >
       </div>
       <div class="sidebar-label">
-        WORKSPACE <span class="local-dot">LOCAL</span>
+        CONVERSATION <span class="local-dot">LOCAL</span>
       </div>
-      <label class="sr-only" for="run-select">Run</label
-      ><select id="run-select"></select>
+      <div id="run-select"></div>
+      <button id="import-trace" class="import-trace" hidden>+ Import saved trace</button>
       <div class="task-summary">
         <span class="eyebrow">CURRENT TASK</span>
         <h1 id="task-name">Loading run…</h1>
         <p id="task-description"></p>
+        <button id="read-task" class="read-task" hidden>Read benchmark question</button>
         <div id="source-date"></div>
       </div>
       <div class="section-label">
@@ -59,6 +64,7 @@
           </div>
         </div>
         <div class="header-actions">
+          <button id="mast-analyze" hidden>MAST analysis</button>
           <button id="compare">Compare branches</button
           ><button id="checkpoint">Save checkpoint</button
           ><button class="primary" id="fork-button">⑂ Fork at cursor</button>
@@ -69,9 +75,30 @@
           <span class="status-light"></span
           ><strong id="context-title">Recorded trajectory</strong
           ><span id="cursor-time"></span>
+          <a id="paired-example" class="paired-example" hidden></a>
         </div>
         <div id="counts" class="counts"></div>
       </section>
+      <div id="live-controls" class="live-controls" hidden>
+        <span id="live-spinner" class="live-spinner" aria-hidden="true" hidden></span>
+        <span id="live-status" role="status">Saved history</span>
+        <span id="live-elapsed"></span>
+        <span id="live-connection">Connecting…</span>
+        <label><input id="follow-live" type="checkbox" /> Follow live</label>
+        <span>Replay shows saved events · Create branch and run live generates new responses</span>
+      </div>
+      <div id="execution-notice" class="execution-notice" role="status" aria-live="polite" hidden>
+        <span id="execution-notice-text"></span>
+        <button id="view-execution-branch">View branch</button>
+        <button id="dismiss-execution-notice" aria-label="Dismiss execution notification">×</button>
+      </div>
+      <p id="execution-error" class="execution-error" role="alert" hidden></p>
+      <div class="workspace-switcher">
+        <div id="workspace-tabs" role="tablist" aria-label="Workspace view"></div>
+        <span>Explore a conversation or read its reports</span>
+      </div>
+      <div id="workspace-views">
+      <div id="workspace-timeline">
       <section
         class="timeline-panel event-timeline"
         aria-label="Agent event timeline"
@@ -94,15 +121,10 @@
         <div class="timeline-controls">
           <div class="player">
             <button id="previous" aria-label="Previous event">|‹</button
-            ><button id="play" class="play-button" aria-label="Play timeline">
-              ▶</button
+            ><button id="play" class="play-button" aria-label="Replay saved events">
+              ▶ Replay</button
             ><button id="next" aria-label="Next event">›|</button
-            ><label class="sr-only" for="speed">Playback step size</label
-            ><select id="speed">
-              <option value="1">1 event</option>
-              <option value="10" selected>10 events</option>
-              <option value="50">50 events</option>
-            </select>
+            ><div id="speed"></div>
           </div>
           <div class="timeline-toggles">
             <label
@@ -129,11 +151,14 @@
               ><input id="timeline-connections" type="checkbox" checked /><span
                 >Connections</span
               ></label
+            ><label title="Collapse gaps longer than one minute. Event timestamps stay unchanged."
+              ><input id="timeline-compact" type="checkbox" checked /><span>Compact gaps</span></label
             >
           </div>
           <button id="go-end" class="subtle">Latest →</button>
         </div>
-        <div id="timeline-viewport" class="timeline-viewport">
+        <div id="timeline-viewport" class="timeline-viewport" data-view-scroll
+          role="region" aria-label="Timeline events" tabindex="0">
           <div id="timeline-scene" class="timeline-scene">
             <div id="timeline-ruler" class="timeline-ruler"></div>
             <div id="timeline-lanes"></div>
@@ -157,7 +182,7 @@
             max="1"
             value="0"
             step="1"
-          /><span>UTC · click an event · right-click to intervene</span>
+          /><span>UTC · click an event · select a point to branch or run live</span>
         </div>
         <button
           id="resize-timeline"
@@ -168,7 +193,7 @@
         </button>
       </section>
       <div class="workspace">
-        <div class="center-column">
+        <div class="center-column" data-view-scroll>
           <section class="feed-panel">
             <div class="feed-toolbar">
               <div class="tabs" role="tablist" aria-label="Event type">
@@ -222,7 +247,7 @@
           aria-label="Resize inspector; use left and right arrow keys"
           title="Drag to resize inspector"
         ></button>
-        <div class="context-column">
+        <div class="context-column" data-view-scroll>
           <section class="graph-panel" aria-label="Swarm communication graph">
             <div class="panel-heading">
               <div>
@@ -251,10 +276,12 @@
             <div class="inspector-actions">
               <button id="add-agent">+ Add agent</button
               ><button id="edit-goal">Edit goal</button
-              ><button id="analyze">Run analysis</button>
+              ><button id="analyze">Activity analysis</button>
             </div>
           </aside>
         </div>
+      </div>
+      </div>
       </div>
       <footer class="footer">
         <span id="footer-status" role="status"
@@ -286,6 +313,7 @@
           ><button id="confirm-dialog" class="primary" type="submit">
             Save
           </button>
+          <button id="alternate-dialog" class="primary" type="button" hidden></button>
         </div>
       </form>
     </dialog>
@@ -297,6 +325,6 @@
       hidden
     ></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js"></script>
+    <script type="module" src="/assets/app.js?v=13"></script>
   </body>
 </html>

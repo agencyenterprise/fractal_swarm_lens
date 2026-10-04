@@ -59,3 +59,9 @@ Plugins can inspect `context.state`, `context.history()`, and `context.branches(
 Implement the `Runtime` protocol's `capabilities()` and `continue_from(state, steps)` to yield new facts from actual execution. Register it with `Framework(..., runtime=runtime)`, then call `framework.continue_run(branch_id, steps)`. Provisioning machines, restoring external tools, translating prompt/steering configuration, and recording model outputs belong to that runtime. The framework cannot resume the original AI Village machines from this observational export.
 
 Use `swarm_lens.web.api.create_app(framework, artifacts=...)` for the supplied browser explorer, or call the same application services from a different UI. See the small composition root in `swarm_lens/cli.py`. Core behavior is independent of the browser and FastAPI.
+
+## Observe a history with a method
+
+Use `ObservabilityPlugin(method_id, version, factory, adapter)` from `swarm_lens.observability`. The factory receives analysis configuration and returns a fresh method. The application adapter consumes the selected `Event` history and yields method-specific observations. Its `id`, `version`, and `describe()` document mapping/encoding provenance. Standard `Framework.analyze` then persists the resolved method/adapter metadata, output, and branch history digest.
+
+The [CASPIAN branch example](../examples/observability/caspian/branch_plugin.py) runs a complete SQLite application, historical analysis, intervention, and nested fork without credentials. Follow the [method input contract](observability/caspian/README.md) to supply genuine downstream observations; a branch edit itself does not execute the runtime or generate model-internal evidence.

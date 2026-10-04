@@ -110,18 +110,32 @@ class Framework:
 
     def intervene(self, branch_id: str, kind: str, data: dict, expected_head: int,
                   *, actor: str = "developer") -> Event:
-        if kind not in {"agent.added", "agent.updated", "agent.removed", "environment.updated",
-                        "channel.created", "channel.updated", "memory.written"}:
-            raise DomainError("This event is not an intervention command")
         state = self.state(branch_id)
         if state.cursor != expected_head:
             raise Conflict("Cursor is historical or stale; fork here or refresh before editing")
-        event = self._event(state, Fact(kind, data, state.occurred_at or utc_now(), {
-            "origin": "intervention", "actor": actor, "applied_to_runtime": False,
-        }))
+        event = self.prepare_intervention(state, kind, data, actor=actor)
         self.store.append(branch_id, [event], expected_head)
         self.store.save_snapshot(state)
         return event
+
+    def prepare_intervention(self, state: State, kind: str, data: dict,
+                             *, actor: str = "explorer") -> Event:
+        """Validate and apply a proposed change to a private state without saving it."""
+        if kind not in {"agent.added", "agent.updated", "agent.removed", "environment.updated",
+                        "channel.created", "channel.updated", "memory.written"}:
+            raise DomainError("This event is not an intervention command")
+        return self._event(state, Fact(kind, data, state.occurred_at or utc_now(), {
+            "origin": "intervention", "actor": actor, "applied_to_runtime": False,
+        }))
+
+    def fork_with_intervention(self, branch_id: str, cursor: int, name: str,
+                               intervention: dict | None = None) -> Branch:
+        if intervention:
+            self.prepare_intervention(self.state(branch_id, cursor), **intervention)
+        branch = self.fork(branch_id, cursor, name)
+        if intervention:
+            self.intervene(branch.id, **intervention, expected_head=cursor, actor="explorer")
+        return self.store.branch(branch.id)
 
     def diff(self, left: str, right: str, left_cursor: int | None = None,
              right_cursor: int | None = None) -> dict:

@@ -1,0 +1,13 @@
+# Direct optional dependency versions used by the 2026-10-02 pilot (Python 3.12.7).
+# Install the editable project extras first, then this file to match these versions.
+openai==2.8.1
+numpy==1.26.4
+math-verify==0.6.0
+human_eval==1.0.3
+pydantic==2.11.7
+transformers==5.9.0
+datasets==3.6.0
+PyYAML==6.0.3
+colorlog==6.10.1
+tenacity==8.2.3
+python-dotenv==1.2.1

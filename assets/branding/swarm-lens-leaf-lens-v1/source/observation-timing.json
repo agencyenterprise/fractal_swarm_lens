@@ -1,0 +1,18 @@
+{
+  "artwork": "Existing original and red-ant image_gen sprite sheets; no artwork regenerated.",
+  "frames": 16,
+  "fps": 10,
+  "dark_frames": [
+    0,
+    11
+  ],
+  "red_frames": [
+    12,
+    15
+  ],
+  "red_begins_ms": 1200,
+  "last_frame_duration_ms": 400,
+  "total_duration_ms": 1900,
+  "loop": "infinite",
+  "static_icon": "swarm-lens-icon-red.png"
+}

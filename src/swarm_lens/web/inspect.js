@@ -86,7 +86,7 @@ export function inspectAgent(agent, state, actions) {
     el(
       "p",
       "source-note",
-      "Changes are recorded as interventions. New behavior requires an execution runtime supplied by the application.",
+      "Changes are recorded as interventions. Choose Create branch and run live when saving a change to generate new behavior.",
     ),
   );
 }
@@ -109,7 +109,7 @@ export function inspectEnvironment(state, actions) {
   if (selection) root.append(section("Selection boundary", selection));
   const capabilities = section(
     "Execution",
-    "This example reconstructs recorded observations. Register a runtime adapter to generate new continuations.",
+    "Inspect saved observations here. Select a point on the timeline, then fork or change the shared goal. Save the branch or run a CrewAI continuation from that point.",
   );
   capabilities.append(button("Edit goal", actions.editGoal));
   root.append(capabilities);
@@ -146,6 +146,10 @@ export function inspectEvent(event, state, actions) {
     root.append(
       button("Inspect agent", () => actions.selectAgent(agent.id), "subtle"),
     );
+  if (data.metadata?.stage_label) root.append(section("Stage", data.metadata.stage_label));
+  if (event.source.delivered_sources?.length) {
+    root.append(section("Responses supplied to this agent", event.source.delivered_sources.join(", ")));
+  }
   root.append(
     el(
       "div",
