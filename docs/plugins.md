@@ -104,7 +104,7 @@ my-plugin = "my_package.my_plugin:create"
 swarm-lens --data data --plugin my_package.my_plugin:create   # repeatable
 ```
 
-Bundled plugins (Activity, MAST, and [failure attribution](plugins/failure-attribution.md)) are listed in `swarm_lens/cli.py` (`BUNDLED_PLUGINS`).
+Bundled plugins (Activity, MAST, [Influence ribbon](plugins/influence-ribbon.md) and [Failure attribution](plugins/failure-attribution.md)) are listed in `swarm_lens/cli.py` (`BUNDLED_PLUGINS`).
 
 ## What the UI does for free
 
