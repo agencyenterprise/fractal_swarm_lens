@@ -1,10 +1,12 @@
+from collections.abc import Iterable
 import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
-from swarm_lens.core.models import Branch, Conflict, DomainError, Event, Run, State
+from swarm_lens.application.ports import RunContents
+from swarm_lens.core.models import Branch, Comment, Conflict, DomainError, Event, Run, State
 
 
 def encode(value):
@@ -35,8 +37,12 @@ class SQLiteHistory:
 
     def create_run(self, run: Run, branch: Branch) -> None:
         with self.connection() as db:
-            db.execute("INSERT INTO runs VALUES (?,?,?,?)", (run.id, run.name, run.created_at, encode(run.metadata)))
+            self._insert_run(db, run)
             self._insert_branch(db, branch)
+
+    @staticmethod
+    def _insert_run(db, run):
+        db.execute("INSERT INTO runs VALUES (?,?,?,?)", (run.id, run.name, run.created_at, encode(run.metadata)))
 
     @staticmethod
     def _insert_branch(db, branch):
@@ -44,8 +50,11 @@ class SQLiteHistory:
 
     def runs(self) -> list[Run]:
         with self.connection() as db:
-            return [Run(row["id"], row["name"], row["created_at"], json.loads(row["metadata"]))
-                    for row in db.execute("SELECT * FROM runs ORDER BY created_at")]
+            return [self._run(row) for row in db.execute("SELECT * FROM runs ORDER BY created_at")]
+
+    @staticmethod
+    def _run(row):
+        return Run(row["id"], row["name"], row["created_at"], json.loads(row["metadata"]))
 
     def run(self, run_id: str) -> Run:
         return next((run for run in self.runs() if run.id == run_id), None) or self._missing("run")
@@ -106,14 +115,19 @@ class SQLiteHistory:
             for offset, event in enumerate(events, 1):
                 if event.branch_id != branch_id or event.position != expected_head + offset:
                     raise DomainError("Invalid event sequence")
-                try:
-                    db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?)", (
-                        event.id, event.branch_id, event.position, event.kind, encode(event.data),
-                        event.occurred_at, event.recorded_at, encode(event.source), event.schema_version))
-                    self._index(db, branch["run_id"], event)
-                except sqlite3.IntegrityError as exc:
-                    raise Conflict("Duplicate event or invalid entity reference") from exc
+            self._insert_events(db, branch["run_id"], events)
             db.execute("UPDATE branches SET head=? WHERE id=?", (expected_head + len(events), branch_id))
+
+    @classmethod
+    def _insert_events(cls, db, run_id, events):
+        for event in events:
+            try:
+                db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?)", (
+                    event.id, event.branch_id, event.position, event.kind, encode(event.data),
+                    event.occurred_at, event.recorded_at, encode(event.source), event.schema_version))
+                cls._index(db, run_id, event)
+            except sqlite3.IntegrityError as exc:
+                raise Conflict("Duplicate event or invalid entity reference") from exc
 
     @staticmethod
     def _index(db, run_id, event):
@@ -141,7 +155,11 @@ class SQLiteHistory:
 
     def save_snapshot(self, state: State) -> None:
         with self.connection() as db:
-            db.execute("INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (state.branch_id, state.cursor, encode(state.to_dict())))
+            self._insert_snapshot(db, state)
+
+    @staticmethod
+    def _insert_snapshot(db, state):
+        db.execute("INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (state.branch_id, state.cursor, encode(state.to_dict())))
 
     def snapshot(self, branch_id: str, cursor: int) -> State | None:
         with self.connection() as db:
@@ -163,3 +181,71 @@ class SQLiteHistory:
         with self.connection() as db:
             return [json.loads(row[0]) for row in db.execute(
                 "SELECT record FROM analyses WHERE branch_id=? AND cursor=?", (branch_id, cursor))]
+
+    def add_comment(self, comment: Comment) -> None:
+        with self.connection() as db:
+            self._insert_comment(db, comment)
+
+    @staticmethod
+    def _insert_comment(db, comment):
+        db.execute("INSERT INTO comments VALUES (?,?,?,?,?,?,?,?,?,?)", tuple(asdict(comment).values()))
+
+    def comment(self, comment_id: str) -> Comment:
+        with self.connection() as db:
+            row = db.execute("SELECT * FROM comments WHERE id=?", (comment_id,)).fetchone()
+            return self._comment(row) if row else self._missing("comment")
+
+    @staticmethod
+    def _comment(row):
+        return Comment(**{**dict(row), "resolved": bool(row["resolved"])})
+
+    def comments(self, branch_id: str) -> list[Comment]:
+        branch = self.branch(branch_id)
+        limit, found = branch.head, []
+        with self.connection() as db:
+            while True:
+                found += [self._comment(row) for row in db.execute(
+                    "SELECT * FROM comments WHERE branch_id=? AND position<=?", (branch.id, limit))]
+                if not branch.parent_id:
+                    break
+                limit = min(limit, branch.fork_position)
+                branch = Branch(**dict(db.execute("SELECT * FROM branches WHERE id=?", (branch.parent_id,)).fetchone()))
+        return sorted(found, key=lambda comment: (comment.position, comment.created_at, comment.id))
+
+    def update_comment(self, comment: Comment) -> None:
+        with self.connection() as db:
+            changed = db.execute("UPDATE comments SET text=?, resolved=?, updated_at=? WHERE id=?",
+                                 (comment.text, comment.resolved, comment.updated_at, comment.id)).rowcount
+            if not changed:
+                self._missing("comment")
+
+    def delete_comment(self, comment_id: str) -> None:
+        with self.connection() as db:
+            if not db.execute("DELETE FROM comments WHERE id=?", (comment_id,)).rowcount:
+                self._missing("comment")
+
+    def run_contents(self, run_id: str) -> RunContents:
+        with self.connection() as db:
+            db.execute("BEGIN")
+            row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone() or self._missing("run")
+            branches = [Branch(**dict(row)) for row in db.execute(
+                "SELECT * FROM branches WHERE run_id=? ORDER BY created_at, id", (run_id,))]
+            own_events = {branch.id: [self._event(event) for event in db.execute(
+                "SELECT * FROM events WHERE branch_id=? ORDER BY position", (branch.id,))] for branch in branches}
+            comments = [self._comment(comment) for comment in db.execute(
+                "SELECT comments.* FROM comments JOIN branches ON branches.id=comments.branch_id "
+                "WHERE branches.run_id=?", (run_id,))]
+            return RunContents(self._run(row), branches, own_events, comments)
+
+    def import_run(self, run: Run, branches: list[Branch], batches: Iterable[tuple[list[Event], State]],
+                   comments: list[Comment]) -> None:
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._insert_run(db, run)
+            for branch in branches:
+                self._insert_branch(db, branch)
+            for events, state in batches:
+                self._insert_events(db, run.id, events)
+                self._insert_snapshot(db, state)
+            for comment in comments:
+                self._insert_comment(db, comment)

@@ -62,4 +62,13 @@ CREATE TABLE IF NOT EXISTS analyses (
     id TEXT PRIMARY KEY, branch_id TEXT NOT NULL REFERENCES branches(id),
     cursor INTEGER NOT NULL, record TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY, branch_id TEXT NOT NULL REFERENCES branches(id),
+    event_id TEXT NOT NULL REFERENCES events(id), position INTEGER NOT NULL CHECK(position >= 1),
+    author TEXT NOT NULL, text TEXT NOT NULL, created_at TEXT NOT NULL,
+    parent_id TEXT REFERENCES comments(id) ON DELETE CASCADE,
+    resolved INTEGER NOT NULL CHECK(resolved IN (0, 1)), updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS comments_branch_position ON comments(branch_id, position);
+CREATE INDEX IF NOT EXISTS comments_parent ON comments(parent_id);
 PRAGMA user_version = 1;

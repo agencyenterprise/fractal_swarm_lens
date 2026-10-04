@@ -31,6 +31,9 @@ def test_foreign_origin_cannot_mutate_local_state(framework, branch):
     client = TestClient(create_app(framework))
     assert client.post(f"/api/branches/{branch.id}/fork", json={"cursor": 4, "name": "bad"},
                        headers={"Origin": "https://unrelated.example"}).status_code == 403
+    for method in ("PATCH", "DELETE"):
+        assert client.request(method, "/api/comments/any", json={"resolved": True},
+                              headers={"Origin": "https://unrelated.example"}).status_code == 403
 
 
 def test_raw_transcript_import_keeps_the_text_without_interpreting_it(framework):

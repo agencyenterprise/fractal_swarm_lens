@@ -61,6 +61,38 @@ class Branch:
     created_at: str
 
 
+COMMENT_TEXT_LIMIT = 10_000
+COMMENT_AUTHOR_LIMIT = 80
+
+
+@dataclass(frozen=True)
+class Comment:
+    """A note on one event of a branch; it annotates history without becoming part of it."""
+    id: str
+    branch_id: str
+    event_id: str
+    position: int
+    author: str
+    text: str
+    created_at: str
+    parent_id: str | None = None
+    resolved: bool = False
+    updated_at: str | None = None
+
+
+def comment_author(value: str) -> str:
+    author = value.strip()
+    if not 1 <= len(author) <= COMMENT_AUTHOR_LIMIT:
+        raise DomainError(f"A comment author needs 1 to {COMMENT_AUTHOR_LIMIT} characters")
+    return author
+
+
+def comment_text(value: str) -> str:
+    if not value.strip() or len(value) > COMMENT_TEXT_LIMIT:
+        raise DomainError(f"A comment needs nonempty text of at most {COMMENT_TEXT_LIMIT} characters")
+    return value
+
+
 @dataclass
 class Agent:
     id: str

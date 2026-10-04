@@ -60,6 +60,23 @@ The AI Village example reconstructs observations. A changed prompt does not gene
 
 This is a working foundation, not a claim of deployment readiness at arbitrary scale. Before exposing it to a team, supply application authentication and deployment configuration. A larger workload needs paged history/state reads, snapshot retention, and asynchronous runtime jobs. These changes fit the existing outer adapters and application services.
 
+## Comments and sharing
+
+Researchers can comment on any event of a branch, reply in threads, and resolve threads, much as in Google Docs. Comments are not history events. They are stored in their own table and never change replay, state, or forks. A comment belongs to the branch where it was written. A branch also shows its ancestors' comments anchored at or before its fork point. A reply answers a thread's top-level comment and shares its event. Only a top-level comment can be resolved. Deleting it deletes its replies.
+
+**Export** writes a run as one JSON bundle (`swarm-lens.run`, version 1). The bundle holds the run's name and metadata, its branch tree (each branch's fork position and own events), and its comment threads. Branches use local keys and comments use event positions, so the bundle holds no database ids. **Import** creates a new run in one database transaction. It replays each branch through the reducer once, and a child starts from its parent's state at the fork. If any event or comment anchor is invalid, nothing is written. A bundle can have at most 256 branches, 64 levels of nested forks and 200,000 events in total. An unknown format or version is rejected. Artifacts referenced by digest (for example, raw model responses) are not included. Their digests are kept as they are, so copy `artifacts/` with the bundle if the receiver needs them.
+
+| Method | Path | Body / result |
+| --- | --- | --- |
+| GET | `/api/branches/{id}/comments` | `{comments: [Comment]}`, ordered by event position, then creation time |
+| POST | `/api/branches/{id}/comments` | `{event_id, author, text, parent_id?}` → 201 `Comment` |
+| PATCH | `/api/comments/{id}` | `{text?, resolved?}` → `Comment` |
+| DELETE | `/api/comments/{id}` | → 204 (a top-level comment deletes its replies) |
+| GET | `/api/runs/{run_id}/export` | Bundle as a JSON download (`<run name>.swarm-lens.json`) |
+| POST | `/api/runs/import` | Bundle (64 MiB maximum) → 201 `{branch}` (the new root branch) |
+
+A `Comment` is `{id, branch_id, event_id, position, author, text, created_at, parent_id, resolved, updated_at}`. `author` has 1 to 80 characters. `text` cannot be blank and has at most 10,000 characters. Invalid requests return 400. The server rejects all mutations (POST, PATCH, DELETE) from other origins.
+
 ## Observability methods
 
 For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,mast]`, configure the server's `OPENAI_API_KEY`, and launch the usual explorer. **Import trace** (core, `POST /api/traces`) saves a transcript locally without calling a model; **Analyze with MAST** runs the upstream 14-category judge on a saved snapshot and retains the result. MAST does not run live. Its sub-API is `/api/plugins/mast`; CASPIAN has no dedicated API.
