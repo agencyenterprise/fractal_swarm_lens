@@ -1,8 +1,7 @@
 // Activity: per-agent heatmap over stages (or equal time buckets), shaded against each agent's own median.
-import { el, button, avatar, color, stageOf, time, formatNumber, tip } from "../ui.js";
+import { el, button, avatar, color, formatNumber, tip } from "../ui.js";
+import { columnScheme, columnTitle } from "./columns.js";
 
-const MAX_COLUMNS = 80;
-const TIME_BUCKETS = 24;
 const SPIKE_RATIO = 2;
 // A median needs a few cells before a 2x jump means anything.
 const MIN_CELLS_FOR_SPIKE = 3;
@@ -37,15 +36,27 @@ export function detailNumbers(detail) {
   const metadata = detail?.data?.metadata ?? {};
   return {
     length: typeof content === "string" ? content.length : String(content ?? "").length,
-    outputTokens: Number.isFinite(metadata.usage?.output_tokens) ? metadata.usage.output_tokens : undefined,
+    outputTokens: recordedOutputTokens(metadata.usage),
     latency: Number.isFinite(metadata.latency_seconds) ? metadata.latency_seconds : undefined,
   };
 }
 
+// Some recorders write a usage block of zeros when they did not measure usage; any real model call
+// counts tokens, so an all-zero block means "not recorded", not "0 tokens".
+function recordedOutputTokens(usage) {
+  if (!Number.isFinite(usage?.output_tokens)) return undefined;
+  const counts = Object.values(usage).filter(Number.isFinite);
+  return counts.every((count) => count === 0) ? undefined : usage.output_tokens;
+}
+
+// Averages only the events whose details carry the field. A cell whose details are all loaded but
+// none carries it has no data, which is not the same as a value of 0.
 function averageOfDetails(field) {
   return (events, details) => {
-    const values = events.map((event) => details.get(event.id)?.[field]).filter((value) => value !== undefined);
-    return { value: values.length ? average(values) : null, exact: values.length === events.length };
+    const loaded = events.filter((event) => details.has(event.id));
+    const values = loaded.map((event) => details.get(event.id)[field]).filter((value) => value !== undefined);
+    const exact = loaded.length === events.length;
+    return { value: values.length ? average(values) : null, exact, noData: exact && !values.length };
   };
 }
 
@@ -87,77 +98,11 @@ export const METRICS = {
   },
 };
 
-// Columns are stages in order of first appearance; runs without stage labels use equal time buckets.
-export function buildColumns(events) {
-  const activity = events.filter(isActivity);
-  if (!activity.length) return { columns: [], columnOf: new Map(), unit: "stages" };
-  return events.some(stageOf) ? stageColumns(events) : timeColumns(activity);
-}
-
-function stageColumns(events) {
-  const byLabel = new Map();
-  const columns = [];
-  const columnOf = new Map();
-  let current = null;
-  for (const event of events) {
-    current = stageOf(event) ?? current;
-    if (!isActivity(event)) continue;
-    const label = current ?? "Unstaged";
-    if (!byLabel.has(label)) {
-      byLabel.set(label, columns.length);
-      columns.push({ label, short: shortLabel(label), start: event.position, end: event.position });
-    }
-    const index = byLabel.get(label);
-    columns[index].end = Math.max(columns[index].end, event.position);
-    columnOf.set(event.id, index);
-  }
-  return mergeColumns(columns, columnOf);
-}
-
-// Display only: "Debate round 7" fits a narrow column as "7"; the full label stays in tooltips.
-function shortLabel(label) {
-  return label.match(/(\d+)$/)?.[1] ?? label;
-}
-
-// Very long runs group consecutive stages so the grid stays bounded.
-function mergeColumns(columns, columnOf) {
-  if (columns.length <= MAX_COLUMNS) return { columns, columnOf, unit: "stages" };
-  const size = Math.ceil(columns.length / MAX_COLUMNS);
-  const merged = [];
-  for (let index = 0; index < columns.length; index += size) {
-    const group = columns.slice(index, index + size);
-    const first = group[0];
-    const last = group.at(-1);
-    merged.push({ label: `${first.label} – ${last.label}`, short: `${first.short}–${last.short}`,
-      start: Math.min(...group.map((column) => column.start)), end: Math.max(...group.map((column) => column.end)) });
-  }
-  for (const [id, index] of columnOf) columnOf.set(id, Math.floor(index / size));
-  return { columns: merged, columnOf, unit: "stages" };
-}
-
-function timeColumns(activity) {
-  const times = activity.map((event) => Date.parse(event.at));
-  const first = Math.min(...times);
-  const count = Math.min(TIME_BUCKETS, activity.length);
-  const width = (Math.max(...times) - first) / count || 1;
-  const columns = Array.from({ length: count }, (_, index) => {
-    const at = new Date(first + index * width).toISOString();
-    return { label: time(at), short: time(at).slice(0, 5), start: null, end: null };
-  });
-  const columnOf = new Map();
-  activity.forEach((event, order) => {
-    const index = Math.min(count - 1, Math.floor((times[order] - first) / width));
-    const column = columns[index];
-    column.start = Math.min(column.start ?? Infinity, event.position);
-    column.end = Math.max(column.end ?? -Infinity, event.position);
-    columnOf.set(event.id, index);
-  });
-  // An empty bucket sits just before the next event, so it dims and outlines with its neighbours.
-  for (let index = count - 1, next = Infinity; index >= 0; index--) {
-    if (columns[index].start === null) columns[index].start = columns[index].end = next;
-    next = columns[index].start;
-  }
-  return { columns, columnOf, unit: "intervals" };
+// The column scheme depends only on the events, so it is built once per events array.
+const schemes = new WeakMap();
+function schemeFor(events) {
+  if (!schemes.has(events)) schemes.set(events, columnScheme(events, isActivity));
+  return schemes.get(events);
 }
 
 export function agentRows(events) {
@@ -176,7 +121,7 @@ export function agentRows(events) {
 // Cells for one metric, each scaled against its agent's own median.
 export function activityModel(events, metricId, details) {
   const metric = METRICS[metricId];
-  const { columns, columnOf, unit } = buildColumns(events);
+  const { columns, columnOf, unit } = schemeFor(events);
   const rows = agentRows(events).map((agent) => ({ agent, cells: columns.map(() => []) }));
   const rowOf = new Map(rows.map((row) => [row.agent.id, row]));
   for (const event of events) if (metric.reads(event)) rowOf.get(event.agent_id).cells[columnOf.get(event.id)].push(event);
@@ -186,7 +131,7 @@ export function activityModel(events, metricId, details) {
   for (const row of rows) {
     row.cells = row.cells.map((cellEvents) => cellEvents.length
       ? { events: cellEvents, ...metric.cell(cellEvents, details) }
-      : { events: cellEvents, value: null, exact: true });
+      : { events: cellEvents, value: null, exact: true, noData: false });
     row.median = rowMedian(row.cells);
     for (const cell of row.cells) cell.ratio = cell.value !== null && row.median ? cell.value / row.median : null;
   }
@@ -432,7 +377,8 @@ class ActivityView {
     grid.append(place(el("div", "act-corner"), 1, 1));
     columns.forEach((column, index) => {
       const head = place(el("div", "act-col", column.short), 1, index + 2);
-      tip(head, column.label);
+      head.classList.toggle("has-marker", column.markers.length > 0);
+      tip(head, columnTitle(column));
       grid.append(head);
     });
     const flagged = new Map(this.model.flags.map((flag) => [`${flag.agentId}:${flag.column}`, flag.kind]));
@@ -462,6 +408,7 @@ class ActivityView {
     node.dataset.column = column;
     if (flag) node.classList.add(`is-${flag}`);
     if (!cell.events.length) node.classList.add("is-empty");
+    else if (cell.noData) node.classList.add("is-nodata");
     else if (cell.value === null) node.classList.add("is-pending");
     else node.style.background = fill(color(row.agent.id, this.context.agents), cell.ratio ?? 1);
     if (!cell.exact) node.classList.add("is-approx");
@@ -473,6 +420,7 @@ class ActivityView {
   cellText(cell) {
     const metric = METRICS[this.model.metricId];
     if (!cell.events.length) return "none";
+    if (cell.noData) return `no data · ${METRICS.messages.describe(cell.events.length)}`;
     if (cell.value === null) return "details not loaded";
     const parts = [`${cell.exact ? "" : "≈"}${metric.describe(cell.value)}`];
     if (metric.reads === isMessage && this.model.metricId !== "messages") parts.push(METRICS.messages.describe(cell.events.length));
@@ -551,7 +499,7 @@ export const activityStrip = {
   title: "Activity",
   about: {
     question: "Who is unusually loud, quiet, slow or verbose?",
-    read: "Rows are agents, columns are stages. Shading compares each cell with that agent's own usual value, so a spike stands out per agent. Flags list cells over 2× usual and silences.",
+    read: "Rows are agents, columns are stages (or equal time spans when stage labels do not describe phases). Shading compares each cell with that agent's own usual value, so a spike stands out per agent. Flags list cells over 2× usual and silences.",
     method: "Counts and averages per stage; tokens and latency appear only when the run recorded them.",
   },
   mount(root, actions, toolbar) {

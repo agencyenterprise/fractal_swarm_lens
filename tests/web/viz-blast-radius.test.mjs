@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { deliveryGraph, cascade, visibleCount, widestReach, blastRadius } from '../../src/swarm_lens/web/viz/blast-radius.js';
 
 const message = (position, agent, entity, extra = {}) => ({ id: `e${position}`, position, kind: 'message.created',
+  at: new Date(Date.UTC(2026, 9, 3, 8, 0, position)).toISOString(),
   agent_id: agent, entity_id: entity, stage_label: null, preview: `Message ${entity}`, ...extra });
 const read = (position, agent, entity, sources) => message(position, agent, entity, { delivered_sources: sources });
 

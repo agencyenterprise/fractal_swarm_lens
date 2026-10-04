@@ -40,12 +40,15 @@ test('first occurrence and jump order follow the position at which each speaker 
     [[1, 1, 2], [2, 2, 5], [3, 3, 7]]);
 });
 
-test('messages without stage labels fall into buckets of consecutive messages', () => {
-  const events = Array.from({ length: 90 }, (_, index) => message(index + 1, 'a', null, `text ${index}`));
+test('messages without stage labels fall into equal time buckets', () => {
+  const events = Array.from({ length: 90 }, (_, index) => ({ ...message(index + 1, 'a', null, `text ${index}`),
+    at: new Date(Date.UTC(2026, 9, 3, 8, 0, index)).toISOString() }));
   const grid = spreadGrid([added('a'), ...events]);
-  assert.equal(grid.columns.length, 30);
-  assert.equal(grid.columns[0].label, 'Messages 1–3');
-  assert.equal(grid.cells.get('0:29').events.length, 3);
+  assert.equal(grid.columns.length, 19);
+  assert.equal(grid.columns[0].short, '0:00');
+  assert.equal(grid.columns[0].label, '08:00:00–08:00:04');
+  const placed = [...grid.cells.values()].reduce((sum, cell) => sum + cell.events.length, 0);
+  assert.equal(placed, 90);
 });
 
 test('contagious words come from one agent and reach others in later stages, ranked by agents reached', () => {

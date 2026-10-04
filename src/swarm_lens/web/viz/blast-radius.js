@@ -2,6 +2,7 @@
 // read it (delivered_sources, or reply_to_id when a run records no deliveries), then every
 // message that read one of those, and so on.
 import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber, tip } from "../ui.js";
+import { columnScheme } from "./columns.js";
 
 const NODE_W = 176;
 const NODE_H = 26;
@@ -27,7 +28,7 @@ export function deliveryGraph(events) {
   const children = messages.map(() => []);
   parents.forEach((sources, reader) => sources.forEach((source) => children[source].push(reader)));
   const indexById = new Map(messages.map((message, index) => [message.id, index]));
-  return { mode, messages, parents, children, indexById };
+  return { mode, messages, parents, children, indexById, scheme: columnScheme(messages) };
 }
 
 function sourcesOf(message, mode) {
@@ -122,13 +123,15 @@ function speakerAvatar(message, agents) {
   return avatar(agents?.[message.agent_id] || { name: speakerName(message, agents) }, "avatar br-avatar");
 }
 
-// Columns are stages when every shown message has one, otherwise read depth; rows are agents.
+// Columns are the run's stages when its stage labels describe phases, otherwise read depth; rows are agents.
 export function layout(graph, result) {
   const nodes = [result.root, ...result.reached].slice(0, MAX_NODES);
-  const byStage = nodes.every((index) => stageOf(graph.messages[index]));
-  const columnOf = (index) => (byStage ? stageOf(graph.messages[index]) : `Depth ${result.depth.get(index)}`);
+  const byStage = graph.scheme.unit === "stages";
+  const stageIndex = (index) => graph.scheme.columnOf.get(graph.messages[index].id);
+  const columnOf = (index) => (byStage ? graph.scheme.columns[stageIndex(index)].label : `Depth ${result.depth.get(index)}`);
+  const order = byStage ? (a, b) => stageIndex(a) - stageIndex(b) : (a, b) => result.depth.get(a) - result.depth.get(b);
   const columnRank = new Map();
-  for (const index of byStage ? nodes : [...nodes].sort((a, b) => result.depth.get(a) - result.depth.get(b)))
+  for (const index of [...nodes].sort(order))
     if (!columnRank.has(columnOf(index))) columnRank.set(columnOf(index), columnRank.size);
   const rowRank = new Map();
   for (const index of nodes) if (!rowRank.has(agentKey(graph.messages[index]))) rowRank.set(agentKey(graph.messages[index]), rowRank.size);

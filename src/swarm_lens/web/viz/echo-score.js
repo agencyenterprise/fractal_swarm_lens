@@ -1,5 +1,6 @@
 // Echo: how much of each message repeats what its author had just read.
-import { el, button, svg, color, avatar, stageOf, formatNumber, tip } from "../ui.js";
+import { el, button, svg, color, avatar, formatNumber, tip } from "../ui.js";
+import { columnScheme } from "./columns.js";
 
 // Five words is long enough that shared phrasing is copying rather than common idiom
 // ("the answer is", "step by step"), and short enough to catch paraphrase with light edits.
@@ -86,20 +87,6 @@ export function findJumps(scores, limit = MAX_JUMPS) {
     lastEcho.set(agentId, score);
   }
   return jumps.sort((a, b) => b.rise - a.rise).slice(0, limit);
-}
-
-// One x slot per stage in order of first appearance; messages without a stage get their own slot.
-export function stageSlots(messages) {
-  const slotByStage = new Map();
-  const slots = [];
-  const slotIndex = messages.map((message) => {
-    const stage = stageOf(message);
-    if (stage && slotByStage.has(stage)) return slotByStage.get(stage);
-    slots.push(stage ?? `#${formatNumber(message.position)}`);
-    if (stage) slotByStage.set(stage, slots.length - 1);
-    return slots.length - 1;
-  });
-  return { slots, slotIndex };
 }
 
 const percent = (value) => (value == null ? "—" : `${Math.round(value * 100)}%`);
@@ -231,6 +218,7 @@ class EchoView {
     const range = windowRange(this.messages.length, lastIndexAtOrBefore(this.messages, context.cursor));
     if (dataChanged || this.needsNewWindow(range)) {
       this.range = range;
+      this.scheme = columnScheme(this.plottedLinks().map((link) => link.message));
       this.requestTexts();
       this.score();
       this.renderAll();
@@ -256,6 +244,19 @@ class EchoView {
     return this.linkSet.links.slice(...this.range);
   }
 
+  // Messages without an agent (a task prompt, a human turn) are sources only, never plotted.
+  plottedLinks() {
+    return this.windowLinks().filter((link) => link.message.agent_id != null);
+  }
+
+  columnOf(message) {
+    return this.scheme.columnOf.get(message.id);
+  }
+
+  columnLabel(message) {
+    return this.scheme.columns[this.columnOf(message)].label;
+  }
+
   requestTexts() {
     const needed = [];
     for (const { message, sources, previousOwn } of this.windowLinks()) needed.push(message, ...sources, ...(previousOwn ? [previousOwn] : []));
@@ -271,12 +272,9 @@ class EchoView {
     }, REFRESH_MS);
   }
 
-  // Messages without an agent (a task prompt, a human turn) are sources only, never plotted.
   score() {
-    const links = this.windowLinks().filter((link) => link.message.agent_id != null);
-    this.scores = links.map((link) => scoreLink(link, cachedShingles));
+    this.scores = this.plottedLinks().map((link) => scoreLink(link, cachedShingles));
     this.scoreById = new Map(this.scores.map((score) => [score.message.id, score]));
-    this.slotData = stageSlots(links.map((link) => link.message));
     this.jumps = findJumps(this.scores);
   }
 
@@ -327,7 +325,7 @@ class EchoView {
   geometry() {
     const width = Math.max(240, this.chartHost.clientWidth || 640);
     const height = Math.max(120, this.chartHost.clientHeight || 220);
-    const slotCount = Math.max(1, this.slotData.slots.length);
+    const slotCount = Math.max(1, this.scheme.columns.length);
     const plotWidth = width - MARGIN.left - MARGIN.right;
     const plotHeight = height - MARGIN.top - MARGIN.bottom;
     const slotWidth = plotWidth / slotCount;
@@ -338,11 +336,11 @@ class EchoView {
     };
   }
 
-  // Several messages from one agent in the same stage are spread across the slot.
+  // Several messages from one agent in the same column are spread across the slot.
   pointOffsets() {
     const counts = new Map();
-    const keys = this.scores.map((score, index) => {
-      const key = `${this.slotData.slotIndex[index]}|${score.message.agent_id}`;
+    const keys = this.scores.map((score) => {
+      const key = `${this.columnOf(score.message)}|${score.message.agent_id}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
       return key;
     });
@@ -361,10 +359,10 @@ class EchoView {
       return;
     }
     const geometry = this.geometry();
-    const chart = svg("svg", { class: "echo-svg", width: geometry.width, height: geometry.height, role: "img", "aria-label": "Echo per message by stage" });
+    const chart = svg("svg", { class: "echo-svg", width: geometry.width, height: geometry.height, role: "img", "aria-label": "Echo per message over the run" });
     chart.append(this.axes(geometry));
     const offsets = this.pointOffsets();
-    const placed = this.scores.map((score, index) => ({ score, x: geometry.x(this.slotData.slotIndex[index], offsets[index]) }));
+    const placed = this.scores.map((score, index) => ({ score, x: geometry.x(this.columnOf(score.message), offsets[index]) }));
     if (this.showSelf) chart.append(this.lines(placed, geometry, "selfEcho", "echo-self-line"));
     chart.append(this.lines(placed, geometry, "echo", "echo-line"));
     const pointLayer = svg("g", { class: "echo-points" });
@@ -382,14 +380,16 @@ class EchoView {
       group.append(svg("line", { class: "echo-grid", x1: MARGIN.left, x2: geometry.width - MARGIN.right, y1: y, y2: y }),
         svg("text", { class: "echo-tick", x: MARGIN.left - 6, y: y + 4, "text-anchor": "end" }, percent(value)));
     }
-    const { slots } = this.slotData;
-    const every = Math.max(1, Math.ceil(slots.length / Math.max(1, Math.floor((geometry.width - MARGIN.left) / 110))));
-    slots.forEach((label, slot) => {
+    const { columns, unit } = this.scheme;
+    const every = Math.max(1, Math.ceil(columns.length / Math.max(1, Math.floor((geometry.width - MARGIN.left) / 110))));
+    columns.forEach((column, slot) => {
       if (slot % every) return;
+      // Stage names read well on the axis; time spans are long, so the axis shows elapsed time.
+      const label = unit === "stages" ? column.label : column.short;
       const atEnd = geometry.x(slot) + label.length * 3.5 > geometry.width - MARGIN.right;
       const text = svg("text", { class: "echo-tick", x: atEnd ? geometry.width - MARGIN.right : geometry.x(slot), y: geometry.height - 8,
         "text-anchor": atEnd ? "end" : "middle" }, label);
-      tip(text, label);
+      tip(text, column.label);
       group.append(text);
     });
     return group;
@@ -422,7 +422,7 @@ class EchoView {
   }
 
   pointTitle(score) {
-    const stage = stageOf(score.message) ?? `#${formatNumber(score.message.position)}`;
+    const stage = this.columnLabel(score.message);
     const copies = score.top?.share ? ` · copies ${this.name(score.top.source.agent_id)}` : "";
     return `${this.name(score.message.agent_id)} · ${stage} · echo ${percent(score.echo)} · self ${percent(score.selfEcho)}${copies}`;
   }
@@ -444,7 +444,7 @@ class EchoView {
     const list = el("ol", "echo-jump-list");
     for (const jump of this.jumps) {
       const { message, top } = jump.score;
-      const stage = stageOf(message) ?? `#${formatNumber(message.position)}`;
+      const stage = this.columnLabel(message);
       const copies = top?.share ? ` · copies ${this.name(top.source.agent_id)}` : "";
       const row = button("", () => this.actions.select(message), "ghost echo-jump");
       row.classList.toggle("is-future", message.position > this.context.cursor);
@@ -468,7 +468,7 @@ class EchoView {
     const { message } = score;
     const heading = el("div", "echo-detail-head");
     heading.append(avatar(this.context.agents?.[message.agent_id] ?? { name: this.name(message.agent_id) }),
-      el("span", "", `${this.name(message.agent_id)} · ${stageOf(message) ?? `#${formatNumber(message.position)}`}`));
+      el("span", "", `${this.name(message.agent_id)} · ${this.columnLabel(message)}`));
     if (score.pending) {
       this.detail.replaceChildren(heading, el("p", "muted", "Reading…"));
       return;
@@ -501,7 +501,7 @@ export const echoScore = {
   title: "Echo",
   about: {
     question: "Are agents reasoning, or copying what they read?",
-    read: "One line per agent: how much of each answer is copied from the messages it read, by stage. A sharp rise means an agent started copying. Self-echo (toggle) is how much an agent repeats its own previous answer.",
+    read: "One line per agent: how much of each answer is copied from the messages it read, by stage (or time span). A sharp rise means an agent started copying. Self-echo (toggle) is how much an agent repeats its own previous answer.",
     method: "Containment: the share of the answer's 5-word phrases (shingles) that also appear in the messages it read.",
     source: { label: "Broder (1997), On the resemblance and containment of documents", url: "https://doi.org/10.1109/SEQUEN.1997.666900" },
   },

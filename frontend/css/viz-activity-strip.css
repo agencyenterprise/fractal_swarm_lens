@@ -13,6 +13,9 @@
   color: var(--text-3); font: 11px/1 var(--mono); text-align: center; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* A stage marker (e.g. "World event") falls inside this time span. */
+.act-col.has-marker { box-shadow: inset 0 -2px var(--accent); color: var(--text-2); }
+
 .act-agent {
   position: sticky; left: 0; z-index: 2;
   justify-content: flex-start; gap: 6px; height: 24px; min-width: 0; padding: 0 8px 0 10px;
@@ -31,6 +34,11 @@
 .act-cell.is-empty { background: transparent; border-color: var(--border); cursor: default; }
 .act-cell.is-pending {
   background: repeating-linear-gradient(135deg, var(--surface-2) 0 3px, var(--surface-3) 3px 6px);
+}
+/* No data: the details are loaded but do not carry this metric; a slash, never the 0 shade. */
+.act-cell.is-nodata {
+  background: linear-gradient(to top right, transparent calc(50% - .75px), var(--border-strong) 50%, transparent calc(50% + .75px));
+  border: 1px dotted var(--border-strong);
 }
 .act-cell.is-approx { border-style: dashed; border-color: var(--border-strong); }
 .act-cell.is-spike { border: 2px solid var(--text); }

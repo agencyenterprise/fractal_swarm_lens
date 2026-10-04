@@ -1,11 +1,10 @@
 // Phrase spread: where a phrase shows up per speaker and stage, and in which order it reached each agent.
-import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber, tip } from "../ui.js";
+import { el, button, svg, color, avatar, speakerName, formatNumber, tip } from "../ui.js";
+import { columnScheme, columnTitle } from "./columns.js";
 
 const MESSAGE = "message.created";
 const SCAN_LIMIT = 2000;
 const CONCURRENCY = 6;
-const MAX_STAGE_COLUMNS = 60;
-const BUCKET_COLUMNS = 40;
 // event_summary truncates previews at 260 characters, so a shorter preview is already the full text.
 const PREVIEW_LIMIT = 260;
 const DEBOUNCE_MS = 250;
@@ -76,52 +75,22 @@ function speakerRows(events, messages) {
   return rows;
 }
 
-// Numbered stages ("Debate round 2" after "Debate round 1") keep only their number in the header.
-function shortLabels(labels) {
-  return labels.map((label, index) => {
-    const [, prefix, number] = label.match(/^(.*\D)(\d+)$/) || [];
-    const previous = labels[index - 1]?.match(/^(.*\D)(\d+)$/);
-    return prefix && previous?.[1] === prefix ? number : label;
-  });
-}
-
-function stageColumns(messages) {
-  if (!messages.some(stageOf)) return null;
-  const labels = [];
-  let current = "Start";
-  const columnOf = messages.map((event) => {
-    current = stageOf(event) ?? current;
-    if (!labels.includes(current)) labels.push(current);
-    return labels.indexOf(current);
-  });
-  return labels.length > MAX_STAGE_COLUMNS ? null : { labels, columnOf };
-}
-
-function bucketColumns(messages) {
-  const size = Math.max(1, Math.ceil(messages.length / BUCKET_COLUMNS));
-  const labels = [];
-  for (let start = 0; start < messages.length; start += size)
-    labels.push(`Messages ${start + 1}–${Math.min(start + size, messages.length)}`);
-  return { labels, columnOf: messages.map((_, index) => Math.floor(index / size)) };
-}
-
-// Rows are speakers, columns are stages (or buckets of consecutive messages), cells hold messages.
+// Rows are speakers, columns are stages (or equal time buckets), cells hold messages.
 export function spreadGrid(events) {
   const messages = events.filter((event) => event.kind === MESSAGE);
   const rows = speakerRows(events, messages);
   const rowIndex = new Map(rows.map((row, index) => [row.id, index]));
-  const { labels, columnOf } = stageColumns(messages) ?? bucketColumns(messages);
-  const short = shortLabels(labels);
-  const columns = labels.map((label, index) => ({ label, short: short[index] }));
+  const { columns, columnOf } = columnScheme(events, (event) => event.kind === MESSAGE);
   const cells = new Map();
   const cellOf = new Map();
-  const placed = messages.map((event, index) => {
+  const placed = messages.map((event) => {
     const row = rowIndex.get(event.agent_id || null);
-    const key = `${row}:${columnOf[index]}`;
-    if (!cells.has(key)) cells.set(key, { row, column: columnOf[index], events: [] });
+    const column = columnOf.get(event.id);
+    const key = `${row}:${column}`;
+    if (!cells.has(key)) cells.set(key, { row, column, events: [] });
     cells.get(key).events.push(event);
     cellOf.set(event.id, key);
-    return { event, row, column: columnOf[index] };
+    return { event, row, column };
   });
   return { rows, columns, messages: placed, cells, cellOf };
 }
@@ -428,7 +397,8 @@ class PhraseSpreadView {
 
 function columnHeader(column) {
   const node = el("span", "ps-column", column.short);
-  tip(node, column.label);
+  node.classList.toggle("has-marker", column.markers.length > 0);
+  tip(node, columnTitle(column));
   return node;
 }
 
@@ -437,7 +407,7 @@ export const phraseSpread = {
   title: "Phrase spread",
   about: {
     question: "Where does a phrase appear, and when did it jump to another agent?",
-    read: "Type a phrase. Each cell is one agent in one stage; darker means more matches. Numbered markers give the order in which agents first used it. Suggested words are ones one agent introduced and others picked up later.",
+    read: "Type a phrase. Each cell is one agent in one stage (or time span); darker means more matches. Numbered markers give the order in which agents first used it. Suggested words are ones one agent introduced and others picked up later.",
     method: "Case-insensitive literal match on the full text of each message.",
   },
   mount(root, actions, toolbar) {
