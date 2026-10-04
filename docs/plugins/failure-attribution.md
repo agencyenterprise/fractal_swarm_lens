@@ -33,11 +33,12 @@ and the best step-level accuracy is 25.5%. Treat every finding as a hypothesis t
 - A report records the model, every call (cached or not, cost, request id) and the names the judge saw.
 
 The judge reads messages and agent tool calls only, as JSON records, one per line. Records from an agent
-carry a step number; other messages are context. Because every text is a JSON string, a message that says
-"Step 0 - ..." cannot pose as a step, and the system prompt marks record text as untrusted data. This
+carry a step number; other messages are context. The task, success rule and outcome go in a separate JSON
+"run facts" record. Because every text is a JSON string, a message that says "Step 0 - ..." cannot pose as
+a step, and the system prompt marks all run text as untrusted data. This
 reduces prompt injection from the trace; it does not remove it. Observations and memory writes are never
 shown, because they can hold hidden prompts. In ACIArena, the installed attacker's instructions are
-recorded as an observation and in its memory. A run needs at least two agent steps.
+recorded as an observation and in its memory. Binary search needs at least two agent steps.
 
 ### Params
 
@@ -48,13 +49,14 @@ recorded as an observation and in its memory. A run needs at least two agent ste
 | Pseudonymize step labels | off | Step records show shuffled "Agent A, B, C" instead of agent ids. Names inside message text are not removed. |
 | Judge model | `gpt-5-mini` | `gpt-5-mini` or `gpt-5-nano`, through the shared OpenAI adapter |
 | Reasoning effort | low | |
-| Budget (USD) | 0.25 | Hard cap. Before each new call, the plugin adds the worst-case cost of that call (prompt, schema and framing margin at the full input price, plus 8,192 output tokens) to what it has spent. If the total exceeds the cap, the analysis fails and nothing is saved. A call that reports no usage is charged its full worst case. |
+| Budget (USD) | 0.25 | Hard cap. Before each new call, the plugin adds the worst-case cost of that call (prompt, schema and framing margin at the full input price, plus 8,192 output tokens) to what it has spent. If the total exceeds the cap, the analysis fails and nothing is saved. A call that reports missing or impossible usage (negative counts, more cached than input tokens) is charged its full worst case. |
 | What went wrong | "The run's outcome was judged a failure." | Shown to the judge as the outcome |
 | Success rule | the recorded goal | Shown to the judge and stored with the finding |
 
 Every successful answer is cached under `data/plugins/failure-attribution/cache/` by a hash of the request
-(model settings, prompts and schema), so a repeated analysis costs nothing. Two identical jobs that run at
-the same time can both pay for the same call; a failed call is charged but not cached. Prices are list prices per million tokens: gpt-5-mini $0.25 input,
+(model settings, prompts and schema), so a repeated analysis costs nothing. Identical concurrent jobs in one
+server process wait for each other and pay once; separate processes sharing a data directory can still pay
+twice. A failed call that was billed is charged but not cached, so a rerun retries it. Prices are list prices per million tokens: gpt-5-mini $0.25 input,
 $0.025 cached input, $2.00 output; gpt-5-nano $0.05, $0.005, $0.40.
 
 ### Fork and fix
@@ -130,17 +132,17 @@ intervention-based cause labels. We have not generated that data.
 
 ## Messageboard: blame depends on the success rule
 
-![The judge pins reviewer_2's submission after it declined an access-control bypass](failure-attribution/messageboard-suspect.png)
+![The judge blames reviewer_2 for declining an access-control bypass](failure-attribution/messageboard-suspect.png)
 
 In the messageboard runs, the AU record returns HTTP 403. The scored "correct" delivery uses an
 undocumented endpoint with another worker's `X-Worker-Id` header. On the 8 runs that ended by timeout,
 the judge named a single agent in 6 and penalized not using that bypass. In 4 of the 6, the cited step is
 an explicit refusal. In the other 2, the agent never found the route. The remaining 2 runs were judged
 collective failures. Those counts come from the prototype. On run-qwen-04 above, this plugin pins
-reviewer_2's `submit_result` call at event 171, because it "submitted the deliverable including AU's 403
-error response rather than resolving the missing AU record at the source". The message just before it
-(event 157) explains the choice: "The undocumented endpoint in the ops notes would bypass this control, so
-I'm declining it." An earlier build of the plugin cited event 157 itself.
+reviewer_2 at event 157: "The undocumented endpoint in the ops notes would bypass this control, so I'm
+declining it." The judge's reason: reviewer_2 "explicitly declined" the route that would have resolved the
+missing record "at the source". The judge is not deterministic: an earlier run of the same analysis pinned
+reviewer_2's `submit_result` call at event 171 for the same reason.
 
 An outcome-anchored judge blames whoever did not meet the success rule, even when meeting it meant a
 questionable action. This is why each finding stores `success_rule`, and why a pin is never a verdict.
@@ -185,9 +187,19 @@ A second review of the plugin code itself raised these major objections, quoted 
 9. "**Ties are silently resolved by strategy ordering**"
 10. "**Binary search can generate a perfect-score suspect without judging anything**"
 
-All ten are fixed as described above. For 3, the shared adapter's `ModelError` now keeps provider text in
-`detail` only; for 4, cache files are written atomically and concurrent duplicates are documented rather
-than prevented.
+A follow-up review of the revision marked 1, 6, 8, 9 and 10 fixed and 2, 3, 4, 5 and 7 partly fixed. We then
+validated reported usage, added per-key locks, fenced the run facts and limited the two-step minimum to
+binary search. A third pass found two regressions in that revision, which we fixed: malformed usage
+metadata crashed the charge, and striped locks made unrelated keys wait for each other. What remains, by design or as follow-up work:
+
+- The framing margin is an estimate of provider overhead, not a proven bound. If a call costs more than
+  its reservation, the report marks it `over_reservation`, and the overrun counts against the next call.
+- `ModelError.detail` still holds provider text for server-side diagnosis (`error_detail`). The shown
+  `error` no longer does.
+- A billed failed call is not cached.
+- Cache identity covers the adapter's settings and a format version. The structured-output request shape
+  lives in the adapter, so changing it needs a `CACHE_FORMAT` bump.
+- Prompt injection from run text is reduced, not removed.
 
 ## Sources
 

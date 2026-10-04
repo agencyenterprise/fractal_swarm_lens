@@ -31,8 +31,9 @@ def root_cause(exc):
     status, request_id = getattr(exc, "status_code", None), getattr(exc, "request_id", None)
     if status or request_id:
         parts.append(f"(status {status}, request {request_id})")
-    inner = exc.__cause__ or exc.__context__
-    while inner is not None and (inner.__cause__ or inner.__context__) is not None:
+    inner, seen = exc.__cause__ or exc.__context__, {id(exc)}
+    while inner is not None and id(inner) not in seen and (inner.__cause__ or inner.__context__) is not None:
+        seen.add(id(inner))
         inner = inner.__cause__ or inner.__context__
     if inner is not None:
         parts.append(f"caused by {type(inner).__name__}: {inner}")

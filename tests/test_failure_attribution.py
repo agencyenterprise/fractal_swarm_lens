@@ -1,6 +1,8 @@
 """Failure attribution through the real app, with a scripted judge in place of the provider."""
+from concurrent.futures import ThreadPoolExecutor
 import json
 import re
+import time
 
 from fastapi.testclient import TestClient
 import pytest
@@ -90,9 +92,9 @@ class ScriptedJudge:
                     "step_number": self.target if self.cited_step is None else self.cited_step}
             if "single_agent_responsible" in properties:
                 data["single_agent_responsible"] = self.single_agent
-        tokens_in, tokens_out = self.usage
+        tokens_in, tokens_out, details = (*self.usage, {})[:3]
         return {"data": data, "model": self.model, "request_id": f"req-{len(self.prompts)}",
-                "usage": {"input_tokens": tokens_in, "output_tokens": tokens_out, "details": {}}}
+                "usage": {"input_tokens": tokens_in, "output_tokens": tokens_out, "details": details}}
 
 
 def client_for(framework, tmp_path, judge):
@@ -178,10 +180,11 @@ def test_budget_holds_when_usage_is_missing_and_provider_text_never_reaches_the_
     job = analyze(client_for(framework, tmp_path / "a", no_room), debate, {"budget_usd": 0.001})
     assert job["status"] == "failed" and "budget" in job["error"] and no_room.prompts == []
 
-    unknown_usage = ScriptedJudge(target=3, usage=(None, None))
-    job = analyze(client_for(framework, tmp_path / "b", unknown_usage), debate,
-                  {"all_at_once": False, "step_by_step": True, "budget_usd": 0.03})
-    assert job["status"] == "failed" and "budget" in job["error"] and len(unknown_usage.prompts) == 1
+    for name, usage in (("missing", (None, None)), ("negative", (1000, -100_000)), ("malformed", (None, None, ["bad"]))):
+        judge = ScriptedJudge(target=3, usage=usage)
+        job = analyze(client_for(framework, tmp_path / name, judge), debate,
+                      {"all_at_once": False, "step_by_step": True, "budget_usd": 0.03})
+        assert job["status"] == "failed" and "budget" in job["error"] and len(judge.prompts) == 1, name
 
     secret = "sk-secret-sentinel"
     failing = ScriptedJudge(target=0, error=ModelError("The provider request failed.", "APIConnectionError",
@@ -189,6 +192,22 @@ def test_budget_holds_when_usage_is_missing_and_provider_text_never_reaches_the_
     client = client_for(framework, tmp_path / "c", failing)
     job = analyze(client, debate, {})
     assert job["status"] == "failed" and secret not in job["error"] and annotations(client, debate) == []
+
+
+def test_identical_concurrent_jobs_pay_for_one_call(framework, debate, tmp_path):
+    class SlowJudge(ScriptedJudge):
+        def complete_json(self, *args):
+            time.sleep(0.2)
+            return super().complete_json(*args)
+
+    judge = SlowJudge(target=0)
+    plugin = FailureAttribution(lambda model, effort: judge, tmp_path / "cache")
+    service = PluginService(framework, (plugin,))
+    with ThreadPoolExecutor(2) as pool:
+        records = list(pool.map(lambda _: service.analyze("failure-attribution", debate.id, 1, debate.head, {}),
+                                range(2)))
+    assert len(judge.prompts) == 1
+    assert sorted(r["output"]["report"]["calls"][0]["cached"] for r in records) == [False, True]
 
 
 def test_fork_and_fix_posts_a_replacement_from_the_suspect_and_leaves_the_parent(framework, debate, tmp_path):
