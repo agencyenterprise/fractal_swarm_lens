@@ -1,4 +1,5 @@
 import argparse
+from importlib import import_module
 from pathlib import Path
 
 from .application.framework import Framework
@@ -6,6 +7,35 @@ from .adapters.artifacts import FileArtifacts
 from .adapters.git import GitVersions
 from .adapters.sqlite import SQLiteHistory
 from .plugins import ActivityPlugin
+
+
+def load_factory(spec: str):
+    """Resolve a trusted MODULE:FACTORY reference given on the command line."""
+    module, separator, name = spec.partition(":")
+    if not separator:
+        raise ValueError(f"Expected MODULE:FACTORY, got {spec!r}")
+    return getattr(import_module(module), name)
+
+
+def build_app(data: Path, runtime_specs=(), trace_tools_spec: str | None = None):
+    """The explorer's composition root: history stores, live execution, and the MAST web plugin."""
+    from .integrations.crewai.continuation import TraceCrewAIRuntime
+    from .live.service import LiveService
+    from .observability.mast import MastPlugin
+    from .observability.mast.judge import OpenAIMastJudge
+    from .observability.mast.service import MastJobs, MastService
+    from .web.api import create_app
+    from .web.plugins.mast import mast_extension
+
+    framework = Framework(SQLiteHistory(data / "history.sqlite"),
+                          versions=GitVersions(data / "history.git"), plugins=(ActivityPlugin(),))
+    artifacts = FileArtifacts(data / "artifacts")
+    runtimes = [load_factory(spec)() for spec in runtime_specs]
+    tools = load_factory(trace_tools_spec)() if trace_tools_spec else {}
+    runtimes.append(TraceCrewAIRuntime(framework, tools=tools))
+    live = LiveService(framework, data / "live.sqlite", tuple(runtimes))
+    mast = MastService(framework, MastPlugin(OpenAIMastJudge()), MastJobs(data / "mast.sqlite"), artifacts)
+    return create_app(framework, artifacts, extensions=(mast_extension(mast),), live=live)
 
 
 def main():
@@ -20,11 +50,6 @@ def main():
                         help="Trusted factory returning recorded tool name → fresh CrewAI tool factory mappings")
     args = parser.parse_args()
     import uvicorn
-    from .web.api import create_app
-    from .web.plugins.mast import mast_extension
-    from .observability.mast import MastPlugin
-    from .observability.mast.judge import OpenAIMastJudge
-    from .observability.mast.service import MastJobs, MastService
 
     try:
         from dotenv import load_dotenv
@@ -33,30 +58,11 @@ def main():
     else:
         load_dotenv(args.env_file, override=False)
 
-    framework = Framework(SQLiteHistory(args.data / "history.sqlite"),
-                          versions=GitVersions(args.data / "history.git"), plugins=(ActivityPlugin(),))
-    artifacts = FileArtifacts(args.data / "artifacts")
-    from importlib import import_module
-    from .live.service import LiveService
-    runtimes = []
-    for spec in args.runtime:
-        module, separator, factory = spec.partition(":")
-        if not separator:
-            parser.error("--runtime must be MODULE:FACTORY")
-        runtimes.append(getattr(import_module(module), factory)())
-    from .integrations.crewai.continuation import TraceCrewAIRuntime
-    tools = {}
-    if args.trace_tools:
-        module, separator, factory = args.trace_tools.partition(":")
-        if not separator:
-            parser.error("--trace-tools must be MODULE:FACTORY")
-        tools = getattr(import_module(module), factory)()
-    runtimes.append(TraceCrewAIRuntime(framework, tools=tools))
-    live = LiveService(framework, args.data / "live.sqlite", tuple(runtimes))
-    mast = MastService(framework, MastPlugin(OpenAIMastJudge()),
-                       MastJobs(args.data / "mast.sqlite"), artifacts)
-    uvicorn.run(create_app(framework, artifacts, extensions=(mast_extension(mast),), live=live),
-                host=args.host, port=args.port)
+    try:
+        app = build_app(args.data, args.runtime, args.trace_tools)
+    except ValueError as error:
+        parser.error(str(error))
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

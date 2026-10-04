@@ -78,3 +78,16 @@ def test_web_plugin_serves_its_own_module_and_owns_only_its_namespace(framework,
     stray.add_api_route("/api/branches/x", hello)
     with pytest.raises(ValueError, match="must start with /api/plugins/other/"):
         create_app(framework, extensions=(WebExtension("other", stray, dict),))
+
+
+def test_cli_composition_serves_the_explorer_with_its_bundled_plugin(tmp_path):
+    from swarm_lens.cli import build_app
+
+    with TestClient(build_app(tmp_path)) as client:
+        capabilities = client.get("/api/workspace").json()["capabilities"]
+        assert [plugin["id"] for plugin in capabilities["plugins"]] == ["activity"]
+        assert capabilities["live"]["runtimes"] == ["crewai-trace"]
+        mast = capabilities["web_plugins"][0]
+        assert mast["id"] == "mast"
+        assert client.get(mast["ui"]["module"]).status_code == 200
+        assert client.get("/").status_code == 200
