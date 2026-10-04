@@ -1,0 +1,70 @@
+/* Phrase spread visualization (src/swarm_lens/web/viz/phrase-spread.js) */
+
+.ps { display: flex; flex-direction: column; min-height: 0; }
+.ps-search { width: 220px; height: 26px; padding: 0 9px; font-size: 12px; }
+
+.ps-status {
+  display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  min-height: 36px; padding: 5px 12px; font-size: 12px; color: var(--text-2);
+}
+.ps-summary { color: var(--text); }
+.ps-error { color: var(--danger); }
+.ps-action { height: 24px; padding: 0 8px; font-size: 12px; color: var(--accent-text); }
+.ps-chip { height: 24px; padding: 0 4px 0 9px; border-radius: 999px; font: 12px var(--mono); }
+.ps-chip-count {
+  min-width: 16px; padding: 1px 5px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-3); font: 500 11px/1.3 var(--font);
+}
+
+.ps-plot { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 12px; }
+.ps-grid {
+  --ps-label: 132px;
+  --ps-head: 22px;
+  position: relative; display: grid;
+  grid-template-columns: var(--ps-label) repeat(var(--ps-columns), minmax(14px, 1fr));
+  grid-template-rows: var(--ps-head) repeat(var(--ps-rows), var(--ps-row));
+  min-width: calc(var(--ps-label) + var(--ps-columns) * 14px);
+}
+.ps-column {
+  overflow: hidden; padding: 0 2px; align-self: end;
+  color: var(--text-3); font-size: 11px; text-align: center; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.ps-row-label {
+  justify-content: flex-start; gap: 6px; min-width: 0; height: auto; margin: 2px 6px 2px 0; padding: 0 4px;
+  display: flex; align-items: center;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); font-weight: 500;
+}
+button.ps-row-label:hover { background: var(--surface-2); }
+.ps-row-label .avatar { width: 18px; height: 18px; box-shadow: inset 0 0 0 1.5px var(--ps-hue); }
+.ps-row-label .avatar img { width: 12px; height: 12px; }
+.ps-row-name { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+.ps-cell {
+  width: auto; height: auto; margin: 2px 1px; padding: 0;
+  border: 0; border-radius: 3px; background: var(--surface-2);
+  transition: opacity .15s, box-shadow .12s;
+}
+.ps-cell:hover { background: var(--surface-3); }
+.ps-cell:disabled { opacity: 1; cursor: default; }
+.ps-cell.is-void { background: transparent; }
+.ps-cell[data-level="1"] { background: color-mix(in srgb, var(--ps-hue) 30%, var(--surface)); }
+.ps-cell[data-level="2"] { background: color-mix(in srgb, var(--ps-hue) 52%, var(--surface)); }
+.ps-cell[data-level="3"] { background: color-mix(in srgb, var(--ps-hue) 74%, var(--surface)); }
+.ps-cell[data-level="4"] { background: var(--ps-hue); }
+.ps-cell[data-level]:not([data-level="0"]):not([data-level=""]):hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.ps-cell.is-future { opacity: .32; }
+.ps-cell.is-selected { box-shadow: 0 0 0 2px var(--accent); }
+
+.ps-jumps {
+  position: absolute; top: var(--ps-head); left: var(--ps-label);
+  width: calc(100% - var(--ps-label)); height: calc(100% - var(--ps-head));
+  overflow: visible; pointer-events: none;
+}
+.ps-jump { stroke: var(--text-2); stroke-width: 1.5; stroke-dasharray: 3 3; transition: opacity .15s; }
+.ps-mark circle { fill: var(--surface); stroke: var(--ps-hue); stroke-width: 2; }
+.ps-mark text { fill: var(--text); font: 600 10px var(--font); text-anchor: middle; dominant-baseline: central; }
+.ps-mark.is-first circle { fill: var(--text); stroke: var(--text); }
+.ps-mark.is-first text { fill: var(--surface); }
+.ps-mark, .ps-jump { transition: opacity .15s; }
+.ps-mark.is-future, .ps-jump.is-future { opacity: .35; }

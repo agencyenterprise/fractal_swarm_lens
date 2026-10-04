@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from dataclasses import asdict
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Query
@@ -7,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from swarm_lens.observability.mast.method import assets
 from .extensions import WebExtension
+from .mast_details import present_trait_details
 
 
 class AnalysisRequest(BaseModel):
@@ -14,13 +14,6 @@ class AnalysisRequest(BaseModel):
     branch_id: str = Field(min_length=1, max_length=100)
     cursor: int = Field(ge=1)
     completeness: Literal["unknown", "complete", "partial"] = "unknown"
-
-
-class TraceRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1, max_length=160)
-    text: str = Field(min_length=1, max_length=200_000)
-    task: str = Field(default="", max_length=10_000)
 
 
 def mast_extension(service):
@@ -45,10 +38,6 @@ def mast_extension(service):
     def taxonomy():
         return {key: assets()[key] for key in ("categories", "repository", "revision", "upstream_notes")}
 
-    @router.post("/traces", status_code=201)
-    def import_trace(request: TraceRequest):
-        return {"branch": asdict(service.import_trace(request.name, request.text, request.task))}
-
     @router.post("/analyses", status_code=202)
     def analyze(request: AnalysisRequest, background: BackgroundTasks):
         job = service.submit(request.branch_id, request.cursor, request.completeness)
@@ -67,5 +56,9 @@ def mast_extension(service):
     @router.get("/analyses/{job_id}")
     def analysis(job_id: str):
         return service.jobs.get(job_id)
+
+    @router.get("/analyses/{job_id}/traits/{code}")
+    def trait_details(job_id: str, code: str):
+        return present_trait_details(service, job_id, code)
 
     return WebExtension("mast", router, manifest)

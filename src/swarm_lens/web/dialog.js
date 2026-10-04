@@ -1,5 +1,5 @@
 import { $, el } from "./ui.js";
-import { Picker, mountPickers, disposePickers } from './components.js?v=1';
+import { Picker, mountPickers, disposePickers } from "./components.js?v=1";
 
 export function field(label, name, value = "", type = "input") {
   if (type === 'select') {
@@ -23,7 +23,7 @@ export function field(label, name, value = "", type = "input") {
 export function openDialog(
   title,
   content,
-  { confirm = "Save", submit = null, kicker = "EXPERIMENT", pending = "Saving…", alternate = null } = {},
+  { confirm = "Save", submit = null, kicker = "", pending = "Saving…", alternate = null } = {},
 ) {
   $("#dialog-title").textContent = title;
   disposePickers($("#dialog-content"));

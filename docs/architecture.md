@@ -18,6 +18,8 @@ Writes use an expected head. SQLite commits each batch and its relational projec
 
 An intervention is another event with its actor and origin recorded. The UI creates a child at the visible cursor for each intervention and offers either saving the branch or running it live. Live execution validates the proposed state before creating the child; it never substitutes a different cursor. The library leaves branch policy to its embedding application and only permits appending at the current head.
 
+Comments annotate history without becoming part of it. A comment anchors to one event of its branch's effective history. A branch shows its own comments and its ancestors' comments through each fork position, which is the same prefix rule that events use. Run bundles (`application/bundle.py`) export a run's branch tree with each branch's own events and comment threads, keyed by local branch keys and event positions. Import replays each branch once through the reducer (a child starts from its parent's state at the fork) and writes the run, events, snapshots and comments in one `HistoryStore.import_run` transaction. Export reads the run in one read transaction (`HistoryStore.run_contents`).
+
 ## SQLite and Git
 
 SQLite is the query and replay store. It contains runs, branches, events, snapshots, analysis records, entity identities, and revision tables for agents, channels, membership, messages, memory, tools, and environment. Revision queries must follow branch ancestry and cursor limits; scanning a projection table alone combines multiple histories.

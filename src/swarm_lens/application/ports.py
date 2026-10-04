@@ -1,7 +1,17 @@
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
-from swarm_lens.core.models import Branch, Event, Fact, Run, State
+from swarm_lens.core.models import Branch, Comment, Event, Fact, Run, State
+
+
+@dataclass(frozen=True)
+class RunContents:
+    """One consistent read of a run: its branches, each branch's own events, and every comment written in it."""
+    run: Run
+    branches: list[Branch]
+    own_events: dict[str, list[Event]]
+    comments: list[Comment]
 
 
 class HistoryStore(Protocol):
@@ -17,6 +27,22 @@ class HistoryStore(Protocol):
     def snapshot(self, branch_id: str, cursor: int) -> State | None: ...
     def save_analysis(self, record: dict[str, Any]) -> None: ...
     def analyses(self, branch_id: str, cursor: int) -> list[dict[str, Any]]: ...
+    def add_comment(self, comment: Comment) -> None: ...
+    def comment(self, comment_id: str) -> Comment: ...
+    def comments(self, branch_id: str) -> list[Comment]:
+        """Own comments plus ancestors' comments up to each fork, ordered by position then creation time."""
+    def update_comment(self, comment: Comment) -> None: ...
+    def delete_comment(self, comment_id: str) -> None:
+        """Delete a comment and, for a thread's top-level comment, all of its replies."""
+    def run_contents(self, run_id: str) -> RunContents:
+        """Read a whole run inside one read transaction, so concurrent writes cannot split it."""
+    def import_run(self, run: Run, branches: list[Branch], batches: Iterable[tuple[list[Event], State]],
+                   comments: list[Comment]) -> None:
+        """Write a whole run in one transaction; any failure, including one raised by `batches`, leaves nothing.
+
+        Branches come parents first and threads before their replies. Each batch is a branch's next events and
+        the state after them; persist that snapshot before reading the next batch, because the state is reused.
+        """
 
 
 class Source(Protocol):
