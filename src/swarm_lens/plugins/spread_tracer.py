@@ -110,12 +110,12 @@ class Spread:
                            "to_position": event.position, "to_event_id": event.id, "via": via})
         fraction = sum(a.first_carry is not None for a in self.agents.values()) / len(self.agents)
         self.curve.append((event.position, fraction))
-        label = f"Picked it up from {source}" if parent else "Carried it first, no recorded source"
+        label = f"Earliest recorded source: {source}" if parent else "Carried it first, no recorded source"
         return [Annotation(event.position, event.position, label, agent_id,
                            data={"role": "first", "via": via, "source": source,
                                  "sources": [s.as_dict() for s in sources]},
                            cited_event_ids=(event.id, *dict.fromkeys(s.source_event_id for s in sources))),
-                Metric(event.position, "infected_fraction", fraction)]
+                Metric(event.position, "repeated_fraction", fraction)]
 
     def unrepeated(self) -> list[Annotation]:
         findings = []
@@ -177,11 +177,13 @@ class SpreadTracer:
         spread = Spread(agent_ids, start)
         state = view.state_at(start - 1)
         carrying: dict[str, tuple[int, str, str]] = {}   # message id -> (position, author, event id)
-        yield Metric(start, "infected_fraction", 0.0)
 
         for event in events:
             apply(state, event)
-            yield from self._observe(event, state, spread, matches, read_model, carrying)
+            found = list(self._observe(event, state, spread, matches, read_model, carrying))
+            if event.position == start and not any(isinstance(f, Metric) for f in found):
+                yield Metric(start, "repeated_fraction", 0.0)   # one point per event: a carry at `start` has its own
+            yield from found
 
         yield from spread.unrepeated()
         fit = fit_logistic(spread.curve, len(agent_ids), end)

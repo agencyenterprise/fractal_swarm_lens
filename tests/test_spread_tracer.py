@@ -83,12 +83,12 @@ def test_debate_tree_follows_reads_in_time_order(framework, client):
 
     annotations = client.get(f"/api/branches/{branch.id}/annotations").json()["annotations"]
     found = {(a["seq_from"], a["agent_id"]): a for a in annotations}
-    assert found[(15, "b")]["label"] == "Picked it up from a"
+    assert found[(15, "b")]["label"] == "Earliest recorded source: a"
     assert len(found[(15, "b")]["cited_event_ids"]) == 3
     assert found[(12, "f")]["label"] == "Saw it, did not repeat"
     assert found[(16, "b")]["label"] == "Repeated"
     assert found[(17, None)]["label"] == "Fit not shown: n too small: 6 agents (fewer than 10)"
-    series = client.get(f"/api/branches/{branch.id}/series?plugin=spread-tracer&name=infected_fraction").json()["series"]
+    series = client.get(f"/api/branches/{branch.id}/series?plugin=spread-tracer&name=repeated_fraction").json()["series"]
     assert [point[0] for point in series[0]["points"]] == [1, 8, 10, 11, 15, 17]
 
 
@@ -138,6 +138,16 @@ def test_tool_results_make_the_environment_the_source(framework, client):
     assert rows["r1"]["first_carry"]["source"] == "environment"
     assert rows["r1"]["first_seen"]["position"] == 5
     assert rows["r2"]["status"] == "saw_not_repeated" and rows["r2"]["first_seen"]["source"] == "r1"
+
+
+def test_a_range_that_starts_with_a_carry_has_one_curve_point_there(framework, client):
+    branch = ingest(framework, *agents("a", "b"),
+                    Fact("channel.created", {"id": "c", "name": "C", "members": ["a", "b"]}, AT),        # 3
+                    message("m1", "a", f"Let us {PHRASE}."),                                             # 4
+                    message("m2", "b", f"Yes, {PHRASE}."))                                               # 5
+    trace(client, branch, {"phrase": PHRASE}, start=4)
+    series = client.get(f"/api/branches/{branch.id}/series?plugin=spread-tracer&name=repeated_fraction").json()["series"]
+    assert series[0]["points"] == [[4, 0.5], [5, 1.0]]
 
 
 def test_seed_message_and_params_validation(framework, client):
