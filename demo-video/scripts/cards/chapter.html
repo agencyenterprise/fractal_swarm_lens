@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chapter card</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { text-align: center; max-width: 1600px; }
+  h1, h2 { margin: 0; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
+  h1 { font-size: 132px; }
+  h2 { font-size: 132px; margin-top: 18px; }
+  .sub { font-size: 40px; color: var(--muted); margin-top: 34px; font-weight: 500; }
+  .slam { opacity: 0; transform: scale(1.12); filter: blur(10px); }
+  .slam.in { animation: slam .32s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes slam { to { opacity: 1; transform: none; filter: none; } }
+  body.setup h1, body.setup h2 { font-size: 72px; letter-spacing: -.025em; line-height: 1.15; }
+  body.setup h2 { font-weight: 600; color: var(--muted); margin-top: 26px; }
+  body.question h1 { font-size: 96px; }
+  body.quote h1 { font-size: 66px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+  body.quote .sub { font-size: 32px; }
+  .note { font-size: 24px; color: var(--muted); margin-top: 30px; font-weight: 500; }
+  .kicker { font-size: 30px; font-weight: 600; color: var(--muted); margin-bottom: 22px; letter-spacing: 0; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <div class="kicker slam" id="kicker" hidden></div>
+      <h1 class="slam" id="title"></h1>
+      <h2 class="slam" id="line2" hidden></h2>
+      <div class="sub slam" id="sub" hidden></div>
+      <div class="note slam" id="note" hidden></div>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  // Query: title, optional kicker (small label above the title), optional line2 (appears three beats later),
+  // optional sub, optional note (small source line), optional kind (setup | question | quote).
+  const params = new URLSearchParams(location.search);
+  const $ = (id) => document.getElementById(id);
+  $("title").textContent = params.get("title");
+  for (const id of ["kicker", "line2", "sub", "note"]) if (params.get(id)) { $(id).textContent = params.get(id); $(id).hidden = false; }
+  if (params.get("kind")) document.body.classList.add(params.get("kind"));
+  const BEAT = 500;
+  window.play = () => {
+    (async () => {
+      await wait(60);
+      $("title").classList.add("in");
+      $("kicker").classList.add("in");
+      cue("slam");
+      if (params.get("line2")) { await wait(3 * BEAT); $("line2").classList.add("in"); cue("slam"); }
+      if (params.get("sub")) { await wait(BEAT); $("sub").classList.add("in"); }
+      if (params.get("note")) { await wait(BEAT); $("note").classList.add("in"); }
+    })();
+    return Number(params.get("seconds")) || (params.get("line2") ? 4.2 : params.get("sub") ? 2.6 : 1.8);
+  };
+</script>
+</body>
+</html>

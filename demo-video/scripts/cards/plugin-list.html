@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Method plugins</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { width: 1560px; display: grid; gap: 34px; }
+  h1 { margin: 0; font-size: 64px; font-weight: 800; letter-spacing: -.03em; }
+  .rows { display: grid; gap: 18px; }
+  .row { display: grid; grid-template-columns: 330px 1fr; gap: 28px; align-items: baseline; font-size: 29px; line-height: 1.35;
+    opacity: 0; transform: translateY(12px); transition: opacity .3s, transform .3s cubic-bezier(.2,.7,.2,1); }
+  .row.in { opacity: 1; transform: none; }
+  .row b { font-weight: 750; }
+  .row span { color: #45453f; }
+  .refs { font-size: 21px; color: var(--muted); opacity: 0; transition: opacity .4s; }
+  .refs.in { opacity: 1; }
+  .slam { opacity: 0; transform: scale(1.06); filter: blur(8px); }
+  .slam.in { animation: slam .32s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes slam { to { opacity: 1; transform: none; filter: none; } }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <h1 class="slam" id="title"></h1>
+      <div class="rows" id="rows"></div>
+      <div class="refs" id="refs"></div>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  // play({ title, rows: [[name, line]], refs, seconds }); the copy comes from the team building the plugins.
+  window.play = (data) => {
+    document.getElementById("title").textContent = data.title;
+    document.getElementById("refs").textContent = data.refs;
+    const rows = data.rows.map(([name, line]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = "<b></b><span></span>";
+      row.querySelector("b").textContent = name;
+      row.querySelector("span").textContent = line;
+      return row;
+    });
+    document.getElementById("rows").append(...rows);
+    (async () => {
+      await wait(60);
+      document.getElementById("title").classList.add("in");
+      cue("slam");
+      for (const row of rows) { await wait(320); row.classList.add("in"); cue("tick"); }
+      await wait(400);
+      document.getElementById("refs").classList.add("in");
+    })();
+    return data.seconds;
+  };
+</script>
+</body>
+</html>

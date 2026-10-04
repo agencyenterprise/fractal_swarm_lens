@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Code excerpt</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { display: grid; gap: 30px; justify-items: center; }
+  h1 { margin: 0; text-align: center; font-size: 64px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+  .sub { font-size: 34px; color: var(--muted); font-weight: 550; text-align: center; max-width: 1500px; }
+  .slam { opacity: 0; transform: scale(1.08); filter: blur(8px); }
+  .slam.in { animation: slam .32s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes slam { to { opacity: 1; transform: none; filter: none; } }
+  .files { display: grid; gap: 18px; width: 1720px; }
+  .file { opacity: 0; transform: translateY(14px); transition: opacity .35s, transform .35s cubic-bezier(.2,.7,.2,1); }
+  .file.in { opacity: 1; transform: none; }
+  .body { padding: 18px 30px 22px; font-size: 19px; line-height: 1.5; white-space: pre; overflow: hidden; }
+  .body.wrap { white-space: normal; font-family: inherit; font-size: 25px; line-height: 1.45; }
+  .body.wrap p { margin: 0 0 10px; }
+  .body.wrap code { font: 22px ui-monospace, "SF Mono", Menlo, monospace; color: #2d63b5; }
+  .body.wrap .row { display: grid; grid-template-columns: 640px 1fr; gap: 24px; padding: 6px 0; border-top: 1px solid var(--faint); }
+  .body.wrap .row:first-child { border-top: 0; }
+  .gap { color: #a0a09b; }
+  .k { color: #8e3fb0; } .s { color: #a3561b; } .c { color: #8a8a85; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <h1 class="slam" id="title"></h1>
+      <div class="files" id="files"></div>
+      <div class="sub slam" id="sub"></div>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  // play({ title, sub, seconds, files: [{ label, lines, wrap }] }): `lines` are verbatim source lines read at record
+  // time; null marks lines left out of the excerpt. `wrap` shows prose (documentation) as wrapped paragraphs.
+  const escape = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const KEYWORDS = "def|class|return|yield|for|in|if|elif|import|from|export|function|const";
+  const TOKENS = new RegExp(`(#.*$|//.*$)|("[^"]*"|'[^']*')|\\b(${KEYWORDS})\\b`, "g");
+  // One pass over the raw line, so a highlight never matches markup inserted by another.
+  const highlight = (line) => line.replace(TOKENS, (match, comment, string, keyword) =>
+    `<span class="${comment ? "c" : string ? "s" : "k"}">${escape(match)}</span>`)
+    .split(/(<span[^>]*>.*?<\/span>)/).map((part) => (part.startsWith("<span") ? part : escape(part))).join("");
+  // Documentation prose: `code` in monospace; a markdown table row becomes two columns.
+  const inlineCode = (text) => escape(text).replace(/`([^`]+)`/g, '<code>$1</code>');
+  const prose = (line) => {
+    const cells = line.match(/^\|(.*)\|(.*)\|\s*$/);
+    return cells ? `<div class="row">${inlineCode(cells[1].trim())}<span>${inlineCode(cells[2].trim())}</span></div>`
+      : `<p>${inlineCode(line)}</p>`;
+  };
+  function fileBlock({ label, lines, wrap = false }) {
+    const block = document.createElement("div");
+    block.className = "file window";
+    block.innerHTML = `<div class="window-bar"><i></i><i></i><i></i><span style="margin-left:12px"></span></div><div class="body mono"></div>`;
+    block.querySelector("span").textContent = label;
+    if (wrap) block.querySelector(".body").classList.add("wrap");
+    const indent = Math.min(...lines.filter((l) => l && l.trim()).map((l) => l.match(/^ */)[0].length));
+    block.querySelector(".body").innerHTML = lines
+      .map((line) => (line === null ? '<span class="gap">  …</span>' : wrap ? prose(line) : highlight(line.slice(indent))))
+      .join(wrap ? "" : "\n");
+    return block;
+  }
+  window.play = (data) => {
+    document.getElementById("title").textContent = data.title;
+    document.getElementById("sub").textContent = data.sub;
+    const files = data.files.map(fileBlock);
+    document.getElementById("files").append(...files);
+    (async () => {
+      await wait(60);
+      document.getElementById("title").classList.add("in");
+      cue("slam");
+      for (const file of files) { await wait(450); file.classList.add("in"); cue("tick"); }
+      await wait(900);
+      document.getElementById("sub").classList.add("in");
+    })();
+    return data.seconds;
+  };
+</script>
+</body>
+</html>
