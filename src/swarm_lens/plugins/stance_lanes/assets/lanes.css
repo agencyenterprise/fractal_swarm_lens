@@ -1,0 +1,39 @@
+/* Stance lanes view (index.js, lanes.js). Uses the explorer's color tokens, so dark mode follows. */
+.stance-view { min-height: 0; overflow: auto; background: var(--bg); }
+.stance-empty { padding: 32px; }
+.stance-report { display: flex; flex-direction: column; gap: 16px; padding: 24px 32px 48px; }
+
+.stance-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stance-head h2 { font-size: 18px; font-weight: 600; margin-right: 4px; }
+.stance-summary { flex-basis: 100%; max-width: 90ch; font-size: 12px; line-height: 1.5; }
+
+.stance-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-2); }
+.stance-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.stance-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+.stance-grid { display: grid; grid-template-columns: var(--stance-label) max-content; gap: 0 12px; overflow-x: auto; padding-bottom: 8px; }
+.stance-labels { display: flex; flex-direction: column; gap: 6px; }
+.stance-label { display: flex; align-items: center; gap: 6px; height: 30px; font-size: 12px; white-space: nowrap; }
+.stance-agent { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.stance-canvas { position: relative; }
+.stance-cell {
+  position: absolute; width: 30px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 6px;
+  color: #fff; font: 600 11px var(--mono); opacity: 0.55; cursor: pointer;
+}
+.stance-cell.stated { opacity: 1; }
+.stance-cell.flip { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.stance-cell.correct { border-bottom: 4px solid var(--accent); }
+.stance-cell.wrong { border-bottom: 4px solid var(--danger); }
+.stance-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.stance-arrows { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.stance-arrow { fill: none; stroke: var(--text); stroke-opacity: 0.75; }
+.stance-arrows marker path { fill: var(--text); }
+
+.stance-flips { display: flex; flex-direction: column; gap: 6px; max-width: 960px; }
+.stance-flips h3 { font-size: 13px; font-weight: 600; }
+.stance-flip {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px;
+}
+.stance-flip-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.stance-flip-actions button { height: 26px; font-size: 12px; }
