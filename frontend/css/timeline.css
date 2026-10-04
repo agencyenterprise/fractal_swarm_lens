@@ -177,3 +177,22 @@ button.tl-label:hover { background: var(--surface-2); border-color: var(--border
   display: -webkit-box; margin-top: 4px; overflow: hidden; color: var(--text-2);
   -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere;
 }
+
+/* Plugin findings: metric tracks under the lanes and annotation spans (setFindings). */
+.tl-track { position: relative; height: 30px; }
+.tl-sparkline { position: absolute; top: 0; left: 0; overflow: visible; }
+.tl-sparkline-line { fill: none; stroke: var(--c); stroke-width: 1.5; stroke-linejoin: round; }
+.tl-sparkline-dot { fill: var(--c); stroke: var(--surface); stroke-width: 1.5; }
+.tl-track .tl-label { font-size: 11.5px; font-weight: 400; color: var(--text-2); }
+.tl-track .tl-label::before { content: ""; flex: none; width: 8px; height: 2px; border-radius: 1px; background: var(--c); }
+
+.tl-annotations { position: absolute; top: 0; left: 0; z-index: 1; }
+.tl-ruler-annotations { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.tl-annotation {
+  position: absolute; height: 8px; min-width: 6px; padding: 0;
+  border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 30%, transparent);
+  pointer-events: auto; cursor: pointer;
+}
+.tl-annotation.in-lane { height: 5px; border-radius: 2px; }
+.tl-annotation:hover, .tl-annotation:focus-visible { background: color-mix(in srgb, var(--c) 60%, transparent); border-color: var(--c); }

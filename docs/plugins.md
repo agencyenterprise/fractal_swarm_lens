@@ -106,7 +106,7 @@ Bundled plugins (Activity and MAST) are listed in `swarm_lens/cli.py` (`BUNDLED_
 
 ## What the UI does for free
 
-- **Plugins menu:** lists every analyzer. Choosing one opens a form generated from `Params`, with start and end events (the default is 1 to the current cursor). Running it starts a job, and the menu shows the job status until the job finishes.
+- **Analyze menu** (top bar, next to **Fork here**): lists every analyzer. Choosing one opens a form generated from `Params`, with first and last events (the default is 1 to the current cursor). Running it starts a job. The menu's **Recent analyses** shows each job's status, and a toast reports when the job finishes or fails.
 - **Metric tracks:** one sparkline per series under the agent lanes, aligned with the event positions. Turn them on or off with **View → Metric tracks**.
 - **Annotation markers:** spans on the ruler, or in the agent's lane when `agent_id` is set. Hover shows the label, the plugin and the score, and a click selects the first event of the span. Turn them on or off with **View → Annotations**.
 - **Inspector → Findings:** for the selected event, the annotations that cover or cite it, and the metric values at that position.
