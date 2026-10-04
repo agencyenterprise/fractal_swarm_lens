@@ -52,6 +52,8 @@ class Framework:
                  runtime: Runtime | None = None, plugins: tuple[Plugin, ...] = ()):
         self.store, self.versions, self.runtime = store, versions, runtime
         self.plugins = {plugin.id: plugin for plugin in plugins}
+        if len(self.plugins) != len(plugins):
+            raise ValueError("Duplicate plugin ID")
 
     def create_run(self, name: str, metadata: dict | None = None) -> Branch:
         if not name.strip():
@@ -180,10 +182,11 @@ class Framework:
         events = self.history(branch_id, cursor)
         digest = hashlib.sha256(json.dumps([asdict(event) for event in events], sort_keys=True).encode()).hexdigest()
         config = deepcopy(config or {})
+        # The plugin gets its own copy, so the record keeps the configuration as requested.
+        output = plugin.run(PluginContext(self, branch_id, cursor), deepcopy(config))
         record = {"id": new_id(), "plugin_id": plugin.id, "plugin_version": plugin.version,
                   "branch_id": branch_id, "cursor": cursor, "config": config,
-                  "input_digest": digest, "created_at": utc_now(),
-                  "output": plugin.run(PluginContext(self, branch_id, cursor), config)}
+                  "input_digest": digest, "created_at": utc_now(), "output": output}
         self.store.save_analysis(record)
         return record
 
