@@ -2,7 +2,9 @@ from functools import lru_cache
 import hashlib
 from importlib.resources import files
 import json
+import os
 import re
+from threading import BoundedSemaphore
 
 from swarm_lens.core.models import DomainError
 from .trace import encode_trace, FORMAT
@@ -74,13 +76,23 @@ def history_trace(history, completeness="unknown"):
 
 
 class MastPlugin:
-    id, version = "mast", "0.3.0"
+    id, version = "mast", "0.5.0"
 
-    def __init__(self, judge, *, max_trace_characters=4_000_000):
+    def __init__(self, judge, *, max_trace_characters=None, workers=None):
         self.judge = judge
-        self.max_trace_characters = max_trace_characters
+        self.workers = int(workers if workers is not None else os.environ.get("MAST_WORKERS", "3"))
+        if not 1 <= self.workers <= 8:
+            raise ValueError("MAST_WORKERS must be between 1 and 8")
+        # One plugin is shared by all jobs on this server. Bound provider calls
+        # across their pools, including evidence and reconciliation requests.
+        self._provider_slots = BoundedSemaphore(self.workers)
+        self.max_trace_characters = int(max_trace_characters if max_trace_characters is not None else
+                                        os.environ.get("MAST_MAX_TRACE_CHARACTERS", "4000000"))
+        if self.max_trace_characters < 1:
+            raise ValueError("MAST_MAX_TRACE_CHARACTERS must be positive")
 
-    def prepare_input(self, history, config):
+    def prepare_analysis(self, history, config):
+        from .chunking import map_budget, plan_chunks
         document = history_document(history, config.get("completeness", "unknown"))
         trace = json.dumps(encode_trace(document), ensure_ascii=False)
         prompt = make_prompt(trace)
@@ -90,13 +102,27 @@ class MastPlugin:
                    "original_characters": len(json.dumps(document, ensure_ascii=False, sort_keys=True)),
                    "prepared_characters": len(trace), "max_trace_characters": self.max_trace_characters,
                    "can_analyze": True, "reason": None}
-        if len(trace) > self.max_trace_characters:
-            preview.update(can_analyze=False, reason=(
-                f"The complete trace still has {len(trace):,} characters after removing duplicate storage. "
-                f"The configured limit is {self.max_trace_characters:,}. Nothing was truncated or sent."))
-        elif hasattr(self.judge, "input_budget"):
-            preview.update(self.judge.input_budget(prompt))
-        return trace, prompt, preview
+        check = map_budget(self, trace, prompt)
+        preview.update(check)
+        chunks = []
+        if not check["can_analyze"]:
+            try:
+                chunks = plan_chunks(self, document)
+                preview.update(can_analyze=True, reason=None)
+            except DomainError as exc:
+                preview.update(can_analyze=False, reason=str(exc))
+        preview.update(strategy="chunked" if chunks else "single", chunk_count=len(chunks) or 1,
+                       analysis_requests=len(chunks) or 1, evidence_requests=len(chunks) or 1,
+                       reconciliation_required=bool(chunks), workers=min(self.workers, len(chunks) or 1))
+        if chunks:
+            preview["chunks"] = [{k: v for k, v in chunk.items() if k not in {"trace", "prompt"}} for chunk in chunks]
+            preview["max_chunk_input_tokens"] = max((c["estimated_input_tokens"] or 0 for c in chunks), default=0)
+            preview["chunking_note"] = "Each chunk is assessed separately, then reconciled using summaries and localized evidence."
+        return {"trace": trace, "prompt": prompt if not chunks else None, "summary": preview, "chunks": chunks}
+
+    def prepare_input(self, history, config):
+        prepared = self.prepare_analysis(history, config)
+        return prepared["trace"], prepared["prompt"], prepared["summary"]
 
     def prepare(self, history, config):
         trace, prompt, preview = self.prepare_input(history, config)
@@ -104,8 +130,17 @@ class MastPlugin:
             raise DomainError(preview["reason"])
         return trace, prompt
 
+    def complete(self, prompt):
+        with self._provider_slots:
+            return self.judge.complete(prompt)
+
     def evaluate(self, trace, prompt):
-        response = self.judge.complete(prompt)
+        if prompt is None:
+            from .chunking import plan_chunks, evaluate_chunks
+            from .trace import decode_trace
+            chunks = plan_chunks(self, decode_trace(json.loads(trace)))
+            return evaluate_chunks(self, trace, chunks)
+        response = self.complete(prompt)
         raw = response["text"]
         output = parse_response(raw)
         if response.get("finish_reason") != "stop":
@@ -116,9 +151,14 @@ class MastPlugin:
                        "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                        "trace_sha256": hashlib.sha256(trace.encode()).hexdigest(),
                        "judgment_kind": "llm_assessment", "mode": "saved_trace", "human_reviewed": False})
-        output["evidence"] = generate_evidence(self.judge, trace, output["labels"], assets()["categories"])
+        output["evidence"] = generate_evidence(self, trace, output["labels"], assets()["categories"])
         return output
 
     def run(self, context, config):
-        trace, prompt = self.prepare(context.history(), config)
-        return self.evaluate(trace, prompt)
+        from .chunking import evaluate_chunks
+        prepared = self.prepare_analysis(context.history(), config)
+        if not prepared["summary"]["can_analyze"]:
+            raise DomainError(prepared["summary"]["reason"])
+        if prepared["chunks"]:
+            return evaluate_chunks(self, prepared["trace"], prepared["chunks"])
+        return self.evaluate(prepared["trace"], prepared["prompt"])

@@ -46,3 +46,24 @@ test('leaving before the delay cancels the tooltip', async () => {
   await wait(TIP_DELAY + 50);
   assert.equal(shown(), false);
 });
+
+
+test('dialog tooltips stay above the modal and return to the page for other controls', async () => {
+  const dialog = document.createElement('dialog');
+  dialog.open = true;
+  dialog.innerHTML = '<button data-tip="Only part of the execution is recorded">Partial</button>';
+  document.body.append(dialog);
+  const option = dialog.querySelector('button');
+  pointer('pointerover', option);
+  await wait(TIP_DELAY + 20);
+  assert.equal(shown(), true);
+  assert.equal(tooltip().parentElement, dialog);
+  assert.equal(option.getAttribute('aria-describedby'), 'tooltip');
+  escape();
+  dialog.remove();
+  pointer('pointerover', button);
+  await wait(TIP_DELAY + 20);
+  assert.equal(tooltip().parentElement, document.body);
+  assert.equal(tooltip().textContent, 'Play (Space)');
+  escape();
+});

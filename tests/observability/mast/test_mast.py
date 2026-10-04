@@ -202,3 +202,19 @@ def test_duplicate_extension_ids_rejected(service):
     extension = mast_extension(service)
     with pytest.raises(ValueError, match="Duplicate"):
         create_app(service.framework, extensions=(extension, extension))
+
+
+def test_safe_provider_diagnostics_persist_in_failed_job(service, branch):
+    import httpx
+    import openai
+    def fail(prompt):
+        raise openai.BadRequestError("PRIVATE", body={"code": "context_length_exceeded", "message": "PRIVATE"},
+            response=httpx.Response(400, request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions")))
+    service.plugin.judge.complete = fail
+    job = service.submit(branch.id, 4, "unknown")
+    service.execute(job["id"])
+    result = service.jobs.get(job["id"])
+    assert result["provider_error"]["code"] == "context_length_exceeded"
+    assert "token count" in result["error"]
+    assert "PRIVATE" not in json.dumps(result)
+    assert "analysis" not in result

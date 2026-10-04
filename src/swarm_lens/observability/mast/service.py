@@ -7,6 +7,7 @@ from pathlib import Path
 import sqlite3
 
 from swarm_lens.core.models import Conflict, DomainError, new_id, utc_now
+from .errors import provider_failure
 
 
 class MastJobs:
@@ -91,8 +92,9 @@ class MastService:
         if not description["ready"]:
             raise DomainError(description["reason"])
         history = self.framework.history(branch_id, cursor)
-        config = {"completeness": completeness}
-        trace, prompt, summary = self.plugin.prepare_input(history, config)
+        config = {"completeness": completeness, "workers": self.plugin.workers}
+        prepared = self.plugin.prepare_analysis(history, config)
+        trace, prompt, summary = prepared["trace"], prepared["prompt"], prepared["summary"]
         if not summary["can_analyze"]:
             raise DomainError(summary["reason"])
         input_digest = hashlib.sha256(json.dumps([asdict(e) for e in history], sort_keys=True).encode()).hexdigest()
@@ -101,6 +103,9 @@ class MastService:
                   "config": config, "input_digest": input_digest, "judge": description, "input_summary": summary,
                   "trace_artifact": self.artifacts.put(json.dumps({"text": trace}, ensure_ascii=False).encode()),
                   "prompt_artifact": self.artifacts.put(json.dumps({"text": prompt}, ensure_ascii=False).encode())}
+        if prepared["chunks"]:
+            record["chunk_plan_artifact"] = self.artifacts.put(json.dumps(prepared["chunks"], ensure_ascii=False).encode())
+            record["progress"] = {"phase": "queued", "completed_chunks": 0, "total_chunks": len(prepared["chunks"])}
         self.jobs.create(record)
         return record
 
@@ -111,7 +116,27 @@ class MastService:
         try:
             trace = json.loads(self.artifacts.get(record["trace_artifact"]))["text"]
             prompt = json.loads(self.artifacts.get(record["prompt_artifact"]))["text"]
-            output = self.plugin.evaluate(trace, prompt)
+            if record.get("chunk_plan_artifact"):
+                from .chunking import evaluate_chunks
+                chunks = json.loads(self.artifacts.get(record["chunk_plan_artifact"]))
+
+                def progress(**values):
+                    record["progress"] = values
+                    self.jobs.update(record)
+
+                def save_stage(stage):
+                    artifact = self.artifacts.put(json.dumps(stage, ensure_ascii=False).encode())
+                    summary = {k: v for k, v in stage.items() if k not in {"trace", "prompt", "output"}}
+                    summary.update(artifact=artifact, parse_status=stage["output"]["parse_status"],
+                                   summary=stage["output"]["summary"])
+                    record.setdefault("stages", []).append(summary)
+                    record["stages"].sort(key=lambda s: (s["phase"] != "chunk", s["index"]))
+                    self.jobs.update(record)
+                    return summary
+
+                output = evaluate_chunks(self.plugin, trace, chunks, progress, save_stage)
+            else:
+                output = self.plugin.evaluate(trace, prompt)
             output["input_summary"] = record.get("input_summary")
             analysis = {key: record[key] for key in (
                 "id", "plugin_id", "plugin_version", "branch_id", "cursor", "created_at", "config", "input_digest",
@@ -121,15 +146,10 @@ class MastService:
             record.update(status="completed" if output["parse_status"] == "complete" else "needs_review",
                           analysis=analysis)
         except Exception as exc:
-            # Provider errors can contain request details; never echo them into the UI.
-            kind = type(exc).__name__
-            messages = {
-                "AuthenticationError": "The provider rejected the server credentials.",
-                "RateLimitError": "The provider rate or quota limit was reached.",
-                "BadRequestError": "The provider rejected the model or input. Check the configured model and trace size.",
-                "APITimeoutError": "The model request timed out.",
-            }
-            record.update(status="failed", error=messages.get(kind, "MAST analysis failed; no negative classifications were inferred."),
-                          error_type=kind)
+            message, diagnostic = provider_failure(exc)
+            if record.get("stages"):
+                message += " Completed chunk/reconciliation stages are retained below; no combined report was published."
+            record.update(status="failed", error=message,
+                          error_type=type(exc).__name__, provider_error=diagnostic)
         record["finished_at"] = utc_now()
         self.jobs.update(record)
