@@ -23,7 +23,7 @@ Open Compare and pick the two branches or paired runs you want side by side. Sta
 
 ## Branch
 
-Select an event and choose **Fork here** (or press `F`). The other fork actions let you change a goal, a prompt, or an agent's configuration. The new branch keeps everything up to the fork point. **Create** saves the branch as an experiment; **Create and run** also executes it, if a runtime is available. See [how branching works](Live-collection-and-branching).
+Select an event and choose **Fork here** (or press `F`). The other fork actions let you change a goal, a prompt, or an agent's configuration. The new branch keeps everything up to the fork point. **Create branch** saves it as an experiment; **Create and run** also executes it, if a runtime is available. See [how branching works](Live-collection-and-branching).
 
 ## Reports and sharing
 

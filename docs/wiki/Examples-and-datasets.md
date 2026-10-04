@@ -13,6 +13,8 @@ python -m examples.aciarena.samples import \
 swarm-lens --data data --port 8765
 ```
 
+The `aciarena` extra pulls in some heavy ML dependencies; if you'd rather keep them out of your main environment, the [ACIArena guide](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/aciarena/README.md) uses a separate `.venv-aciarena`.
+
 This imports files that are already in the repo. It doesn't regenerate them and doesn't call a model.
 
 In the run picker you'll find two runs: **ACIArena · LLMDebate · medicine-000 · Without attack · 20 rounds** and the same run **With malicious agent**. Each has 64 model responses: three opening answers, 20 rounds of three-agent debate, and a final aggregation. The question is about dental impression materials. It's a benchmark task, not medical advice.

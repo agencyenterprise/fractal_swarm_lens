@@ -8,6 +8,7 @@ python -m examples.aciarena.samples import \
   --data data
 swarm-lens --data data --port 8765
 </code></pre>
+<p>The <code>aciarena</code> extra pulls in some heavy ML dependencies; if you'd rather keep them out of your main environment, the <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/aciarena/README.md">ACIArena guide</a> uses a separate <code>.venv-aciarena</code>.</p>
 <p>This imports files that are already in the repo. It doesn't regenerate them and doesn't call a model.</p>
 <p>In the run picker you'll find two runs: <strong>ACIArena · LLMDebate · medicine-000 · Without attack · 20 rounds</strong> and the same run <strong>With malicious agent</strong>. Each has 64 model responses: three opening answers, 20 rounds of three-agent debate, and a final aggregation. The question is about dental impression materials. It's a benchmark task, not medical advice.</p>
 <p>The malicious agent is upstream's <code>MisalignAgent</code>. In both runs, the native grader marked the final answer incorrect and the attack unsuccessful. Those two labels don't tell you whether anything spread between agents; that's a separate question you'd answer by reading the trace.</p>
@@ -48,4 +49,4 @@ swarm-lens --data data --port 8765
 <p>A few datasets aren't in the repo: the 30-task wrong-option batch, the message-board dataset, and AI Village (which needs dataset access to import). They won't appear after a fresh clone.</p>
 <h2>What to keep for each experiment</h2>
 <p>Hold on to the manifest, the source revision, trace hashes, model settings, the exact inputs and outputs, the delivery links between agents, and the native grader output. Upstream's option-letter extraction occasionally misreads an answer, so look at the raw response before trusting a grader label.</p>
-<div class="wiki-bottom">These pages describe <code>main</code>. <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Examples-and-datasets.md">View this page's source ↗</a></div></main></div></body></html>
+<div class="wiki-bottom">These pages describe <code>main</code>. <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/wiki/Examples-and-datasets.md">View this page's source ↗</a></div></main></div></body></html>
