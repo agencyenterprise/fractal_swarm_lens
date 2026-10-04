@@ -14,16 +14,19 @@ import {
   logoFor,
 } from "./ui.js";
 import { renderGraph } from "./graph.js";
-import { EventTimeline } from "./timeline.js?v=2";
-import { field, openDialog } from "./dialog.js";
-import { installMast } from "./mast.js?v=2";
-import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js";
+import { EventTimeline } from "./timeline.js?v=4";
+import { field, openDialog } from "./dialog.js?v=4";
+import { branchDialog } from "./branch.js?v=3";
+import { Picker } from './components.js?v=1';
+import { installMast } from "./mast.js?v=4";
+import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js?v=2";
+import { LiveView } from "./live.js?v=6";
 import {
   inspectAgent,
   inspectEnvironment,
   inspectEvent,
   inspectAnalysis,
-} from "./inspect.js";
+} from "./inspect.js?v=2";
 
 const view = {
   workspace: null,
@@ -42,6 +45,14 @@ const view = {
 let requestId = 0,
   seekTimer,
   playTimer;
+const runPicker = new Picker({ id: 'conversation', label: 'Search conversations', searchable: true,
+  dark: true, hideLabel: true, placeholder: 'Search conversations…' });
+$('#run-select').append(runPicker.root);
+runPicker.mount();
+const speedPicker = new Picker({ id: 'playback-step', label: 'Playback step size', compact: true, hideLabel: true,
+  value: '10', options: [1, 10, 50].map(value => ({ value, label: `${value} event${value === 1 ? '' : 's'}` })) });
+$('#speed').append(speedPicker.root);
+speedPicker.mount();
 const actions = {
   selectAgent,
   editAgent,
@@ -52,18 +63,47 @@ const actions = {
 };
 const timeline = new EventTimeline({
   onSeek: (position) => {
+    liveView.pause();
     stopPlayback();
     clearTimeout(seekTimer);
     seekTimer = setTimeout(() => seek(position), 45);
   },
   onAgent: selectAgent,
   onEvent: timelineEvent,
+  onPoint: async (position, point) => {
+    liveView.pause(); stopPlayback(); clearTimeout(seekTimer);
+    const branch = view.branch.id;
+    try {
+      await seek(position);
+      if (view.branch.id === branch && view.cursor === position) showPointMenu(point);
+    } catch (error) { failure(error); }
+  },
 });
 const installedPlugins = new Set();
 const workspaceViews = new WorkspaceViews((id) => {
   openWorkspaceView(id, workspaceViews.entries.get(id).params);
 });
 workspaceViews.register({ id: "timeline", title: "Timeline", panel: $("#workspace-timeline") });
+const liveView = new LiveView({
+  selection: () => view.branch && ({ branchId: view.branch.id, cursor: view.cursor,
+    head: view.branch.head, parentId: view.branch.parent_id, branchName: view.branch.name, runName: view.run.name }),
+  seek,
+  forked: async id => { await refreshWorkspace(); updateRunPicker(); await loadBranch(id); },
+  update: async (data, follow) => {
+    if (data.branch.id !== view.branch?.id) return;
+    const events = data.events.filter(event => event.position > view.events.length);
+    if (!events.length) return;
+    if (events[0].position !== view.events.length + 1) throw new Error('Live event gap; reconnecting to recover history.');
+    view.events.push(...events);
+    view.branch = { ...data.branch, head: data.cursor };
+    const stored = view.workspace.branches.find(b => b.id === view.branch.id);
+    if (stored) Object.assign(stored, view.branch);
+    $("#cursor").max = view.branch.head;
+    timeline.setData(view.events, view.branch);
+    renderBranches();
+    await seek(follow ? view.branch.head : view.cursor);
+  },
+});
 
 function selection() {
   return view.branch ? { branchId: view.branch.id, cursor: view.cursor,
@@ -100,6 +140,18 @@ async function refreshWorkspace() {
   const rank = (run) => run.metadata.source_type === "aciarena_example"
     ? (run.metadata.condition === "control" ? 0 : 1) : 2;
   view.workspace.runs.sort((a, b) => rank(a) - rank(b));
+}
+
+function updateRunPicker() {
+  runPicker.setOptions(view.workspace.runs.map(run => {
+    const branches = view.workspace.branches.filter(branch => branch.run_id === run.id);
+    const parts = run.name.split(' · ');
+    return { value: run.id, label: parts[0],
+      badge: run.metadata.framework?.toUpperCase() || (run.metadata.source_type === 'aciarena_example' ? 'ACIARENA' : 'TRACE'),
+      description: [parts.slice(1).join(' · '), `${time(run.created_at)} UTC`].filter(Boolean).join(' · '),
+      detail: `${date(run.created_at)} · ${branches.length} branch${branches.length === 1 ? '' : 'es'} · ${run.id.slice(0, 6)}` };
+  }));
+  if (view.run) runPicker.value = view.run.id;
 }
 
 function renderBranches() {
@@ -162,7 +214,7 @@ async function loadBranch(id, cursor) {
   view.agent = null;
   view.event = null;
   view.limit = 45;
-  $("#run-select").value = view.run.id;
+  runPicker.value = view.run.id;
   $("#branch-name").textContent = view.branch.name;
   $("#branch-status").textContent = view.branch.parent_id
     ? "Forked trajectory"
@@ -191,12 +243,14 @@ async function loadBranch(id, cursor) {
   $("#attribution").textContent =
     view.run.metadata.attribution ||
     view.run.metadata.repository ||
+    (view.run.metadata.framework && `${view.run.metadata.framework} ${view.run.metadata.framework_version || ""}`) ||
     "Source application";
-  $("#source-date").textContent = date(view.run.metadata.start) + " · UTC";
+  $("#source-date").textContent = date(view.run.metadata.start || view.run.created_at) + " · UTC";
   $("#cursor").max = view.branch.head;
   renderBranches();
   timeline.setData(view.events, view.branch);
   await seek(cursor ?? view.branch.head);
+  liveView.connect(view.branch, view.run.metadata.source_type === "live" && cursor === undefined);
   if (!$("#mast-analyze").hidden) $("#mast-analyze").disabled = false;
 }
 
@@ -381,8 +435,8 @@ async function selectEvent(event) {
 function stopPlayback() {
   view.playing = false;
   clearTimeout(playTimer);
-  $("#play").textContent = "▶";
-  $("#play").setAttribute("aria-label", "Play timeline");
+  $("#play").textContent = "▶ Replay";
+  $("#play").setAttribute("aria-label", "Replay saved events");
 }
 async function playStep() {
   if (!view.playing) return;
@@ -390,95 +444,30 @@ async function playStep() {
     stopPlayback();
     return;
   }
-  await seek(view.cursor + Number($("#speed").value));
+  await seek(view.cursor + Number(speedPicker.value));
   if (view.playing) playTimer = setTimeout(playStep, 450);
 }
 
-function forkDialog() {
-  $("#event-menu").hidden = true;
+function openBranch(title, fields = [], change) {
+  $('#event-menu').hidden = true;
   stopPlayback();
-  const content = el("div");
-  content.append(
-    el(
-      "p",
-      "",
-      `Create a branch from event ${formatNumber(view.cursor)}. It will inherit history only up to this point.`,
-    ),
-  );
-  const name = field(
-    "Branch name",
-    "name",
-    "Experiment " +
-      view.workspace.branches.filter((b) => b.run_id === view.run.id).length,
-  );
-  name.input.required = true;
-  content.append(name.fragment);
-  const source = view.branch.id,
-    cursor = view.cursor;
-  openDialog("Fork this moment", content, {
-    confirm: "Create branch",
-    submit: async (form) => {
-      const branch = await post(`/branches/${source}/fork`, {
-        cursor,
-        name: form.get("name"),
-      });
-      await refreshWorkspace();
-      await loadBranch(branch.id);
-      toast("Branch created. The original trajectory is preserved.");
-    },
+  liveView.pause();
+  clearTimeout(seekTimer);
+  const event = view.events.find(event => event.position === view.cursor);
+  branchDialog({
+    source: { branchId: view.branch.id, branchName: view.branch.name, cursor: view.cursor,
+      at: event?.at, label: event?.resume_point ? `Before task ${event.resume_point.next_task + 1}`
+        : event?.stage_label || ({ 'message.created': 'Message', 'memory.written': 'Memory recorded',
+          'environment.updated': 'Shared state', 'tool.completed': 'Tool result' }[event?.kind]) || 'Selected timeline position',
+      defaultName: change ? title + ' experiment' : 'Experiment ' + view.workspace.branches.filter(b => b.run_id === view.run.id).length },
+    title, fields, change, live: liveView,
+    created: async id => { await refreshWorkspace(); updateRunPicker(); await loadBranch(id); },
   });
 }
 
+function forkDialog() { openBranch('Fork at cursor'); }
 function interventionDialog(title, fields, kind, buildData) {
-  $("#event-menu").hidden = true;
-  stopPlayback();
-  const content = el("div"),
-    source = view.branch.id,
-    cursor = view.cursor;
-  const needsFork = !view.branch.parent_id || cursor !== view.branch.head;
-  content.append(
-    el(
-      "p",
-      "",
-      needsFork
-        ? "This change will be saved on a new branch at the selected moment."
-        : "This change will append an intervention to the current branch.",
-    ),
-  );
-  if (needsFork) {
-    const name = field("New branch name", "branch_name", title + " experiment");
-    name.input.required = true;
-    content.append(name.fragment);
-  }
-  fields.forEach((item) => content.append(item.fragment));
-  content.append(
-    el(
-      "p",
-      "",
-      "This updates branch state. Recorded messages stay unchanged; new responses require a runtime adapter.",
-    ),
-  );
-  let target = source;
-  openDialog(title, content, {
-    confirm: needsFork ? "Fork & apply" : "Apply change",
-    submit: async (form) => {
-      if (needsFork && target === source)
-        target = (
-          await post(`/branches/${source}/fork`, {
-            cursor,
-            name: form.get("branch_name"),
-          })
-        ).id;
-      await post(`/branches/${target}/interventions`, {
-        kind,
-        data: buildData(form),
-        expected_head: cursor,
-      });
-      await refreshWorkspace();
-      await loadBranch(target);
-      toast("Intervention saved to branch history.");
-    },
-  });
+  openBranch(title, fields, form => ({ kind, data: buildData(form) }));
 }
 
 function editAgent(agent) {
@@ -501,6 +490,7 @@ function editAgent(agent) {
   );
 }
 function addAgent() {
+  const id = crypto.randomUUID();
   const name = field("Agent name", "name", "New agent");
   name.input.required = true;
   interventionDialog(
@@ -512,7 +502,7 @@ function addAgent() {
     ],
     "agent.added",
     (form) => ({
-      id: crypto.randomUUID(),
+      id,
       name: form.get("name"),
       model: form.get("model") || null,
       system_prompt: form.get("prompt"),
@@ -542,6 +532,13 @@ async function readMemory(memory) {
       `/branches/${view.branch.id}/memory?cursor=${view.cursor}&memory_id=${encodeURIComponent(memory.id)}`,
     );
     const text = el("div", "content-text", value.content);
+    if (value.metadata?.type === "task_output") {
+      text.append(button("Edit task output on a branch", () => {
+        $("#dialog").close();
+        interventionDialog("Edit completed task output", [field("Saved output", "content", value.content, "textarea")],
+          "memory.written", form => ({ ...value, content: form.get("content") }));
+      }));
+    }
     openDialog("Recorded memory", text, { kicker: "MEMORY AT CURSOR" });
   } catch (error) {
     failure(error);
@@ -565,11 +562,8 @@ function compareDialog() {
       (branch) => branch.run_id === view.run.id && branch.id !== view.branch.id,
     );
   const choice = field("Reference branch", "reference", "", "select");
-  branches.forEach((branch) => {
-    const option = el("option", "", branch.name);
-    option.value = branch.id;
-    choice.input.append(option);
-  });
+  choice.input.setOptions(branches.map(branch => ({ value: branch.id, label: branch.name,
+    description: `${branch.head} events · ${branch.parent_id ? `forked at event ${branch.fork_position}` : 'original conversation'}` })));
   choice.input.value = view.branch.parent_id || branches[0]?.id;
   content.append(
     el(
@@ -664,15 +658,18 @@ $("#read-task").onclick = () => openDialog("Benchmark question", el("div", "cont
   { kicker: view.run.metadata.task_id || "RECORDED TASK" });
 $("#new-branch").onclick = forkDialog;
 $("#cursor").addEventListener("input", (event) => {
+  liveView.pause();
   stopPlayback();
   clearTimeout(seekTimer);
   seekTimer = setTimeout(() => seek(Number(event.target.value)), 70);
 });
 $("#previous").onclick = () => {
+  liveView.pause();
   stopPlayback();
   seek(view.cursor - 1);
 };
 $("#next").onclick = () => {
+  liveView.pause();
   stopPlayback();
   seek(view.cursor + 1);
 };
@@ -681,12 +678,13 @@ $("#go-end").onclick = () => {
   seek(view.branch.head);
 };
 $("#play").onclick = () => {
+  liveView.pause();
   if (view.playing) {
     stopPlayback();
     return;
   }
   view.playing = true;
-  $("#play").textContent = "Ⅱ";
+  $("#play").textContent = "Ⅱ Pause";
   $("#play").setAttribute("aria-label", "Pause timeline");
   if (view.cursor >= view.branch.head) view.cursor = 0;
   playStep();
@@ -745,7 +743,7 @@ $("#checkpoint").onclick = async () => {
     failure(error);
   }
 };
-$("#run-select").onchange = (event) => {
+runPicker.onchange = (event) => {
   const branch = view.workspace.branches.find(
     (branch) => branch.run_id === event.target.value && !branch.parent_id,
   );
@@ -782,6 +780,7 @@ new ResizeObserver(() => {
 }).observe($("#graph"));
 
 async function timelineEvent(event, point, context) {
+  liveView.pause();
   stopPlayback();
   view.event = event;
   await seek(event.position);
@@ -828,6 +827,7 @@ async function timelineEvent(event, point, context) {
     $(".inspector").scrollIntoView({ block: "nearest" });
   });
   item("⑂  Create branch here", forkDialog, "menu-primary");
+  item("▶  Run from here…", () => openBranch("Run from here"));
   if (agent) {
     item("Change agent prompt…", () => editAgent(agent));
     item(agent.active ? "Remove this agent…" : "Restore this agent…", () =>
@@ -848,6 +848,20 @@ async function timelineEvent(event, point, context) {
     ) + "px";
   if (context) options.querySelector("button").focus();
 }
+function showPointMenu(point) {
+  const menu = $('#event-menu');
+  menu.replaceChildren(el('strong', '', `Event ${view.cursor} · ${time(view.state.occurred_at)} UTC`));
+  const options = el('div', 'menu-actions');
+  for (const [label, action] of [
+    ['Create branch here', forkDialog], ['Run from here…', () => openBranch('Run from here')],
+    ['Change shared goal…', editGoal],
+  ]) options.append(button(label, () => { menu.hidden = true; action(); }));
+  menu.append(options);
+  menu.hidden = false;
+  menu.style.left = Math.max(8, Math.min(point.x, innerWidth - menu.offsetWidth - 12)) + 'px';
+  menu.style.top = Math.max(8, Math.min(point.y + 10, innerHeight - menu.offsetHeight - 12)) + 'px';
+}
+
 document.addEventListener("pointerdown", (event) => {
   if (
     !event.target.closest("#event-menu") &&
@@ -862,6 +876,7 @@ document.addEventListener("keydown", (event) => {
 async function boot(selectedBranchId) {
   const route = selectedBranchId ? {} : readWorkspaceRoute();
   await refreshWorkspace();
+  liveView.enable(view.workspace.capabilities.live?.enabled);
   const renderers = { mast: installMast };
   for (const manifest of view.workspace.capabilities.web_plugins || []) {
     if (installedPlugins.has(manifest.id)) continue;
@@ -896,14 +911,7 @@ async function boot(selectedBranchId) {
       "Build an application with the framework and supply its first run.";
     return;
   }
-  const picker = $("#run-select");
-  picker.replaceChildren(
-    ...view.workspace.runs.map((run) => {
-      const option = el("option", "", run.name);
-      option.value = run.id;
-      return option;
-    }),
-  );
+  updateRunPicker();
   $("#checkpoint").disabled = !view.workspace.capabilities.git;
   await loadBranch(
     selectedBranchId || route.branchId || view.workspace.branches.find((branch) =>
@@ -913,3 +921,14 @@ async function boot(selectedBranchId) {
   if (route.view && route.view !== "timeline") openWorkspaceView(route.view, { report: route.report }, { replace: true });
 }
 boot().catch(failure);
+
+// Discover captures started by another local process without disturbing the selected cursor.
+setInterval(async () => {
+  if (!view.workspace?.capabilities.live?.enabled) return;
+  try {
+    const previous = new Set(view.workspace.runs.map(run => run.id));
+    await refreshWorkspace();
+    if (view.workspace.runs.some(run => !previous.has(run.id))) updateRunPicker();
+    if (!view.branch && view.workspace.runs.length) await boot();
+  } catch (_) { /* The live status handles disconnection; do not spam toasts. */ }
+}, 5000);

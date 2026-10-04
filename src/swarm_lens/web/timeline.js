@@ -1,16 +1,20 @@
 import { $, $$, el, button, svg, time, color, logoFor } from "./ui.js";
+import { timelineTime, gapDuration } from './timeline-time.js';
 
 const LEFT = 166,
   ROW = 44,
   RULER = 32,
   EDGE = 20,
   EVENT_SPACE = 28;
+const isResume = event => event.resume_point && !event.resume_point.replay_reason
+  && event.resume_point.next_task < event.resume_point.total_tasks;
 
 export class EventTimeline {
-  constructor({ onSeek, onAgent, onEvent }) {
+  constructor({ onSeek, onAgent, onEvent, onPoint }) {
     this.onSeek = onSeek;
     this.onAgent = onAgent;
     this.onEvent = onEvent;
+    this.onPoint = onPoint;
     this.events = [];
     this.agents = {};
     this.lanes = [];
@@ -30,7 +34,12 @@ export class EventTimeline {
     });
     this.viewport.addEventListener("click", (event) => {
       if (event.target.closest("button")) return;
-      this.seekAt(event.clientX);
+      this.seekAt(event.clientX, { x: event.clientX, y: event.clientY });
+    });
+    this.viewport.addEventListener('contextmenu', event => {
+      if (event.target.closest('button')) return;
+      event.preventDefault();
+      this.seekAt(event.clientX, { x: event.clientX, y: event.clientY });
     });
     $("#zoom-in").onclick = () => this.zoom(this.scale * 1.8);
     $("#zoom-out").onclick = () => this.zoom(this.scale / 1.8);
@@ -42,6 +51,11 @@ export class EventTimeline {
       }),
     );
     $("#timeline-connections").onchange = () => this.drawEvents();
+    $('#timeline-compact').onchange = () => {
+      this.scaleMode = 'auto';
+      this.setData(this.events, this.branch);
+      this.setCursor(this.cursor, true);
+    };
     $("#timeline-expand").onclick = () => {
       if (this.panel.dataset.heightMode === "manual") this.resetHeight();
       else this.setHeight(Math.max(this.panelHeight(), window.innerHeight - 170));
@@ -109,12 +123,13 @@ export class EventTimeline {
   x(at) {
     return (
       LEFT +
-      (((typeof at === "number" ? at : Date.parse(at)) - this.start) / 60000) *
+      (((typeof at === "number" ? at : this.clock.at(at)) - this.start) / 60000) *
         this.scale +
       EDGE
     );
   }
   laneFor(event) {
+    if (isResume(event)) return '__resume';
     if (event.agent_id) return event.agent_id;
     return event.kind === "message.created" ? "__human" : "__environment";
   }
@@ -166,29 +181,29 @@ export class EventTimeline {
       name: "Environment",
       kind: "environment",
     });
+    if (events.some(isResume)) this.lanes.push({ id: '__resume', name: 'Resume points', kind: 'environment' });
     this.laneIndex = new Map(this.lanes.map((lane, index) => [lane.id, index]));
     const actual = events.filter(
       (event) =>
         !["agent.added", "channel.created", "environment.updated"].includes(
           event.kind,
-        ) || event.intervention,
+        ) || event.intervention || isResume(event),
     );
-    this.ordered = [...events].sort(
-      (a, b) => Date.parse(a.at) - Date.parse(b.at) || a.position - b.position,
-    );
+    this.clock = timelineTime(events, $('#timeline-compact').checked);
+    this.ordered = this.clock.ordered;
     this.start = Math.min(
-      ...(actual.length ? actual : events).map((event) => Date.parse(event.at)),
+      ...(actual.length ? actual : events).map((event) => this.clock.at(event)),
     );
     this.end = Math.max(
       this.start + 1000,
-      ...events.map((event) => Date.parse(event.at)),
+      ...events.map((event) => this.clock.at(event)),
     );
     if (!Number.isFinite(this.start)) {
-      this.start = Date.now();
+      this.start = 0;
       this.end = this.start + 60000;
     }
     $("#timeline-subtitle").textContent =
-      `${Object.keys(this.agents).length} agents · ${channels.size} channel${channels.size === 1 ? "" : "s"} · timestamped events`;
+      `${Object.keys(this.agents).length} agents · ${channels.size} channel${channels.size === 1 ? "" : "s"} · ${this.clock.gaps.length ? `${this.clock.gaps.length} gap${this.clock.gaps.length === 1 ? '' : 's'} collapsed` : 'timestamped events'}`;
     this.layout();
   }
 
@@ -220,6 +235,7 @@ export class EventTimeline {
       this.viewport.clientWidth,
       Math.round(LEFT + duration * this.scale + EDGE * 2),
     );
+    this.width = width;
     this.scene.style.width = width + "px";
     const contentHeight = RULER + this.lanes.length * ROW;
     this.scene.style.height = contentHeight + "px";
@@ -233,18 +249,25 @@ export class EventTimeline {
         (value) => value * this.scale >= 95,
       ) || Math.ceil(95 / this.scale / 60) * 60;
     const step = minutesPerTick * 60000;
-    for (
-      let at = Math.ceil(this.start / step) * step;
-      at <= this.end;
-      at += step
-    ) {
+    const gapCenters = this.clock.gaps.map(gap => this.x((gap.start + gap.end) / 2));
+    let lastTick = -Infinity;
+    for (const { at, actual } of this.clock.ticks(step)) {
+      const x = this.x(at);
+      if (at < this.start || x - lastTick < 90 || gapCenters.some(center => Math.abs(x - center) < 70)) continue;
       const tick = el(
         "span",
         "time-tick",
-        time(at).slice(0, minutesPerTick < 1 ? 8 : 5),
+        time(actual).slice(0, minutesPerTick < 1 ? 8 : 5),
       );
-      tick.style.left = this.x(at) + "px";
+      tick.style.left = x + "px";
       ruler.append(tick);
+      lastTick = x;
+    }
+    for (const gap of this.clock.gaps) {
+      const label = el('span', 'time-gap-label', `⋯ ${gapDuration(gap.duration)} gap`);
+      label.style.left = this.x((gap.start + gap.end) / 2) + 'px';
+      label.title = `${new Date(gap.from).toISOString()} → ${new Date(gap.to).toISOString()}\nGap collapsed; original event timestamps are unchanged.`;
+      ruler.append(label);
     }
     const lanes = $("#timeline-lanes");
     lanes.replaceChildren();
@@ -292,11 +315,13 @@ export class EventTimeline {
         : windowMinutes >= 60
           ? (windowMinutes / 60).toFixed(1) + " hr"
           : Math.round(windowMinutes) + " min";
+    $('#zoom-label').title = this.clock.gaps.length ? 'Visible time excluding collapsed gaps' : 'Visible time span';
     this.drawEvents();
     this.setCursor(this.cursor, false);
   }
 
   allowed(event) {
+    if (isResume(event)) return true;
     const family = event.intervention
       ? "intervention"
       : event.kind.split(".")[0];
@@ -313,6 +338,7 @@ export class EventTimeline {
       ]),
     );
     root.querySelector(".fork-marker")?.remove();
+    root.querySelectorAll('.time-gap').forEach(node => node.remove());
     const connections = $("#timeline-connections-svg");
     connections.replaceChildren();
     const defs = svg("defs"),
@@ -333,8 +359,8 @@ export class EventTimeline {
     const visible = this.events.filter(
       (event) =>
         this.allowed(event) &&
-        this.x(event.at) >= start &&
-        this.x(event.at) <= end,
+        this.x(event) >= start &&
+        this.x(event) <= end,
     );
     const showConnections = $("#timeline-connections").checked;
     const selected = visible.find((event) => event.id === this.selected);
@@ -347,7 +373,7 @@ export class EventTimeline {
         const origin = this.laneIndex.get(this.laneFor(event)),
           target = this.laneIndex.get(event.channel_id);
         if (origin === undefined || target === undefined) continue;
-        const x = this.x(event.at),
+        const x = this.x(event),
           from = RULER + origin * ROW + ROW / 2,
           to = RULER + target * ROW + ROW / 2;
         connections.append(
@@ -374,11 +400,11 @@ export class EventTimeline {
     for (const event of visible) {
       const lane = this.laneIndex.get(this.laneFor(event));
       if (lane === undefined) continue;
-      const x = this.x(event.at),
+      const x = this.x(event),
         key = `${lane}:${Math.round(x / 17)}`,
         overlap = collisions.get(key) || 0;
       collisions.set(key, overlap + 1);
-      const type = event.intervention
+      const type = isResume(event) ? 'resume' : event.intervention
         ? "intervention"
         : event.kind.split(".")[0];
       const prior = existing.get(event.id);
@@ -407,15 +433,15 @@ export class EventTimeline {
       );
       node.setAttribute(
         "aria-label",
-        `${time(event.at)} ${this.agents[event.agent_id]?.name || "Human"} ${event.stage_label || event.label}, event ${event.position}`,
+        isResume(event) ? `Resume before task ${event.resume_point.next_task + 1}, event ${event.position}` : `${time(event.at)} ${this.agents[event.agent_id]?.name || "Human"} ${event.stage_label || event.label}, event ${event.position}`,
       );
-      node.title = `${time(event.at)} UTC · ${event.stage_label || event.label}\n${event.preview}`;
+      node.title = isResume(event) ? `Resume before task ${event.resume_point.next_task + 1} · event ${event.position}` : `${time(event.at)} UTC · ${event.stage_label || event.label}\n${event.preview}`;
       if (!prior) {
         node.append(
           el(
             "span",
             "event-symbol",
-            type === "message"
+            type === 'resume' ? `▶ ${event.resume_point.next_task + 1}` : type === "message"
               ? "▰"
               : type === "tool"
                 ? "⌁"
@@ -441,13 +467,21 @@ export class EventTimeline {
       }
     }
     for (const node of existing.values()) node.remove();
+    for (const gap of this.clock.gaps) {
+      const x = this.x((gap.start + gap.end) / 2);
+      if (x < start || x > end) continue;
+      const mark = el('div', 'time-gap');
+      mark.style.left = x + 'px';
+      mark.setAttribute('aria-hidden', 'true');
+      root.append(mark);
+    }
     if (this.branch?.parent_id) {
       const event = this.events.find(
         (event) => event.position === this.branch.fork_position,
       );
-      if (event && this.x(event.at) >= start && this.x(event.at) <= end) {
+      if (event && this.x(event) >= start && this.x(event) <= end) {
         const mark = el("div", "fork-marker", "⑂ fork");
-        mark.style.left = this.x(event.at) + "px";
+        mark.style.left = this.x(event) + "px";
         root.append(mark);
       }
     }
@@ -468,10 +502,10 @@ export class EventTimeline {
   setCursor(cursor, reveal = false) {
     this.cursor = cursor;
     const event = this.events.find((event) => event.position === cursor);
-    const x = event ? Math.max(LEFT + 20, this.x(event.at)) : LEFT + 20;
+    const x = event ? Math.max(LEFT + 20, this.x(event)) : LEFT + 20;
     $("#timeline-marker").style.left = x + "px";
     if (
-      reveal &&
+      reveal && this.width > this.viewport.clientWidth &&
       (x < this.viewport.scrollLeft + LEFT + 25 ||
         x > this.viewport.scrollLeft + this.viewport.clientWidth - 30)
     )
@@ -482,7 +516,7 @@ export class EventTimeline {
     this.drawEvents();
   }
 
-  seekAt(clientX) {
+  seekAt(clientX, point) {
     const rect = this.viewport.getBoundingClientRect();
     if (clientX < rect.left + LEFT) return;
     const at =
@@ -494,10 +528,13 @@ export class EventTimeline {
       high = this.ordered.length;
     while (low < high) {
       const middle = (low + high) >> 1;
-      if (Date.parse(this.ordered[middle].at) <= at) low = middle + 1;
+      if (this.clock.at(this.ordered[middle]) <= at) low = middle + 1;
       else high = middle;
     }
     const event = this.ordered[Math.max(0, low - 1)];
-    if (event) this.onSeek(event.position);
+    if (event) {
+      if (point && this.onPoint) this.onPoint(event.position, point);
+      else this.onSeek(event.position);
+    }
   }
 }

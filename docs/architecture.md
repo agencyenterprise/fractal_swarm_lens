@@ -16,7 +16,7 @@ Replay loads the closest eligible snapshot, then applies events through the requ
 
 Writes use an expected head. SQLite commits each batch and its relational projections atomically; an intervening writer produces a conflict. An ingest spanning multiple batches retains earlier successful batches if a later batch fails. Applications own retry/resume policy and stable source IDs. Runtime continuations also reject output if the branch changed while that output was being produced.
 
-An intervention is another event with its actor and origin recorded. The UI forks recorded or historical state before editing it. The library leaves branch policy to its embedding application and only permits appending at the current head.
+An intervention is another event with its actor and origin recorded. The UI creates a child at the visible cursor for each intervention and offers either saving the branch or running it live. Live execution validates the proposed state before creating the child; it never substitutes a different cursor. The library leaves branch policy to its embedding application and only permits appending at the current head.
 
 ## SQLite and Git
 
@@ -88,7 +88,7 @@ A small SDK should offer explicit initialization plus decorators/context manager
 
 Collectors send batches to the ingestion API with stable source IDs. Acknowledge only durable writes; provide bounded buffering/retry and visible delivery failures. Define per-run ordering and correlation for concurrent callbacks. Observability errors or a disconnected browser must not terminate the agent task. Collection loss must be reported, never silently treated as a complete trace.
 
-**Proposed first integration: CrewAI.** Its documented event listener interface covers crews, agents, tasks, tools, and LLM calls. Verify the required payloads and choose an exact release/commit during the adapter implementation; the adapter is not yet implemented or compatibility-tested. [CrewAI event listeners](https://docs.crewai.com/en/concepts/event-listener). AutoGen remains a possible later adapter; its repository currently describes it as being in maintenance mode. [AutoGen status](https://github.com/microsoft/autogen).
+**Implemented first integration: CrewAI 1.15.23.** The optional adapter uses native LLM/tool hooks, memory events, and task callbacks to capture synchronous crew execution. The live service provides idempotent capture ingestion, durable job status, and resumable WebSocket delivery. Registered `CrewAIRuntime` factories restore sequential task boundaries or restart the active task with the selected saved context; unsupported executor/external state is rejected. `TraceCrewAIRuntime` reconstructs imported conversations as native CrewAI tasks: ACIArena keeps its sequential debater/aggregator round structure, while generic traces use explicit round-robin scheduling over saved connections. Tool implementations come from a trusted server registry. Both paths keep the selected fork cursor, record their execution mode, and exclude later parent events. Reconstructed continuation does not imply exact reproduction of the original framework. See [setup, supported state, and compatibility tests](../examples/crewai/README.md). [CrewAI event listeners](https://docs.crewai.com/en/concepts/event-listener). AutoGen remains a possible later adapter; its repository currently describes it as being in maintenance mode. [AutoGen status](https://github.com/microsoft/autogen).
 
 ### One FastAPI application with plugin extensions
 

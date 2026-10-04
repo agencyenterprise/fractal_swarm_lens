@@ -1,6 +1,7 @@
 from collections import Counter
 from dataclasses import asdict
 from functools import lru_cache
+from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 
@@ -11,11 +12,13 @@ from pydantic import BaseModel, Field
 
 from swarm_lens import Framework
 from swarm_lens.core.models import Conflict, DomainError
+from .live import BranchIntervention
 
 
 class ForkRequest(BaseModel):
     cursor: int = Field(ge=0)
     name: str = Field(min_length=1, max_length=160)
+    intervention: BranchIntervention | None = None
 
 
 class InterventionRequest(BaseModel):
@@ -37,6 +40,10 @@ class CheckpointRequest(BaseModel):
 
 def event_summary(event):
     d = event.data
+    cp = d.get('metadata', {}).get('crewai', {})
+    resume_point = ({key: cp.get(key) for key in ('next_task', 'total_tasks', 'replay_reason')}
+                    if event.kind == 'environment.updated' and event.source.get('origin') == 'crewai'
+                    and cp.get('phase') == 'boundary' else None)
     family = event.kind.split(".")[0]
     agent_id = d.get("sender_id") or d.get("agent_id") or d.get("owner_id")
     if family == "agent":
@@ -46,6 +53,7 @@ def event_summary(event):
             "at": event.occurred_at, "agent_id": agent_id, "channel_id": d.get("channel_id"),
             "label": d.get("type") or event.kind, "preview": str(text)[:260],
             "intervention": event.source.get("origin") == "intervention",
+            "resume_point": resume_point,
             "agent_name": d.get("name") if family == "agent" else None,
             "model": d.get("model") if family == "agent" else None,
             "entity_id": d.get("id"), "reply_to_id": d.get("reply_to_id"),
@@ -53,11 +61,20 @@ def event_summary(event):
             "channel_name": d.get("name") if family == "channel" else None}
 
 
-def create_app(framework: Framework, artifacts=None, *, extensions=()) -> FastAPI:
+def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None) -> FastAPI:
     extensions = tuple(extensions)
     if len({extension.id for extension in extensions}) != len(extensions):
         raise ValueError("Duplicate web extension ID")
-    app = FastAPI(title="Swarm Lens", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app):
+        if live:
+            live.recover()
+        yield
+        if live:
+            import asyncio
+            await asyncio.to_thread(live.close)
+
+    app = FastAPI(title="Swarm Lens", version="0.1.0", lifespan=lifespan)
 
     @app.exception_handler(DomainError)
     async def domain_error(request, exc):
@@ -86,6 +103,7 @@ def create_app(framework: Framework, artifacts=None, *, extensions=()) -> FastAP
         return {"runs": [asdict(run) for run in runs],
                 "branches": [asdict(branch) for run in runs for branch in framework.store.branches(run.id)],
                 "capabilities": {**framework.capabilities(),
+                                 "live": {"enabled": live is not None, "runtimes": list(live.runtimes) if live else []},
                                  "web_plugins": [extension.manifest() for extension in extensions]}}
 
     @app.get("/api/branches/{branch_id}/timeline")
@@ -129,10 +147,15 @@ def create_app(framework: Framework, artifacts=None, *, extensions=()) -> FastAP
 
     @app.post("/api/branches/{branch_id}/fork")
     def fork(branch_id: str, request: ForkRequest):
-        return asdict(framework.fork(branch_id, request.cursor, request.name))
+        return asdict(framework.fork_with_intervention(branch_id, request.cursor, request.name,
+                      request.intervention.model_dump() if request.intervention else None))
 
     @app.post("/api/branches/{branch_id}/interventions")
     def intervene(branch_id: str, request: InterventionRequest):
+        if live:
+            with live.lock:
+                live.assert_idle(branch_id)
+                return asdict(framework.intervene(branch_id, request.kind, request.data, request.expected_head, actor="explorer"))
         return asdict(framework.intervene(branch_id, request.kind, request.data, request.expected_head, actor="explorer"))
 
     @app.post("/api/branches/{branch_id}/analyses")
@@ -167,6 +190,10 @@ def create_app(framework: Framework, artifacts=None, *, extensions=()) -> FastAP
                     raise ValueError("Duplicate plugin route")
                 existing.add(key)
         app.include_router(extension.router)
+
+    if live:
+        from .live import live_router
+        app.include_router(live_router(live, event_summary))
 
     web = Path(__file__).parent
     app.mount("/assets", StaticFiles(directory=web), name="assets")

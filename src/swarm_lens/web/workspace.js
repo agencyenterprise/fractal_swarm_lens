@@ -5,6 +5,7 @@ export class WorkspaceViews {
   constructor(onSelect) {
     this.entries = new Map();
     this.current = null;
+    this.transition = 0;
     this.onSelect = onSelect;
     $("#workspace-tabs").onkeydown = (event) => {
       const tabs = [...this.entries.values()].map((entry) => entry.tab);
@@ -38,6 +39,7 @@ export class WorkspaceViews {
   }
 
   show(id, params = {}) {
+    const transition = ++this.transition;
     const next = this.entries.get(id);
     if (!next) throw new Error(`Workspace view is unavailable: ${id}`);
     const previous = this.entries.get(this.current);
@@ -57,13 +59,16 @@ export class WorkspaceViews {
     }
     Promise.resolve(next.onShow?.(params)).catch(failure);
     requestAnimationFrame(() => {
-      if (this.current !== id) return;
+      if (this.current !== id || this.transition !== transition) return;
       $("main").scrollTop = next.scroll;
       for (const { node, left, top } of next.scrollNodes || []) node.scrollTo(left, top);
     });
   }
 
   reset() {
+    this.entries.get(this.current)?.onHide?.();
+    this.current = null;
+    this.transition++;
     for (const entry of this.entries.values()) {
       entry.params = {};
       entry.scroll = 0;

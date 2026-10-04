@@ -65,11 +65,11 @@ export async function api(path, options = {}) {
 export const post = (path, body) =>
   api(path, { method: "POST", body: JSON.stringify(body) });
 let toastTimer;
-export function toast(message) {
+export function toast(message, duration = 4500) {
   $("#toast").textContent = message;
   $("#toast").hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => ($("#toast").hidden = true), 4500);
+  toastTimer = setTimeout(() => ($("#toast").hidden = true), duration);
 }
 export function failure(error) {
   if (error.name === "AbortError") return;

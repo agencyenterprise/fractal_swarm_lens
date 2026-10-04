@@ -4,7 +4,7 @@ A self-hosted framework for observing, replaying, branching, and intervening in 
 
 ## Project priorities
 
-Swarm Lens will support two modes over the same event history: importing saved traces and observing existing agent applications live. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for importing and analyzing traces. Live collection, WebSocket updates, one pinned CrewAI integration, and Docker deployment remain priorities. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
+Swarm Lens supports saved traces and live collection over the same event history. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for importing and analyzing traces. [CrewAI live collection and branch execution](examples/crewai/README.md) use a pinned adapter, durable ingestion, WebSocket updates, registered application runtimes, and a continuation adapter for imported conversations. ACIArena continuations preserve the debater/aggregator round structure; other traces use an explicit round-robin schedule and registered tools. Docker deployment remains a priority. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
 
 CASPIAN stays as an optional experimental plugin. We have not validated that it reliably detects cascade effects; executable code and equation-level tests do not establish detection accuracy. Observability and trace collection must remain useful independently of CASPIAN.
 
@@ -67,6 +67,18 @@ For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,m
 Optional methods live under `swarm_lens.observability`, independently of the core. The first is a paper-based [CASPIAN implementation](docs/observability/caspian/README.md) with streaming conditional influence estimation, spectral detection, and role/path attribution. Install `.[caspian]`. Applications supply observed source/target vectors through a versioned history adapter; no AI Village schema is embedded in the method.
 
 The [paper coverage map](docs/observability/caspian/coverage.md) records equation-level tests, missing author artifacts, reconstruction choices, and mathematical limitations of the published rules. This is not a reproduction of the paper's reported benchmark accuracy or latency. Runnable synthetic, attribution, and nested-branch examples are under `examples/observability/caspian/`; `python -m examples.ai_village.caspian` audits the Village mapping's missing evidence without fabricating scores. See the [method extension contract](docs/observability/README.md).
+
+## Frontend development
+
+The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Shared controls and dialogs are styled in `frontend/styles.css`; the specialized timeline geometry remains in `src/swarm_lens/web/style.css`.
+
+```sh
+npm ci
+npm run build
+npm test
+```
+
+Rebuild after editing frontend styles or `frontend/components.js`. Commit the generated `src/swarm_lens/web/tailwind.css` and `components.js` alongside their sources. These assets ship with the Python package, so running the application requires neither Node.js nor a CDN.
 
 ## Validation
 

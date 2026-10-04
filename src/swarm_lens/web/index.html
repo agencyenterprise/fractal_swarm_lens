@@ -4,22 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Swarm Lens · Explorer</title>
-    <link rel="stylesheet" href="/assets/style.css?v=3" />
+    <link rel="icon" href="/assets/logos/swarm-lens.ico?v=2" type="image/x-icon" sizes="16x16 32x32 48x48 64x64" />
+    <link rel="stylesheet" href="/assets/tailwind.css?v=2" />
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">S<span>·</span>L</span
-        ><span
+        <picture class="brand-mark" aria-hidden="true">
+          <source media="(prefers-reduced-motion: reduce)" srcset="/assets/logos/swarm-lens.png?v=2" />
+          <img src="/assets/logos/swarm-lens.gif?v=2" width="48" height="48" alt="" decoding="async" />
+        </picture>
+        <span
           >swarm<span class="brand-light">lens</span
           ><small>OBSERVE · BRANCH · EXPLORE</small></span
         >
       </div>
       <div class="sidebar-label">
-        WORKSPACE <span class="local-dot">LOCAL</span>
+        CONVERSATION <span class="local-dot">LOCAL</span>
       </div>
-      <label class="sr-only" for="run-select">Run</label
-      ><select id="run-select"></select>
+      <div id="run-select"></div>
       <button id="import-trace" class="import-trace" hidden>+ Import saved trace</button>
       <div class="task-summary">
         <span class="eyebrow">CURRENT TASK</span>
@@ -76,6 +79,20 @@
         </div>
         <div id="counts" class="counts"></div>
       </section>
+      <div id="live-controls" class="live-controls" hidden>
+        <span id="live-spinner" class="live-spinner" aria-hidden="true" hidden></span>
+        <span id="live-status" role="status">Saved history</span>
+        <span id="live-elapsed"></span>
+        <span id="live-connection">Connecting…</span>
+        <label><input id="follow-live" type="checkbox" /> Follow live</label>
+        <span>Replay shows saved events · Create branch and run live generates new responses</span>
+      </div>
+      <div id="execution-notice" class="execution-notice" role="status" aria-live="polite" hidden>
+        <span id="execution-notice-text"></span>
+        <button id="view-execution-branch">View branch</button>
+        <button id="dismiss-execution-notice" aria-label="Dismiss execution notification">×</button>
+      </div>
+      <p id="execution-error" class="execution-error" role="alert" hidden></p>
       <div class="workspace-switcher">
         <div id="workspace-tabs" role="tablist" aria-label="Workspace view"></div>
         <span>Explore a conversation or read its reports</span>
@@ -104,15 +121,10 @@
         <div class="timeline-controls">
           <div class="player">
             <button id="previous" aria-label="Previous event">|‹</button
-            ><button id="play" class="play-button" aria-label="Play timeline">
-              ▶</button
+            ><button id="play" class="play-button" aria-label="Replay saved events">
+              ▶ Replay</button
             ><button id="next" aria-label="Next event">›|</button
-            ><label class="sr-only" for="speed">Playback step size</label
-            ><select id="speed">
-              <option value="1">1 event</option>
-              <option value="10" selected>10 events</option>
-              <option value="50">50 events</option>
-            </select>
+            ><div id="speed"></div>
           </div>
           <div class="timeline-toggles">
             <label
@@ -139,6 +151,8 @@
               ><input id="timeline-connections" type="checkbox" checked /><span
                 >Connections</span
               ></label
+            ><label title="Collapse gaps longer than one minute. Event timestamps stay unchanged."
+              ><input id="timeline-compact" type="checkbox" checked /><span>Compact gaps</span></label
             >
           </div>
           <button id="go-end" class="subtle">Latest →</button>
@@ -168,7 +182,7 @@
             max="1"
             value="0"
             step="1"
-          /><span>UTC · click an event · right-click to intervene</span>
+          /><span>UTC · click an event · select a point to branch or run live</span>
         </div>
         <button
           id="resize-timeline"
@@ -299,6 +313,7 @@
           ><button id="confirm-dialog" class="primary" type="submit">
             Save
           </button>
+          <button id="alternate-dialog" class="primary" type="button" hidden></button>
         </div>
       </form>
     </dialog>
@@ -310,6 +325,6 @@
       hidden
     ></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js?v=3"></script>
+    <script type="module" src="/assets/app.js?v=13"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 import { $, el, button, api, post, toast, failure } from "./ui.js";
-import { field, openDialog } from "./dialog.js";
+import { field, openDialog } from "./dialog.js?v=4";
 import { workspaceURL } from "./workspace.js";
 
 const prefix = "/plugins/mast";
@@ -120,11 +120,11 @@ function analyzeDialog(manifest, selection, host) {
   const root = el("div", "mast-panel");
   root.append(el("p", "", `${selection.name} · ${selection.branchName} · saved snapshot through event ${selection.cursor}.`));
   const completeness = field("Trace completeness", "completeness", "", "select");
-  for (const [value, text] of [["unknown", "Unknown"], ["complete", "Complete task trace"], ["partial", "Partial trace"]]) {
-    const option = el("option", "", text);
-    option.value = value;
-    completeness.input.append(option);
-  }
+  completeness.input.setOptions([
+    { value: 'unknown', label: 'Unknown', description: 'Completeness has not been established.' },
+    { value: 'complete', label: 'Complete task trace', description: 'The entire task is included in this snapshot.' },
+    { value: 'partial', label: 'Partial trace', description: 'This snapshot contains part of the task.' },
+  ]);
   root.append(completeness.fragment,
     el("p", "", `The selected trace will be sent to OpenAI (${manifest.judge.model}) with MAST's definitions and examples.`),
     el("p", "", "Your results will open as a saved report in the workspace."));
