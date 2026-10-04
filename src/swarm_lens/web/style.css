@@ -1888,6 +1888,70 @@ main {
 .mast-category-group h4 { padding: 12px 0 8px; border-bottom: 1px solid var(--line); color: #657987; }
 .mast-label-row { padding: 12px 0; line-height: 1.5; }
 .mast-label-row > div { display: flex; gap: 12px; }
+.mast-trait > summary { cursor: pointer; list-style: none; }
+.mast-trait > summary::-webkit-details-marker { display: none; }
+.mast-trait > summary:hover { background: #f6faf9; }
+.mast-trait > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.mast-trait-arrow { color: var(--teal); font-size: 17px; transition: transform .15s; }
+.mast-trait[open] > summary .mast-trait-arrow { transform: rotate(90deg); }
+.mast-trait-body { padding: 16px 12px 20px 30px; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.7; }
+.mast-trait-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 12px; }
+.mast-trait-body .subtle { color: var(--teal); font-size: 11px; }
+.mast-occurrence { margin: 18px 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
+.mast-occurrence h5 { font-size: 12px; margin: 0; }
+.mast-evidence-timeline { list-style: none; padding: 0 0 0 14px; margin: 16px 0 0 4px; border-left: 2px solid var(--line); }
+.mast-evidence-event { position: relative; padding: 0 0 16px 8px; }
+.mast-evidence-event::before { content: ""; position: absolute; left: -20px; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: #c5d1d5; }
+.mast-evidence-event.supporting::before { background: #bc7950; }
+.mast-evidence-event.counterevidence::before { background: var(--teal); }
+.mast-evidence-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 16px; font-size: 11px; }
+.mast-evidence-message { border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+.mast-evidence-message > summary { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; padding: 12px 14px 12px 32px; cursor: pointer; list-style: none; }
+.mast-evidence-message > summary::-webkit-details-marker { display: none; }
+.mast-evidence-message > summary::before { content: "›"; position: absolute; left: 12px; top: 10px; color: var(--teal); font-size: 18px; }
+.mast-evidence-message[open] > summary::before { transform: rotate(90deg); }
+.mast-evidence-message > summary:hover { background: #f6faf9; }
+.mast-evidence-message > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.mast-evidence-identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 10px; min-width: 0; overflow-wrap: anywhere; }
+.mast-evidence-identity strong { font-size: 12px; font-weight: 650; }
+.mast-evidence-identity .muted { font-size: 10px; }
+.mast-evidence-role { align-self: start; padding: 2px 7px; border-radius: 5px; font-size: 10px; color: #657987; background: #edf1f4; }
+.supporting .mast-evidence-role { background: #fae9df; color: #8d4524; }
+.counterevidence .mast-evidence-role { background: #e9f6f1; color: #146d5d; }
+.mast-evidence-preview { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #657987; font-size: 11px; }
+.mast-evidence-message[open] .mast-evidence-preview { display: none; }
+.mast-message-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; padding: 0 14px 10px; border-bottom: 1px solid var(--line); }
+.mast-message-tools time { font-size: 10px; margin-right: auto; }
+.mast-message-content { max-height: 32rem; overflow: auto; overscroll-behavior: contain; padding: 16px 20px; font-size: 13px; line-height: 1.75; white-space: normal; overflow-wrap: anywhere; }
+.mast-message-content:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.mast-message-content > :first-child { margin-top: 0; }
+.mast-message-content > :last-child { margin-bottom: 0; }
+.mast-message-content p { margin: 0 0 12px; }
+.mast-message-content strong { font-weight: 700; }
+.mast-message-content em { font-style: italic; }
+.mast-message-content ul, .mast-message-content ol { margin: 12px 0; padding-left: 25px; }
+.mast-message-content ol { list-style: decimal; }
+.mast-message-content ul { list-style: disc; }
+.mast-message-content li { margin: 7px 0; padding-left: 3px; }
+.mast-message-content li > p { margin: 5px 0; }
+.mast-message-content h1, .mast-message-content h2, .mast-message-content h3, .mast-message-content h4 { font-size: 14px; font-weight: 650; margin: 18px 0 8px; }
+.mast-message-content blockquote { margin: 12px 0; padding: 6px 14px; border-left: 3px solid #bdcfd0; color: #536470; }
+.mast-message-content code { font-family: ui-monospace, monospace; font-size: .9em; background: #f0f4f5; padding: 2px 4px; border-radius: 3px; }
+.mast-message-content pre { padding: 12px; background: #f6f8f9; border-radius: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mast-message-content pre code { padding: 0; background: transparent; }
+.mast-message-content .mast-message-original { margin: 0; font: 11px/1.7 ui-monospace, monospace; }
+.mast-message-content table { border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+.mast-message-content th, .mast-message-content td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.mast-message-content th { background: #f0f4f5; font-weight: 650; }
+.mast-message-content a { color: var(--teal); text-decoration: underline; }
+.mast-message-content math[display="block"] { display: block; margin: 14px 0; overflow-x: auto; text-align: left; }
+@media (max-width: 600px) {
+  .mast-trait-body { padding: 12px 0; }
+  .mast-occurrence { padding: 10px; }
+  .mast-evidence-message > summary { grid-template-columns: minmax(0, 1fr); }
+  .mast-evidence-role { justify-self: start; }
+  .mast-message-content { padding: 12px; }
+}
 .mast-code { font-family: monospace; color: var(--muted); flex-shrink: 0; }
 .mast-assessment-note { font-size: 11px; color: #70808e; padding: 22px 0 10px; }
 .mast-empty { padding: 22px 0; color: var(--muted); font-size: 12px; }

@@ -6,6 +6,7 @@ import re
 
 from swarm_lens.core.models import DomainError
 from .trace import encode_trace, FORMAT
+from .evidence import generate_evidence
 
 
 @lru_cache(maxsize=1)
@@ -73,7 +74,7 @@ def history_trace(history, completeness="unknown"):
 
 
 class MastPlugin:
-    id, version = "mast", "0.2.0"
+    id, version = "mast", "0.3.0"
 
     def __init__(self, judge, *, max_trace_characters=4_000_000):
         self.judge = judge
@@ -115,6 +116,7 @@ class MastPlugin:
                        "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                        "trace_sha256": hashlib.sha256(trace.encode()).hexdigest(),
                        "judgment_kind": "llm_assessment", "mode": "saved_trace", "human_reviewed": False})
+        output["evidence"] = generate_evidence(self.judge, trace, output["labels"], assets()["categories"])
         return output
 
     def run(self, context, config):

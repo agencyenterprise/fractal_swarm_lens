@@ -18,7 +18,7 @@ import { EventTimeline } from "./timeline.js?v=4";
 import { field, openDialog } from "./dialog.js?v=4";
 import { branchDialog } from "./branch.js?v=3";
 import { Picker } from './components.js?v=1';
-import { installMast } from "./mast.js?v=4";
+import { installMast } from "./mast.js?v=6";
 import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js?v=2";
 import { LiveView } from "./live.js?v=6";
 import {
@@ -897,6 +897,17 @@ async function boot(selectedBranchId) {
         if (branchId !== view.branch?.id) await loadBranch(branchId, cursor);
         else await seek(cursor);
         openWorkspaceView("timeline");
+      },
+      showEvidenceEvent: async (branchId, cursor, eventId) => {
+        liveView.pause();
+        stopPlayback();
+        if (branchId !== view.branch?.id) await loadBranch(branchId, cursor);
+        else await seek(cursor);
+        if (view.branch?.id !== branchId || view.cursor !== cursor) return;
+        const event = view.events.find(item => item.id === eventId);
+        if (!event) throw new Error("This evidence event is unavailable in the selected history.");
+        openWorkspaceView("timeline");
+        await selectEvent(event);
       },
       onImport: async (branchId) => {
         await boot(branchId);
