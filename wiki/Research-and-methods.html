@@ -1,53 +1,53 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Research and methods — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a aria-current="page" href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Research and methods</h1>
-<p>Swarm Lens supports inspecting interactions and designing branch experiments. It does not, by itself, prove that an observed dependency is causal or that an analysis model is accurate.</p>
-<h2>Research context</h2>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Research and methods · Swarm Lens docs</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Docs</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">DOCS</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a aria-current="page" href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Research and methods</h1>
+<p>Swarm Lens helps you look closely at how agents interact and set up experiments by branching. It can't, on its own, tell you that one agent caused another's behavior, or that an analysis model got it right. Those claims still need an experimental design behind them.</p>
+<h2>Methods we build on</h2>
 <table>
 <thead>
 <tr>
 <th>Component</th>
-<th>Role in this project</th>
-<th>Research context</th>
+<th>What it does here</th>
+<th>What to keep in mind</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><a href="https://github.com/multi-agent-systems-failure-taxonomy/MAST">MAST</a></td>
-<td>Saved-trace LLM judgments using the taxonomy of <a href="https://arxiv.org/abs/2503.13657">Cemri et al. (2025), arXiv:2503.13657</a></td>
-<td>Judge outputs and cited evidence require review; not human ground truth</td>
+<td>An LLM judge labels saved traces with the failure taxonomy from <a href="https://arxiv.org/abs/2503.13657">Cemri et al. (2025), arXiv:2503.13657</a></td>
+<td>Read the judge's output and the evidence it cites; it isn't a human annotation</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Greysahy/aciarena">ACIArena</a></td>
-<td>Paired control/attack examples from <a href="https://arxiv.org/abs/2604.07775">An et al. (2026), arXiv:2604.07775</a></td>
-<td>Native task/attack grading is distinct from propagation or cascade labels</td>
+<td>Paired control/attack runs from <a href="https://arxiv.org/abs/2604.07775">An et al. (2026), arXiv:2604.07775</a></td>
+<td>Its grader scores the task and the attack, not whether behavior propagated</td>
 </tr>
 <tr>
 <td><a href="https://github.com/caspian-detector/caspian">CASPIAN</a></td>
-<td>Experimental cascade detection and attribution feature</td>
-<td>Detects and attributes cascade attacks through cross-channel causal monitoring — <a href="https://arxiv.org/abs/2605.19240">Venkatesh et al. (2026), arXiv:2605.19240</a></td>
+<td>Experimental cascade detection and attribution</td>
+<td>Uses cross-channel causal monitoring, from <a href="https://arxiv.org/abs/2605.19240">Venkatesh et al. (2026), arXiv:2605.19240</a></td>
 </tr>
 </tbody>
 </table>
-<p>Swarm Lens's present contribution is infrastructure: an ordered event model, inspectable provenance, branching and intervention workflows, and extensible analysis. These upstream projects supply methods or benchmark context; listing them does not imply their authors endorse this implementation.</p>
-<h2>CASPIAN</h2>
-<p>Swarm Lens includes CASPIAN as an experimental feature for cascade detection and attribution in multi-agent systems. To our knowledge, this is the first public implementation of the method described by <a href="https://arxiv.org/abs/2605.19240">Venkatesh et al. (2026), arXiv:2605.19240</a>.</p>
-<h2>Cascades and failures</h2>
-<p>A cascade can propagate benign, harmful, or other behavior. An attack is a possible trigger, not a definition of a cascade. Shared answers, common exposure, or agreement do not alone establish propagation. Descriptive tools help locate evidence; reference labels need an explicit operational definition and inspection protocol.</p>
-<h2>Suggested experimental record</h2>
+<p>What Swarm Lens itself adds is the infrastructure around these: an ordered event model, provenance you can inspect, branching and intervention, and a way to plug in more analyses. The methods and benchmarks come from the projects above. Their authors haven't reviewed or endorsed this implementation.</p>
+<h2>About CASPIAN</h2>
+<p>CASPIAN is included as an experimental feature. As far as we know, this is the first public implementation of the method in <a href="https://arxiv.org/abs/2605.19240">Venkatesh et al. (2026)</a>. Expect rough edges, and please <a href="https://github.com/agencyenterprise/fractal_swarm_lens/issues">tell us</a> when you find them.</p>
+<h2>Cascades vs. failures</h2>
+<p>A cascade is behavior spreading from agent to agent. What spreads might be harmful, harmless, or just odd. An attack is one way to start a cascade, but it isn't the definition of one. And when agents give the same answer, or saw the same input, or agree with each other, that by itself doesn't show anything propagated. The descriptive views help you find evidence. To label cascades reliably, you need a written definition and a consistent way of checking traces against it.</p>
+<h2>Keeping a good experimental record</h2>
 <ol>
-<li>Preserve source data, code revision, exact prompts, outputs, and observed delivery links.</li>
-<li>State the behavior of interest and labeling criteria before comparing detectors.</li>
-<li>Separate control and intervention conditions; document shared inputs and model settings.</li>
-<li>Record the first detection and continue measurement through the end of the run.</li>
-<li>Retain uncertainty, grader failures, and unscorable cases rather than assigning negative labels.</li>
-<li>Distinguish repeated-condition estimates from a single illustrative run.</li>
+<li>Save the source data, code revision, exact prompts and outputs, and the observed delivery links between agents.</li>
+<li>Write down what behavior you're looking for, and how you'll label it, before you compare detectors.</li>
+<li>Keep control and intervention conditions separate, and note which inputs and model settings they share.</li>
+<li>Record when something is first detected, and keep measuring until the run ends.</li>
+<li>Keep uncertain, failed, and unscorable cases as they are. Don't fold them into the negatives.</li>
+<li>Be clear about whether a number comes from repeated runs or from a single illustrative one.</li>
 </ol>
-<p>Imported-trace continuation is a new execution in CrewAI, not exact resumption of the original system. Model stochasticity and external side effects limit direct counterfactual interpretations.</p>
-<h2>Next steps</h2>
+<p>Continuing an imported trace starts a new CrewAI run. It doesn't resume the original system exactly. Between model randomness and tools that touch the outside world, a branch isn't a clean counterfactual, so treat comparisons with that in mind.</p>
+<h2>What we'd like to do next</h2>
 <ul>
-<li><strong>Build reproducible benchmark workflows.</strong> Package trace exports, model settings, prompts, and code revisions so researchers can repeat and compare experiments.</li>
-<li><strong>Compare analysis with reference annotations.</strong> Evaluate MAST reports and CASPIAN outputs against independently reviewed traces, with results broken down by scenario and behavior.</li>
-<li><strong>Study propagation over time.</strong> Compare paired control and intervention runs to examine how behaviors spread through messages, tools, and memory.</li>
-<li><strong>Extend framework integrations.</strong> Capture more interaction types and support branch experiments across additional agent runtimes.</li>
-<li><strong>Make research easier to share.</strong> Export reports and trace evidence together, with citations to the methods used in each experiment.</li>
+<li><strong>Reproducible benchmark workflows.</strong> Package trace exports, model settings, prompts, and code revisions so others can rerun and compare experiments.</li>
+<li><strong>Check the analyses against human labels.</strong> Compare MAST reports and CASPIAN output with independently reviewed traces, broken down by scenario and behavior.</li>
+<li><strong>Follow propagation over time.</strong> Use paired control and intervention runs to see how behavior moves through messages, tools, and memory.</li>
+<li><strong>More frameworks.</strong> Capture more kinds of interaction, and support branching in runtimes beyond CrewAI.</li>
+<li><strong>Easier sharing.</strong> Export reports and the trace evidence together, with citations for the methods used.</li>
 </ul>
-<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Research-and-methods.md">View Markdown source ↗</a></div></main></div></body></html>
+<div class="wiki-bottom">These pages describe <code>main</code>. <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Research-and-methods.md">View this page's source ↗</a></div></main></div></body></html>
