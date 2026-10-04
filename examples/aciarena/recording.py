@@ -1,6 +1,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import threading
 import time
 from types import SimpleNamespace
 
@@ -16,16 +17,19 @@ class Budget:
         self.max_tokens, self.max_requests = max_tokens, max_requests
         self.tokens = self.requests = 0
         self.usage = {'chat_input': 0, 'chat_output': 0, 'embedding_input': 0}
+        self.lock = threading.Lock()  # Concurrent runs may share one budget
 
     def reserve(self, input_tokens_upper_bound, output_tokens=0):
-        if (self.requests >= self.max_requests
-                or self.tokens + input_tokens_upper_bound + output_tokens > self.max_tokens):
-            raise BudgetExceeded('Configured API budget exhausted before the next request')
-        self.requests += 1
+        with self.lock:
+            if (self.requests >= self.max_requests
+                    or self.tokens + input_tokens_upper_bound + output_tokens > self.max_tokens):
+                raise BudgetExceeded('Configured API budget exhausted before the next request')
+            self.requests += 1
 
     def complete(self, *, chat_input=0, chat_output=0, embedding_input=0):
-        for key, value in locals().copy().items():
-            if key != 'self':
+        with self.lock:
+            for key, value in {'chat_input': chat_input, 'chat_output': chat_output,
+                               'embedding_input': embedding_input}.items():
                 self.usage[key] += value
                 self.tokens += value
 
@@ -111,6 +115,20 @@ def observed_debate(base_class, trace):
             return super().conclude(args)
 
     return ObservedDebate
+
+
+def observed_mad(base_class, trace):
+    class ObservedMAD(base_class):
+        # MAD announces every delivery as sender -> receiver immediately before the receiving call.
+        def _log_step(self, sender, receiver, message):
+            if receiver in self.agents:
+                trace.expose(receiver, [trace.latest[name] for name in sender.split(' & ') if name in trace.latest])
+            return super()._log_step(sender, receiver, message)
+
+    return ObservedMAD
+
+
+OBSERVERS = {'LLMDebate': observed_debate, 'MAD': observed_mad}
 
 
 def name_marker(text):
