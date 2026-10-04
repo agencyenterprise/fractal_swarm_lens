@@ -237,6 +237,7 @@ export class EventTimeline {
       input.checked = this.view[key];
       input.addEventListener("change", () => this.setOption(key, input.checked));
       row.append(input, el("span", "", label));
+      if (key === "connections") this.connectionsOption = row;
       this.menu.append(row);
     }
     const zoom = el("div", "tl-zoom");
@@ -324,8 +325,11 @@ export class EventTimeline {
   // Visible events and lanes; depends on the View toggles.
   refresh() {
     const shown = this.ordered.filter((event) => this.isShown(event));
+    // One channel receives every message, so its lane and the links into it carry no information.
+    const routed = this.channels.length > 1;
+    this.connectionsOption.hidden = !routed;
     this.lanes = [
-      ...this.channels.map((channel) => ({ ...channel, kind: "channel" })),
+      ...(routed ? this.channels.map((channel) => ({ ...channel, kind: "channel" })) : []),
       ...Object.values(this.agents).map((agent) => ({ ...agent, kind: "agent" })),
     ];
     if (this.events.some((event) => event.kind === "message.created" && !event.agent_id))
