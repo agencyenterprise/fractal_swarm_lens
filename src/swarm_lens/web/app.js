@@ -561,6 +561,12 @@ function pluginHost() {
       saveRoute();
     },
     showSnapshot: (branchId, cursor) => openTimelineAt(branchId, cursor),
+    showEvidenceEvent: async (branchId, cursor, eventId) => {
+      await openTimelineAt(branchId, cursor);
+      const event = view.events.find((item) => item.id === eventId);
+      if (!event) throw new Error("This evidence event is not in the selected history.");
+      await selectEvent(event);
+    },
     onImport: async (branchId) => { await refreshWorkspace(); await loadBranch(branchId); },
     addAction: (action) => menuActions.push(action),
   };

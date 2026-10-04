@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from swarm_lens.observability.mast.method import assets
 from .extensions import WebExtension
+from .mast_details import present_trait_details
 
 
 class AnalysisRequest(BaseModel):
@@ -67,5 +68,9 @@ def mast_extension(service):
     @router.get("/analyses/{job_id}")
     def analysis(job_id: str):
         return service.jobs.get(job_id)
+
+    @router.get("/analyses/{job_id}/traits/{code}")
+    def trait_details(job_id: str, code: str):
+        return present_trait_details(service, job_id, code)
 
     return WebExtension("mast", router, manifest)

@@ -1,5 +1,6 @@
 import { $, el, button, api, post, toast, failure, formatNumber } from "./ui.js";
 import { field, openDialog } from "./dialog.js";
+import { mastTraitDetails } from "./mast-details.js";
 import { workspaceURL } from "./workspace.js";
 
 const prefix = "/plugins/mast";
@@ -89,20 +90,14 @@ function outcomeStrip(output) {
   return strip;
 }
 
-function modeRow(label, badge) {
-  const row = el("li", "mast-mode");
-  row.append(el("span", "mono", label.code), el("span", "mast-mode-label", label.label));
-  if (badge) row.append(badge);
-  return row;
-}
-
-function modeList(labels, badge) {
-  const list = el("ul", "mast-modes");
-  list.append(...labels.map((label) => modeRow(label, badge?.())));
+// Every row expands into the saved explanation and evidence for that trait.
+function modeList(labels, job, host) {
+  const list = el("div", "mast-modes");
+  list.append(...labels.map((label) => mastTraitDetails(label, job, host)));
   return list;
 }
 
-function failureModes(labels) {
+function failureModes(labels, job, host) {
   const section = el("section", "mast-failures");
   const present = labels.filter((label) => label.present === true);
   const unparsed = labels.filter((label) => label.present === null);
@@ -110,12 +105,12 @@ function failureModes(labels) {
   const groups = [...new Set(present.map((label) => label.group))];
   for (const group of groups) {
     section.append(el("h3", "section-title", group),
-      modeList(present.filter((label) => label.group === group), () => el("span", "badge danger", "Present")));
+      modeList(present.filter((label) => label.group === group), job, host));
   }
   if (unparsed.length) {
-    section.append(el("h3", "section-title", "Unparsed"), modeList(unparsed, () => el("span", "badge", "Unparsed")));
+    section.append(el("h3", "section-title", "Unparsed"), modeList(unparsed, job, host));
   }
-  if (absent.length) section.append(details(`${absent.length} not present`, modeList(absent), "mast-details mast-absent"));
+  if (absent.length) section.append(details(`${absent.length} not present`, modeList(absent, job, host), "mast-details mast-absent"));
   return section;
 }
 
@@ -143,9 +138,13 @@ function renderReport(root, job, host) {
   const output = job.analysis.output;
   root.append(outcomeStrip(output));
   if (output.summary) root.append(el("p", "mast-summary", output.summary));
-  root.append(failureModes(output.labels), el("p", "muted mast-note", "LLM assessment, not human reviewed."));
+  root.append(failureModes(output.labels, job, host), el("p", "muted mast-note", "LLM assessment, not human reviewed."));
   const notes = el("div", "mast-notes");
   if (output.warnings.length) notes.append(details("Parsing notes", output.warnings.join("\n")));
+  const evidence = output.evidence;
+  if (evidence?.warnings?.length) notes.append(details("Evidence notes", evidence.warnings.join("\n")));
+  if (evidence) notes.append(details("Evidence provenance", JSON.stringify({ version: evidence.version,
+    status: evidence.status, prompt_sha256: evidence.prompt_sha256, judge: evidence.judge }, null, 2)));
   notes.append(details("Raw judge response", output.raw_response),
     details("Upstream taxonomy notes", output.upstream.upstream_notes.join("\n\n")),
     details("Provenance", provenance(job, output)));
@@ -208,7 +207,7 @@ function analyzeDialog(manifest, selection, host) {
   root.append(caption, segmented("Trace completeness", completenessOptions, completeness, (value) => {
     completeness = value;
     checkInput();
-  }), status, el("p", "muted", `Sends events 1–${selection.cursor} to OpenAI ${manifest.judge.model}`));
+  }), status, el("p", "muted", `Sends events 1–${selection.cursor} to OpenAI ${manifest.judge.model}, then one more request to locate evidence for each trait.`));
   if (!manifest.judge.ready) root.append(el("p", "mast-error", manifest.judge.reason));
   const body = () => ({ branch_id: selection.branchId, cursor: selection.cursor, completeness });
   openDialog("Analyze with MAST", root, { kicker: "", confirm: "Analyze", pending: "Starting…",
