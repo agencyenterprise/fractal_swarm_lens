@@ -117,7 +117,11 @@ export function install(host) {
 }
 ```
 
-Pass the extension to `create_app(framework, artifacts, extensions=(notes_extension(store),))`. MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
+Pass the extension to `create_app(framework, artifacts, extensions=(notes_extension(store),))` in your own composition root. With the bundled explorer, register a factory instead: it receives `PluginServices(framework, artifacts, data)` and returns the extension.
+
+```sh
+swarm-lens --data data --plugin my_package.notes:create   # repeatable; MAST is always included
+``` MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
 
 ## Observe a history with a method
 

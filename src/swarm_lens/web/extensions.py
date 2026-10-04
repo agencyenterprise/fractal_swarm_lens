@@ -6,8 +6,19 @@ import re
 
 from fastapi import APIRouter
 
+from swarm_lens.adapters.artifacts import FileArtifacts
+from swarm_lens.application.framework import Framework
+
 PLUGIN_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 PLUGIN_ENTRY = "index.js"
+
+
+@dataclass(frozen=True)
+class PluginServices:
+    """What the host gives a web plugin factory: `factory(services) -> WebExtension`."""
+    framework: Framework
+    artifacts: FileArtifacts
+    data: Path
 
 
 @dataclass(frozen=True)

@@ -80,14 +80,28 @@ def test_web_plugin_serves_its_own_module_and_owns_only_its_namespace(framework,
         create_app(framework, extensions=(WebExtension("other", stray, dict),))
 
 
-def test_cli_composition_serves_the_explorer_with_its_bundled_plugin(tmp_path):
+def notes_plugin(services):
+    from fastapi import APIRouter
+    from swarm_lens.web.extensions import WebExtension
+
+    router = APIRouter(prefix="/api/plugins/notes")
+
+    @router.get("/runs")
+    def runs():
+        return {"runs": len(services.framework.store.runs()), "data": str(services.data)}
+
+    return WebExtension("notes", router, lambda: {"title": "Notes"})
+
+
+def test_cli_composition_serves_bundled_and_configured_plugins(tmp_path):
     from swarm_lens.cli import build_app
 
-    with TestClient(build_app(tmp_path)) as client:
+    with TestClient(build_app(tmp_path, plugin_specs=[f"{__name__}:notes_plugin"])) as client:
         capabilities = client.get("/api/workspace").json()["capabilities"]
         assert [plugin["id"] for plugin in capabilities["plugins"]] == ["activity"]
         assert capabilities["live"]["runtimes"] == ["crewai-trace"]
-        mast = capabilities["web_plugins"][0]
-        assert mast["id"] == "mast"
+        mast, notes = capabilities["web_plugins"]
+        assert (mast["id"], notes["id"], notes["ui"]) == ("mast", "notes", None)
         assert client.get(mast["ui"]["module"]).status_code == 200
+        assert client.get("/api/plugins/notes/runs").json() == {"runs": 0, "data": str(tmp_path)}
         assert client.get("/").status_code == 200
