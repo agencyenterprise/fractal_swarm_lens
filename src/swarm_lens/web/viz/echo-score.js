@@ -1,5 +1,5 @@
 // Echo: how much of each message repeats what its author had just read.
-import { el, button, svg, color, avatar, stageOf, formatNumber } from "../ui.js";
+import { el, button, svg, color, avatar, stageOf, formatNumber, tip } from "../ui.js";
 
 // Five words is long enough that shared phrasing is copying rather than common idiom
 // ("the answer is", "step by step"), and short enough to catch paraphrase with light edits.
@@ -201,7 +201,7 @@ class EchoView {
   build() {
     this.selfToggle = button("Self-echo", () => this.toggleSelf(), "ghost echo-self-toggle");
     this.selfToggle.setAttribute("aria-pressed", "false");
-    this.selfToggle.title = "Show how much each message repeats its author's previous message";
+    tip(this.selfToggle, "Also show how much each message repeats its author's previous message");
     this.toolbar?.append(this.selfToggle);
     this.status = el("div", "echo-status muted");
     this.legend = el("div", "echo-legend");
@@ -389,7 +389,7 @@ class EchoView {
       const atEnd = geometry.x(slot) + label.length * 3.5 > geometry.width - MARGIN.right;
       const text = svg("text", { class: "echo-tick", x: atEnd ? geometry.width - MARGIN.right : geometry.x(slot), y: geometry.height - 8,
         "text-anchor": atEnd ? "end" : "middle" }, label);
-      text.append(svg("title", {}, label));
+      tip(text, label);
       group.append(text);
     });
     return group;
@@ -412,7 +412,7 @@ class EchoView {
     const node = svg("g", { class: "echo-point" + (jump ? " is-jump" : ""), transform: `translate(${x.toFixed(1)} ${geometry.y(score.echo).toFixed(1)})` });
     if (jump) node.append(svg("circle", { class: "echo-jump-ring", r: 7 }));
     node.append(svg("circle", { class: "echo-dot", r: 3.5, fill: color(message.agent_id, this.context.agents) }));
-    node.append(svg("title", {}, this.pointTitle(score)));
+    tip(node, this.pointTitle(score));
     node.addEventListener("click", () => this.actions.select(message));
     node.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -502,7 +502,8 @@ export const echoScore = {
   about: {
     question: "Are agents reasoning, or copying what they read?",
     read: "One line per agent: how much of each answer is copied from the messages it read, by stage. A sharp rise means an agent started copying. Self-echo (toggle) is how much an agent repeats its own previous answer.",
-    method: "Share of the answer's 5-word phrases that also appear in the messages it read.",
+    method: "Containment: the share of the answer's 5-word phrases (shingles) that also appear in the messages it read.",
+    source: { label: "Broder (1997), On the resemblance and containment of documents", url: "https://doi.org/10.1109/SEQUEN.1997.666900" },
   },
   mount(root, actions, toolbar) {
     const view = new EchoView(root, actions, toolbar);

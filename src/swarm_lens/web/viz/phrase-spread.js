@@ -1,5 +1,5 @@
 // Phrase spread: where a phrase shows up per speaker and stage, and in which order it reached each agent.
-import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber } from "../ui.js";
+import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber, tip } from "../ui.js";
 
 const MESSAGE = "message.created";
 const SCAN_LIMIT = 2000;
@@ -315,10 +315,10 @@ class PhraseSpreadView {
   suggestionNodes() {
     this.suggestions ??= contagiousTokens(this.grid);
     if (!this.suggestions.length) return [el("span", "muted", "No word spread from one agent to others")];
-    return [el("span", "muted", "Spreading"), ...this.suggestions.map((item) => {
+    return [tip(el("span", "muted", "Spreading"), "Words one agent introduced and others used later; click one to track it"), ...this.suggestions.map((item) => {
       const chip = button(item.token, () => this.setQuery(item.token), "ps-chip");
       chip.append(el("span", "ps-chip-count", String(item.reached)));
-      chip.title = `First used by ${this.grid.rows[item.row].name}, then by ${item.reached} other agents`;
+      tip(chip, `First used by ${this.grid.rows[item.row].name}, then by ${item.reached} other agent${item.reached === 1 ? "" : "s"}`);
       return chip;
     })];
   }
@@ -352,7 +352,7 @@ class PhraseSpreadView {
     const agent = this.context.agents?.[row.id] || { name: row.name };
     label.append(avatar(agent), el("span", "ps-row-name", row.name));
     label.style.setProperty("--ps-hue", this.hue(row));
-    label.title = row.name;
+    tip(label, row.name);
     return label;
   }
 
@@ -372,8 +372,9 @@ class PhraseSpreadView {
     node.style.setProperty("--ps-hue", this.hue(this.grid.rows[row]));
     const where = `${this.grid.rows[row].name} · ${this.grid.columns[column].label}`;
     const size = entry.events.length;
-    node.title = spread ? `${where} · ${count} of ${size} messages` : `${where} · ${size} message${size === 1 ? "" : "s"}`;
-    node.setAttribute("aria-label", node.title);
+    const summary = spread ? `${where} · ${count} of ${size} messages` : `${where} · ${size} message${size === 1 ? "" : "s"}`;
+    tip(node, summary);
+    node.setAttribute("aria-label", summary);
     this.cellNodes.push({ node, key, first: entry.events[0].position });
     return node;
   }
@@ -427,7 +428,7 @@ class PhraseSpreadView {
 
 function columnHeader(column) {
   const node = el("span", "ps-column", column.short);
-  node.title = column.label;
+  tip(node, column.label);
   return node;
 }
 

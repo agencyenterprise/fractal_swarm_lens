@@ -1,5 +1,5 @@
 // Activity: per-agent heatmap over stages (or equal time buckets), shaded against each agent's own median.
-import { el, button, avatar, color, stageOf, time, formatNumber } from "../ui.js";
+import { el, button, avatar, color, stageOf, time, formatNumber, tip } from "../ui.js";
 
 const MAX_COLUMNS = 80;
 const TIME_BUCKETS = 24;
@@ -52,12 +52,12 @@ function averageOfDetails(field) {
 // Each metric reads one family of events; `cell` turns a cell's events into a value.
 export const METRICS = {
   messages: {
-    title: "Messages", noun: "messages", reads: isMessage, details: false,
+    title: "Messages", noun: "messages", reads: isMessage, details: false, tip: "Messages per agent per stage",
     cell: (events) => ({ value: events.length, exact: true }),
     describe: (value) => `${formatNumber(value)} ${value === 1 ? "message" : "messages"}`,
   },
   length: {
-    title: "Length", noun: "length", reads: isMessage, details: true,
+    title: "Length", noun: "length", reads: isMessage, details: true, tip: "Average message length in characters",
     cell(events, details) {
       const lengths = events.map((event) => details.get(event.id)?.length ?? event.preview.length);
       return { value: average(lengths), exact: events.every((event) => details.has(event.id)) };
@@ -66,16 +66,18 @@ export const METRICS = {
   },
   tokens: {
     title: "Tokens", noun: "output tokens", reads: isMessage, details: true, field: "outputTokens",
+    tip: "Average output tokens per message, where recorded",
     cell: averageOfDetails("outputTokens"),
     describe: (value) => `${formatNumber(Math.round(value))} output tokens avg`,
   },
   latency: {
     title: "Latency", noun: "latency", reads: isMessage, details: true, field: "latency",
+    tip: "Average model response time per message, where recorded",
     cell: averageOfDetails("latency"),
     describe: (value) => `${formatDecimal(value)} s avg`,
   },
   tools: {
-    title: "Tools", noun: "tool use", reads: isTool, details: false,
+    title: "Tools", noun: "tool use", reads: isTool, details: false, tip: "Tool calls per agent per stage",
     // A call may be recorded as start + completion or as only one of them.
     cell(events) {
       const started = events.filter((event) => event.kind === "tool.started").length;
@@ -394,7 +396,7 @@ class ActivityView {
   renderMetrics(available) {
     const ids = available.includes(chosenMetric) ? available : [...available, chosenMetric];
     this.metrics.replaceChildren(...ids.map((id) => {
-      const tab = button(METRICS[id].title, () => this.choose(id));
+      const tab = tip(button(METRICS[id].title, () => this.choose(id)), METRICS[id].tip);
       tab.setAttribute("aria-pressed", String(id === chosenMetric));
       return tab;
     }));
@@ -430,7 +432,7 @@ class ActivityView {
     grid.append(place(el("div", "act-corner"), 1, 1));
     columns.forEach((column, index) => {
       const head = place(el("div", "act-col", column.short), 1, index + 2);
-      head.title = column.label;
+      tip(head, column.label);
       grid.append(head);
     });
     const flagged = new Map(this.model.flags.map((flag) => [`${flag.agentId}:${flag.column}`, flag.kind]));
@@ -450,7 +452,7 @@ class ActivityView {
   agentHead(agent) {
     const head = button("", () => this.actions.selectAgent(agent.id), "act-agent");
     head.append(avatar(agent), el("span", "act-name", agent.name));
-    head.title = agent.name;
+    tip(head, `${agent.name} · select agent`);
     return head;
   }
 

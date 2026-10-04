@@ -32,6 +32,7 @@
 .mast-report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .mast-report-title h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
 .mast-report-title p { margin-top: 2px; }
+.mast-report-title .mast-about { max-width: 72ch; margin-top: 4px; font-size: 12px; line-height: 1.5; }
 .mast-report-actions { display: flex; gap: 2px; }
 
 .mast-outcome { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

@@ -3,6 +3,16 @@ import { field, openDialog } from './dialog.js';
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
+// One line per fork action saying which branch it creates; menus and the inspector share them.
+export const forkTips = {
+  here: 'New branch after this event, with nothing changed',
+  prompt: name => `New branch where ${name} uses a new system prompt from here on`,
+  remove: name => `New branch where ${name} takes no further turns`,
+  restore: name => `New branch where ${name} takes turns again`,
+  goal: 'New branch where all agents work toward a new goal',
+  agent: 'New branch with an extra agent from here on',
+};
+
 function forkPoint(source) {
   const point = el('div', 'fork-point');
   const parts = [source.at && time(source.at), source.label, `from ${source.branchName}`].filter(Boolean);

@@ -84,7 +84,7 @@ test('a short fork shows parent and continuation together, with the fork line an
   assert.equal(viewport.scrollLeft, 0);
   assert.ok(marker(root, 5) && marker(root, 7));
   assert.ok(timeline.x(history[6]) - timeline.x(history[4]) < 80);
-  assert.match(root.querySelector('.tl-gap-label').title, /08:45:30.*23:45:00/s);
+  assert.match(root.querySelector('.tl-gap-label').dataset.tip, /08:45:30.*23:45:00/s);
   assert.equal(root.querySelector('.tl-fork-line').style.left, `${timeline.x(history[4])}px`);
   assert.ok(root.querySelector('.tl-fork-flag'));
   assert.equal(root.querySelector('.tl-playhead').style.left, `${timeline.x(history[8])}px`);

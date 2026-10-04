@@ -55,6 +55,92 @@ export async function api(path, options = {}) {
 }
 export const post = (path, body) =>
   api(path, { method: "POST", body: JSON.stringify(body) });
+// Tooltips: any element with `data-tip` shows one shared tooltip after a short hover or on keyboard focus.
+export const TIP_DELAY = 400;
+const TIP_GAP = 6, TIP_MARGIN = 8;
+const tipState = { node: null, target: null, timer: null };
+
+export function tip(node, text) {
+  if (text) node.dataset.tip = text;
+  else delete node.dataset.tip;
+  return node;
+}
+
+function tipNode() {
+  if (!tipState.node?.isConnected) {
+    tipState.node = el("div", "tooltip");
+    tipState.node.id = "tooltip";
+    tipState.node.setAttribute("role", "tooltip");
+    tipState.node.hidden = true;
+    document.body.append(tipState.node);
+  }
+  return tipState.node;
+}
+
+function describedBy(target, add) {
+  const ids = (target.getAttribute("aria-describedby") || "").split(/\s+/).filter((id) => id && id !== "tooltip");
+  if (add) ids.push("tooltip");
+  if (ids.length) target.setAttribute("aria-describedby", ids.join(" "));
+  else target.removeAttribute("aria-describedby");
+}
+
+function placeTip(node, target) {
+  const anchor = target.getBoundingClientRect();
+  const width = node.offsetWidth, height = node.offsetHeight;
+  const below = anchor.bottom + TIP_GAP;
+  const top = below + height > innerHeight - TIP_MARGIN ? anchor.top - TIP_GAP - height : below;
+  const left = anchor.left + anchor.width / 2 - width / 2;
+  node.style.left = `${Math.max(TIP_MARGIN, Math.min(left, innerWidth - width - TIP_MARGIN))}px`;
+  node.style.top = `${Math.max(TIP_MARGIN, top)}px`;
+}
+
+function showTip(target) {
+  clearTimeout(tipState.timer);
+  const text = target.dataset.tip;
+  if (!text || !target.isConnected) return hideTip();
+  if (tipState.target && tipState.target !== target) describedBy(tipState.target, false);
+  const node = tipNode();
+  node.textContent = text;
+  node.hidden = false;
+  placeTip(node, target);
+  tipState.target = target;
+  describedBy(target, true);
+}
+
+export function hideTip() {
+  clearTimeout(tipState.timer);
+  if (tipState.target) describedBy(tipState.target, false);
+  tipState.target = null;
+  if (tipState.node) tipState.node.hidden = true;
+}
+
+const tipTarget = (event) => event.target.closest?.("[data-tip]");
+// Text fields keep focus while typing; a tooltip there would cover what is typed.
+const isTextField = (node) => node.matches("input:not([type=checkbox]):not([type=radio]), textarea, select");
+
+export function installTooltips(root = document) {
+  root.addEventListener("pointerover", (event) => {
+    const target = tipTarget(event);
+    if (!target || target === tipState.target) return;
+    hideTip();
+    tipState.timer = setTimeout(() => showTip(target), TIP_DELAY);
+  });
+  root.addEventListener("pointerout", (event) => {
+    const target = tipTarget(event);
+    if (target && !target.contains(event.relatedTarget)) hideTip();
+  });
+  root.addEventListener("focusin", (event) => {
+    const target = tipTarget(event);
+    if (target && target === event.target && !isTextField(target) && target.matches(":focus-visible")) showTip(target);
+  });
+  root.addEventListener("focusout", (event) => {
+    if (tipTarget(event) === tipState.target) hideTip();
+  });
+  root.addEventListener("keydown", (event) => { if (event.key === "Escape") hideTip(); }, true);
+  root.addEventListener("pointerdown", hideTip, true);
+  root.addEventListener("scroll", hideTip, true);
+}
+
 let toastTimer;
 export function toast(message, duration = 4500) {
   $("#toast").textContent = message;

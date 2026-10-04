@@ -1,16 +1,40 @@
-import { el, button, api, failure } from "./ui.js";
+import { el, button, api, failure, tip } from "./ui.js";
 import { renderMarkdownInto, cancelRender } from "./markdown.js";
 
+const firstSentence = (text) => {
+  const line = text.trim().split("\n")[0];
+  return line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+};
+
+// One line per failure mode, from the taxonomy the judge was given. The definition is chosen by the
+// displayed name; where upstream files assign that name to another code, the tooltip says so.
+export function modeDefinitions(taxonomy) {
+  const byName = new Map(taxonomy.categories.map((category) => [category.definition_label, category.definition]));
+  return new Map(taxonomy.categories.map((category) => {
+    const definition = firstSentence(byName.get(category.label) ?? category.definition);
+    const swapped = category.label !== category.definition_label;
+    return [category.code, swapped ? `${definition}\nUpstream files give this name another code; see Upstream taxonomy notes.` : definition];
+  }));
+}
+
+const VERDICTS = {
+  true: ["Present", "The judge found this failure mode in the trace"],
+  false: ["Absent", "The judge did not find this failure mode"],
+  null: ["Unparsed", "The judge's answer for this mode could not be read"],
+};
+
 // Each row owns its disclosure and fetch lifecycle; opening it never runs a judge.
-export function mastTraitDetails(label, job, host) {
+// `definition` is the mode's one-line taxonomy definition, shown on hover.
+export function mastTraitDetails(label, job, host, definition) {
   const root = el("details", "mast-trait");
   const summary = el("summary", "mast-label-row");
   const name = el("div");
   const arrow = el("span", "mast-trait-arrow", "›");
   arrow.setAttribute("aria-hidden", "true");
   name.append(arrow, el("span", "mast-code mono", label.code), el("span", "", label.label));
-  summary.append(name, el("span", `badge mast-badge ${label.present === true ? "danger" : ""}`,
-    label.present === null ? "Unparsed" : label.present ? "Present" : "Absent"));
+  tip(name, definition);
+  const [verdict, verdictTip] = VERDICTS[label.present];
+  summary.append(name, tip(el("span", `badge mast-badge ${label.present === true ? "danger" : ""}`, verdict), verdictTip));
   const body = el("div", "mast-trait-body");
   body.setAttribute("aria-live", "polite");
   root.append(summary, body);
@@ -28,7 +52,8 @@ export function mastTraitDetails(label, job, host) {
         const section = el("section", "mast-occurrence");
         section.append(el("h5", "", `Occurrence ${index + 1} · events ${occurrence.start_position}–${occurrence.end_position}`),
           el("p", "mast-trait-text", occurrence.explanation),
-          button("View span end on timeline →", () => host.showSnapshot(job.branch_id, occurrence.end_position).catch(failure), "ghost"));
+          tip(button("View span end on timeline →", () => host.showSnapshot(job.branch_id, occurrence.end_position).catch(failure), "ghost"),
+            `Open the timeline at event ${occurrence.end_position}`));
         const supportingCount = occurrence.events.filter(event => event.role === "supporting").length;
         const counterCount = occurrence.events.filter(event => event.role === "counterevidence").length;
         const contextCount = occurrence.events.filter(event => event.role === "context").length;
@@ -65,7 +90,7 @@ export function mastTraitDetails(label, job, host) {
           const tools = el("div", "mast-message-tools");
           const at = new Date(event.at);
           const timestamp = el("time", "muted", Number.isNaN(at.getTime()) ? event.at : `${at.toISOString().slice(0, 10)} · ${at.toISOString().slice(11, 19)} UTC`);
-          timestamp.title = event.at;
+          tip(timestamp, event.at);
           const original = button("Original text", () => {
             const showOriginal = original.getAttribute("aria-pressed") !== "true";
             original.setAttribute("aria-pressed", String(showOriginal));
@@ -76,6 +101,7 @@ export function mastTraitDetails(label, job, host) {
             } else render();
           }, "ghost");
           original.setAttribute("aria-pressed", "false");
+          tip(original, "Switch between formatted and exact recorded text");
           tools.append(timestamp, original,
             button("View event on timeline →", () => host.showEvidenceEvent(job.branch_id, event.position, event.event_id).catch(failure), "ghost mast-event-link"));
           // Marked only after success, so reopening a message retries a failed render.

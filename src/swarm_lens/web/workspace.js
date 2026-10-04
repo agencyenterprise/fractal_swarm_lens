@@ -1,4 +1,4 @@
-import { $, el, button, failure } from "./ui.js";
+import { $, el, button, failure, tip } from "./ui.js";
 
 // Views keep their DOM and timeline state while another renderer occupies the workspace.
 export class WorkspaceViews {
@@ -19,7 +19,7 @@ export class WorkspaceViews {
     };
   }
 
-  register({ id, title, panel, onShow, onHide }) {
+  register({ id, title, tip: description, panel, onShow, onHide }) {
     if (this.entries.has(id)) throw new Error(`Workspace view already registered: ${id}`);
     panel ||= el("section", "plugin-workspace");
     panel.id = `workspace-${id}`;
@@ -27,7 +27,7 @@ export class WorkspaceViews {
     panel.setAttribute("role", "tabpanel");
     panel.setAttribute("aria-labelledby", `view-${id}`);
     if (!panel.isConnected) $("#workspace-views").append(panel);
-    const tab = button(title, () => this.onSelect(id));
+    const tab = tip(button(title, () => this.onSelect(id)), description);
     tab.id = `view-${id}`;
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-controls", panel.id);

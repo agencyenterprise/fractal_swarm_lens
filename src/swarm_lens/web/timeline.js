@@ -1,17 +1,17 @@
-import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar } from "./ui.js";
+import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar, tip } from "./ui.js";
 import { timelineTime, gapDuration } from "./timeline-time.js";
 
 const LABEL_WIDTH = 150, ROW = 34, RULER = 40, COMMENT_ROW = 18, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
 const STORAGE_KEY = "swarm-lens.timeline.view";
 const VIEW_OPTIONS = [
-  ["message", "Messages", true],
-  ["intervention", "Changes", true],
-  ["tool", "Tools", true],
-  ["memory", "Memory", false],
-  ["observation", "Observations", false],
-  ["connections", "Connections", true],
-  ["compact", "Compact gaps", true],
-  ["resolved", "Show resolved", false],
+  ["message", "Messages", true, "Messages agents posted"],
+  ["intervention", "Changes", true, "Changes made on a fork: prompt, agent, goal or memory"],
+  ["tool", "Tools", true, "Tool calls and their results"],
+  ["memory", "Memory", false, "Memory writes"],
+  ["observation", "Observations", false, "Recorded notes, such as where an injection was installed"],
+  ["connections", "Connections", true, "Lines from each message to the messages it read"],
+  ["compact", "Compact gaps", true, "Fold idle stretches longer than a minute"],
+  ["resolved", "Show resolved", false, "Also mark comment threads that are resolved"],
 ];
 // Which View toggle shows each tone; setup events (`state`) have no lane marker.
 const TOGGLE_FOR_TONE = { message: "message", observation: "observation", intervention: "intervention",
@@ -63,8 +63,8 @@ function icon([d, filled]) {
   return node;
 }
 
-function iconButton(label, glyph, action) {
-  const node = button("", action, "icon ghost");
+function iconButton(label, glyph, action, hint = label) {
+  const node = tip(button("", action, "icon ghost"), hint);
   node.setAttribute("aria-label", label);
   node.append(icon(glyph));
   return node;
@@ -84,13 +84,13 @@ function lastAtOrBefore(items, value, key) {
 // Transport, cursor position, time and stage; shared by every view that moves the cursor.
 export class PlaybackBar {
   constructor({ onStep, onPlay }) {
-    this.playButton = iconButton("Play", ICONS.play, onPlay);
+    this.playButton = iconButton("Play", ICONS.play, onPlay, "Play (Space)");
     this.transport = el("div", "tl-transport");
-    this.transport.append(iconButton("Previous event", ICONS.prev, () => onStep(-1)), this.playButton,
-      iconButton("Next event", ICONS.next, () => onStep(1)));
-    this.positionText = el("span", "tl-position mono");
-    this.timeText = el("span", "tl-time mono");
-    this.stageText = el("span", "tl-stage");
+    this.transport.append(iconButton("Previous event", ICONS.prev, () => onStep(-1), "Previous step (←)"), this.playButton,
+      iconButton("Next event", ICONS.next, () => onStep(1), "Next step (→)"));
+    this.positionText = tip(el("span", "tl-position mono"), "Selected event / last event");
+    this.timeText = tip(el("span", "tl-time mono"), "Time of the selected event, UTC");
+    this.stageText = tip(el("span", "tl-stage"), "Stage of the selected event");
     this.nodes = [this.transport, this.positionText, this.timeText, this.stageText];
   }
 
@@ -106,6 +106,7 @@ export class PlaybackBar {
 
   setPlaying(playing) {
     this.playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
+    tip(this.playButton, playing ? "Pause (Space)" : "Play (Space)");
     this.playButton.replaceChildren(icon(playing ? ICONS.pause : ICONS.play));
   }
 }
@@ -187,7 +188,7 @@ export class EventTimeline {
 
   build(toolbar) {
     this.root.classList.add("tl");
-    this.viewButton = button("View", () => this.toggleMenu(), "ghost tl-view-button");
+    this.viewButton = tip(button("View", () => this.toggleMenu(), "ghost tl-view-button"), "What the lanes show, and zoom");
     this.viewButton.setAttribute("aria-haspopup", "true");
     this.viewButton.setAttribute("aria-expanded", "false");
     if (toolbar) toolbar.append(this.viewButton);
@@ -274,8 +275,8 @@ export class EventTimeline {
     this.menu.hidden = true;
     this.menu.setAttribute("role", "group");
     this.menu.setAttribute("aria-label", "Timeline view");
-    for (const [key, label] of VIEW_OPTIONS) {
-      const row = el("label", "tl-check");
+    for (const [key, label, , hint] of VIEW_OPTIONS) {
+      const row = tip(el("label", "tl-check"), hint);
       const input = el("input");
       input.type = "checkbox";
       input.checked = this.view[key];
@@ -286,11 +287,11 @@ export class EventTimeline {
       this.menu.append(row);
     }
     const zoom = el("div", "tl-zoom");
-    const zoomOut = button("−", () => this.zoomBy(1 / 1.8), "");
-    const zoomIn = button("+", () => this.zoomBy(1.8), "");
+    const zoomOut = tip(button("−", () => this.zoomBy(1 / 1.8), ""), "Zoom out");
+    const zoomIn = tip(button("+", () => this.zoomBy(1.8), ""), "Zoom in");
     zoomOut.setAttribute("aria-label", "Zoom out");
     zoomIn.setAttribute("aria-label", "Zoom in");
-    zoom.append(zoomOut, zoomIn, button("Fit", () => this.fit(), "tl-fit"));
+    zoom.append(zoomOut, zoomIn, tip(button("Fit", () => this.fit(), "tl-fit"), "Fit the whole run in view"));
     this.menu.append(el("hr"), zoom);
     this.dismissMenu = (event) => {
       if (!this.menu.contains(event.target) && !this.viewButton.contains(event.target)) this.closeMenu();
@@ -500,13 +501,11 @@ export class EventTimeline {
       const face = avatar(lane, "avatar tl-avatar");
       face.style.setProperty("--c", color(lane.id, this.agents));
       label.append(face, name);
-      label.title = lane.name;
-      return label;
+      return tip(label, `${lane.name} · select agent`);
     }
     const label = el("div", "tl-label");
     label.append(lane.kind === "channel" ? el("span", "avatar tl-avatar", "#") : avatar(lane, "avatar tl-avatar"), name);
-    label.title = lane.name;
-    return label;
+    return tip(label, lane.name);
   }
 
   forkX() {
@@ -569,7 +568,7 @@ export class EventTimeline {
       const label = el("span", `tl-stage-label${band.alternate ? " is-alt" : ""}`, band.text);
       label.style.left = `${band.from}px`;
       label.style.width = `${band.to - band.from}px`;
-      label.title = band.label;
+      tip(label, band.label);
       items.push(label);
     }
     for (const tick of this.ticks) {
@@ -583,7 +582,7 @@ export class EventTimeline {
       if (x < left || x > right) continue;
       const label = el("span", "tl-gap-label", `${gapDuration(gap.duration)} gap`);
       label.style.left = `${x}px`;
-      label.title = `${new Date(gap.from).toISOString()} → ${new Date(gap.to).toISOString()}`;
+      tip(label, `Folded idle time: ${new Date(gap.from).toISOString()} → ${new Date(gap.to).toISOString()}`);
       items.push(label);
     }
     for (const note of this.notes) if (note.x >= left && note.x <= right) items.push(this.noteNode(note));

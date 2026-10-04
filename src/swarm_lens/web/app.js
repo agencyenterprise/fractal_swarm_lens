@@ -1,4 +1,4 @@
-import { $, el, button, api, post, toast, failure, formatNumber, time } from "./ui.js";
+import { $, el, button, api, post, toast, failure, formatNumber, time, tip, installTooltips } from "./ui.js";
 import { renderMarkdownInto } from "./markdown.js";
 import { lanesVisualization } from "./timeline.js";
 import { influenceVisualization } from "./graph.js";
@@ -9,7 +9,7 @@ import { renderInspector } from "./inspect.js";
 import { installCompare } from "./compare.js";
 import { installMast } from "./mast.js";
 import { field, openDialog } from "./dialog.js";
-import { branchDialog } from "./branch.js";
+import { branchDialog, forkTips } from "./branch.js";
 import { Picker } from "./components.js?v=1";
 import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js";
 import { LiveView } from "./live.js";
@@ -29,6 +29,7 @@ const view = {
 const details = new Map();
 const timelines = new Map();
 const menuActions = [];
+installTooltips();
 let seekTicket = 0, inspectorTicket = 0, seekTimer, playTimer;
 
 // A set of ids kept in this browser; favorites stay personal until runs carry shared metadata.
@@ -71,7 +72,7 @@ const comments = new Comments({
   selectEvent: (id) => selectEventById(id).catch(failure),
 });
 const workspaceViews = new WorkspaceViews((id) => openWorkspaceView(id, workspaceViews.entries.get(id).params));
-workspaceViews.register({ id: "timeline", title: "Timeline", panel: $("#workspace-timeline") });
+workspaceViews.register({ id: "timeline", title: "Timeline", tip: "Replay the run, inspect events and fork", panel: $("#workspace-timeline") });
 
 const liveView = new LiveView({
   selection: () => view.branch && { branchId: view.branch.id, cursor: view.cursor, head: view.branch.head,
@@ -183,7 +184,7 @@ function branchMenuItems() {
       onClick: () => loadBranch(branch.id),
     })),
     "---",
-    { label: "Fork at the selected event…", hint: "F", onClick: forkDialog },
+    { label: "Fork at the selected event…", hint: "F", tip: forkTips.here, onClick: forkDialog },
   ];
 }
 
@@ -199,13 +200,13 @@ function pluginMenuItems() {
 function moreMenuItems() {
   return [
     ...pluginMenuItems(),
-    { label: "Import trace…", onClick: importDialog },
-    { label: "Import run…", onClick: () => openImportedRun().catch(failure) },
-    ...(view.run ? [{ label: "Export run", onClick: () => exportRun(view.run).catch(failure) }] : []),
-    ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", onClick: saveCheckpoint }] : []),
+    { label: "Import trace…", tip: "Paste or upload a raw transcript as a new run; no model is called", onClick: importDialog },
+    { label: "Import run…", tip: "Open a run file exported from Swarm Lens", onClick: () => openImportedRun().catch(failure) },
+    ...(view.run ? [{ label: "Export run", tip: "Download this run with its branches and comments", onClick: () => exportRun(view.run).catch(failure) }] : []),
+    ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", tip: "Save this branch up to the selected event as a Git commit", onClick: saveCheckpoint }] : []),
     ...(view.run?.metadata.dataset_url ? [{ label: "Source and provenance ↗", onClick: () => window.open(view.run.metadata.dataset_url, "_blank", "noopener") }] : []),
     "---",
-    { label: "Your name…", onClick: () => comments.editAuthor() },
+    { label: "Your name…", tip: "Name shown on your comments", onClick: () => comments.editAuthor() },
     "---",
     { heading: "Theme" },
     ...[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([value, label]) => ({
@@ -234,6 +235,7 @@ function openMenu(items, { anchor, point }) {
     node.setAttribute("role", "menuitem");
     node.append(el("span", "", item.label));
     if (item.hint) node.append(el("span", "hint", item.hint));
+    tip(node, item.tip);
     if (item.current) node.setAttribute("aria-current", "true");
     if (item.indent) node.style.paddingLeft = `${10 + item.indent * 14}px`;
     return node;
@@ -264,14 +266,15 @@ async function openContextMenu(event, position, point) {
   const agent = event && view.state.agents[event.agent_id];
   openMenu([
     { heading: `Event ${formatNumber(view.cursor)} · ${time(view.state.occurred_at)}` },
-    { label: "Fork here…", hint: "F", onClick: forkDialog },
+    { label: "Fork here…", hint: "F", tip: forkTips.here, onClick: forkDialog },
     ...(agent ? [
-      { label: `Fork with new prompt for ${agent.name}…`, onClick: () => editAgent(agent) },
-      { label: `Fork ${agent.active ? "without" : "restoring"} ${agent.name}…`, onClick: () => removeAgent(agent) },
+      { label: `Fork with new prompt for ${agent.name}…`, tip: forkTips.prompt(agent.name), onClick: () => editAgent(agent) },
+      { label: `Fork ${agent.active ? "without" : "restoring"} ${agent.name}…`,
+        tip: (agent.active ? forkTips.remove : forkTips.restore)(agent.name), onClick: () => removeAgent(agent) },
     ] : []),
-    { label: "Fork with new goal…", onClick: editGoal },
+    { label: "Fork with new goal…", tip: forkTips.goal, onClick: editGoal },
     "---",
-    { label: "Comment", hint: "C", onClick: () => startComment(event ?? eventAtCursor()).catch(failure) },
+    { label: "Comment", hint: "C", tip: "Start a comment thread on this event", onClick: () => startComment(event ?? eventAtCursor()).catch(failure) },
   ], { point });
 }
 

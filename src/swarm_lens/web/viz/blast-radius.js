@@ -1,7 +1,7 @@
 // "How far did this one message spread?" A message reaches every later message whose author
 // read it (delivered_sources, or reply_to_id when a run records no deliveries), then every
 // message that read one of those, and so on.
-import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber } from "../ui.js";
+import { el, button, svg, color, avatar, stageOf, speakerName, formatNumber, tip } from "../ui.js";
 
 const NODE_W = 176;
 const NODE_H = 26;
@@ -200,7 +200,7 @@ function nodeButton(message, place, result, byStage, context, actions) {
   node.style.left = `${place.x}px`;
   node.style.top = `${place.y}px`;
   node.style.setProperty("--agent", color(message.agent_id, context.agents));
-  node.title = `${label} · depth ${depth}\n${oneLine(message.preview)}`;
+  tip(node, `${label} · depth ${depth}\n${oneLine(message.preview)}`);
   node.setAttribute("aria-label", `${label}, depth ${depth}`);
   node.append(el("span", "br-dot"), el("span", "br-node-label", byStage ? speaker : label));
   return node;

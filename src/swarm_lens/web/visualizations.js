@@ -1,4 +1,4 @@
-import { el, button, eventTone } from "./ui.js";
+import { el, button, eventTone, tip } from "./ui.js";
 import { PlaybackBar } from "./timeline.js";
 
 const VIEW_KEY = "swarm-lens:visualization";
@@ -13,7 +13,8 @@ const hosts = new Set();
 
 // Registers a view for the shared cursor area. `mount(root, actions, toolbar)` returns
 // `{ update(context), destroy(), stepTarget?(delta) }`; only the visible view is mounted and updated.
-// An optional `about: { question, read, method }` explains the view behind the ⓘ button.
+// An optional `about: { question, read, method, source? }` explains the view behind the ⓘ button;
+// `source: { label, url }` links the published method the view computes, only where one exists.
 export function registerVisualization(config) {
   const { id, title, mount } = config || {};
   if (!id || !title || typeof mount !== "function") throw new Error("A visualization needs an id, a title and a mount function.");
@@ -40,6 +41,16 @@ export const playbackInterval = () => 1000 / playbackRate();
 export function defaultStepTarget(events, cursor, delta) {
   const steps = events.filter((event) => STEP_TONES.has(eventTone(event)));
   return (delta > 0 ? steps.find((event) => event.position > cursor) : steps.findLast((event) => event.position < cursor))?.position;
+}
+
+function sourceLink({ label, url }) {
+  const line = el("p", "viz-about-source");
+  const link = el("a", "", label);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  line.append("Source: ", link);
+  return line;
 }
 
 function mountedInstance(config, root, actions, toolbar) {
@@ -71,7 +82,7 @@ export class VisualizationHost {
     this.playback = new PlaybackBar({ onStep: (delta) => this.step(delta), onPlay: () => this.actions.togglePlayback() });
     this.tools = el("div", "viz-tools");
     const header = el("header", "viz-header");
-    this.aboutButton = button("ⓘ", () => this.toggleAbout(), "icon ghost viz-about-button");
+    this.aboutButton = tip(button("ⓘ", () => this.toggleAbout(), "icon ghost viz-about-button"), "How to read this view");
     this.aboutButton.setAttribute("aria-expanded", "false");
     this.about = el("div", "menu viz-about");
     this.about.hidden = true;
@@ -88,7 +99,7 @@ export class VisualizationHost {
   speedControl() {
     const select = el("select", "viz-speed");
     select.setAttribute("aria-label", "Playback speed");
-    select.title = "Playback speed";
+    tip(select, "Playback speed, in events per second");
     for (const rate of PLAYBACK_RATES) {
       const option = el("option", "", `${rate}/s`);
       option.value = rate;
@@ -103,6 +114,7 @@ export class VisualizationHost {
     if (!this.about.hidden) return this.closeAbout();
     const { title, about } = this.views.get(this.active).config;
     this.about.replaceChildren(el("strong", "viz-about-question", about.question), el("p", "", about.read), el("p", "muted", about.method));
+    if (about.source) this.about.append(sourceLink(about.source));
     this.about.setAttribute("aria-label", `About ${title}`);
     this.about.hidden = false;
     this.aboutButton.setAttribute("aria-expanded", "true");
@@ -124,7 +136,7 @@ export class VisualizationHost {
 
   addTab(config) {
     const tab = button(config.title, () => this.show(config.id, { remember: true }));
-    if (config.about) tab.title = config.about.question;
+    tip(tab, config.about?.question);
     tab.setAttribute("aria-pressed", "false");
     this.switcher.append(tab);
     const root = el("div", "viz-view");

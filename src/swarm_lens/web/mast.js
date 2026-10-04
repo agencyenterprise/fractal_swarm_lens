@@ -1,23 +1,25 @@
-import { $, el, button, api, post, toast, failure, formatNumber } from "./ui.js";
+import { $, el, button, api, post, toast, failure, formatNumber, tip } from "./ui.js";
 import { field, openDialog } from "./dialog.js";
-import { mastTraitDetails } from "./mast-details.js";
+import { mastTraitDetails, modeDefinitions } from "./mast-details.js";
 import { workspaceURL } from "./workspace.js";
 
 const prefix = "/plugins/mast";
 const active = new Set(["queued", "running"]);
 const statuses = {
-  completed: { label: "Completed", tone: "accent" },
-  needs_review: { label: "Needs review", tone: "" },
-  queued: { label: "Queued", tone: "" },
-  running: { label: "Analyzing", tone: "" },
-  failed: { label: "Failed", tone: "danger" },
-  interrupted: { label: "Interrupted", tone: "" },
+  completed: { label: "Completed", tone: "accent", tip: "The judge returned a full assessment" },
+  needs_review: { label: "Needs review", tone: "", tip: "The judge's response was unfinished; check the raw response" },
+  queued: { label: "Queued", tone: "", tip: "Waiting for a free analysis slot" },
+  running: { label: "Analyzing", tone: "", tip: "The judge is reading the trace" },
+  failed: { label: "Failed", tone: "danger", tip: "The analysis stopped with an error; nothing was classified" },
+  interrupted: { label: "Interrupted", tone: "", tip: "The server restarted before this finished; start a new analysis" },
 };
+const MAST_PAPER = "https://arxiv.org/abs/2503.13657";
+const MAST_TAXONOMY = "https://github.com/multi-agent-systems-failure-taxonomy/MAST";
 const completenessOptions = [["unknown", "Unknown"], ["complete", "Complete"], ["partial", "Partial"]];
 
 function statusBadge(status) {
-  const { label, tone } = statuses[status] || { label: status, tone: "" };
-  return el("span", `badge ${tone}`.trim(), label);
+  const { label, tone, tip: hint } = statuses[status] || { label: status, tone: "" };
+  return tip(el("span", `badge ${tone}`.trim(), label), hint);
 }
 
 function relativeDate(iso) {
@@ -35,6 +37,21 @@ const longDate = (iso) => new Date(iso).toLocaleString("en", { dateStyle: "mediu
 function details(title, content, className = "mast-details") {
   const node = el("details", className);
   node.append(el("summary", "", title), typeof content === "string" ? el("pre", "metadata-box", content) : content);
+  return node;
+}
+
+function externalLink(label, url) {
+  const link = el("a", "", label);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  return link;
+}
+
+function aboutMast() {
+  const node = el("p", "muted mast-about", "MAST is a taxonomy of 14 ways multi-agent LLM systems fail, in 3 categories, "
+    + "built by experts from 150 annotated traces. Here an LLM judge reads the run and marks each failure mode present or absent. ");
+  node.append(externalLink("Paper", MAST_PAPER), " · ", externalLink("Taxonomy", MAST_TAXONOMY));
   return node;
 }
 
@@ -66,12 +83,13 @@ function reportHeader(job, host) {
   const title = el("div", "mast-report-title");
   const heading = el("h2", "", "MAST report");
   heading.append(statusBadge(job.status));
-  title.append(heading, el("p", "muted", `events 1–${job.cursor} · ${job.judge.model} · ${longDate(job.created_at)}`));
+  title.append(heading, aboutMast(), el("p", "muted", `events 1–${job.cursor} · ${job.judge.model} · ${longDate(job.created_at)}`));
   const actions = el("div", "mast-report-actions");
   actions.append(
-    button("View snapshot", () => host.showSnapshot(job.branch_id, job.cursor).catch(failure), "ghost"),
-    button("Copy link", () => copyLink(job), "ghost"),
-    button("Download JSON", () => downloadResult(job), "ghost"));
+    tip(button("View snapshot", () => host.showSnapshot(job.branch_id, job.cursor).catch(failure), "ghost"),
+      `Open the timeline at event ${job.cursor}, the last event analyzed`),
+    tip(button("Copy link", () => copyLink(job), "ghost"), "Copy a link that reopens this report"),
+    tip(button("Download JSON", () => downloadResult(job), "ghost"), "The full result with judge response and provenance"));
   header.append(title, actions);
   return header;
 }
@@ -80,24 +98,26 @@ function outcomeStrip(output) {
   const present = output.labels.filter((label) => label.present === true).length;
   const completed = output.task_completed === null ? "Unparsed" : output.task_completed ? "Yes" : "No";
   const strip = el("div", "mast-outcome");
-  const stat = (value, label, alarming) => {
-    const node = el("div", "mast-stat");
+  const stat = (value, label, alarming, hint) => {
+    const node = tip(el("div", "mast-stat"), hint);
     node.append(el("strong", alarming ? "alarming" : "", value), el("span", "", label));
     return node;
   };
-  strip.append(stat(completed, "Task completed · judge assessment", output.task_completed === false),
-    stat(String(present), `of ${output.labels.length} failure modes present`, present > 0));
+  strip.append(stat(completed, "Task completed · judge assessment", output.task_completed === false,
+    "The judge's answer to whether the agents completed the task; not checked by a person"),
+  stat(String(present), `of ${output.labels.length} failure modes present`, present > 0,
+    "MAST failure modes the judge found in this trace"));
   return strip;
 }
 
 // Every row expands into the saved explanation and evidence for that trait.
-function modeList(labels, job, host) {
+function modeList(labels, job, host, definitions) {
   const list = el("div", "mast-modes");
-  list.append(...labels.map((label) => mastTraitDetails(label, job, host)));
+  list.append(...labels.map((label) => mastTraitDetails(label, job, host, definitions.get(label.code))));
   return list;
 }
 
-function failureModes(labels, job, host) {
+function failureModes(labels, job, host, definitions) {
   const section = el("section", "mast-failures");
   const present = labels.filter((label) => label.present === true);
   const unparsed = labels.filter((label) => label.present === null);
@@ -105,12 +125,12 @@ function failureModes(labels, job, host) {
   const groups = [...new Set(present.map((label) => label.group))];
   for (const group of groups) {
     section.append(el("h3", "section-title", group),
-      modeList(present.filter((label) => label.group === group), job, host));
+      modeList(present.filter((label) => label.group === group), job, host, definitions));
   }
   if (unparsed.length) {
-    section.append(el("h3", "section-title", "Unparsed"), modeList(unparsed, job, host));
+    section.append(el("h3", "section-title", "Unparsed"), modeList(unparsed, job, host, definitions));
   }
-  if (absent.length) section.append(details(`${absent.length} not present`, modeList(absent, job, host), "mast-details mast-absent"));
+  if (absent.length) section.append(details(`${absent.length} not present`, modeList(absent, job, host, definitions), "mast-details mast-absent"));
   return section;
 }
 
@@ -130,7 +150,7 @@ function progressRow(job) {
   return row;
 }
 
-function renderReport(root, job, host) {
+function renderReport(root, job, host, definitions) {
   root.replaceChildren(reportHeader(job, host));
   if (job.error) root.append(el("p", "mast-error", job.error));
   if (active.has(job.status)) return root.append(progressRow(job));
@@ -138,7 +158,7 @@ function renderReport(root, job, host) {
   const output = job.analysis.output;
   root.append(outcomeStrip(output));
   if (output.summary) root.append(el("p", "mast-summary", output.summary));
-  root.append(failureModes(output.labels, job, host), el("p", "muted mast-note", "LLM assessment, not human reviewed."));
+  root.append(failureModes(output.labels, job, host, definitions), el("p", "muted mast-note", "LLM assessment, not human reviewed."));
   const notes = el("div", "mast-notes");
   if (output.warnings.length) notes.append(details("Parsing notes", output.warnings.join("\n")));
   const evidence = output.evidence;
@@ -244,8 +264,11 @@ function analyzeDialog(manifest, selection, host) {
 function installReportView(manifest, host) {
   let timer;
   let generation = 0;
+  let definitions;
+  const loadDefinitions = () => (definitions ??= api(`${prefix}/taxonomy`).then(modeDefinitions)
+    .catch((error) => { definitions = null; throw error; }));
   const stop = () => { generation++; clearTimeout(timer); };
-  const root = host.registerView({ id: "mast", title: "Reports", onShow: show, onHide: stop });
+  const root = host.registerView({ id: "mast", title: "Reports", tip: "MAST failure-mode reports for this branch", onShow: show, onHide: stop });
   root.classList.add("mast-view");
   const analyzeButton = (label, className) =>
     button(label, () => analyzeDialog(manifest, host.selection(), host), className);
@@ -278,11 +301,17 @@ function installReportView(manifest, host) {
       if (!jobs.some((item) => item.id === job.id)) jobs.push(job);
       if (!sidebar.isConnected) root.replaceChildren(sidebar, report);
       const listHeader = el("div", "mast-list-header");
-      listHeader.append(el("span", "section-title", "Reports"), analyzeButton("New", "ghost"));
+      listHeader.append(el("span", "section-title", "Reports"),
+        tip(analyzeButton("New", "ghost"), `Analyze this branch up to event ${selection.cursor}`));
       sidebar.replaceChildren(listHeader, ...jobs.map((item) => reportListItem(item, item.id === job.id, host)));
       host.setViewParams("mast", { report: job.id });
       const signature = JSON.stringify(job);
-      if (signature !== rendered) { renderReport(report, job, host); rendered = signature; }
+      if (signature !== rendered) {
+        const modes = await loadDefinitions();
+        if (ticket !== generation) return;
+        renderReport(report, job, host, modes);
+        rendered = signature;
+      }
       clearTimeout(timer);
       if (jobs.some((item) => active.has(item.status))) timer = setTimeout(() => refresh().catch(showError), 1500);
     }

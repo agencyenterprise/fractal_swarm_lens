@@ -242,6 +242,13 @@ dialog::backdrop { background: #0b0c0e66; }
   border-radius: var(--radius); background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg);
 }
 
+/* Shared tooltip for [data-tip] (ui.js installTooltips) */
+.tooltip {
+  position: fixed; z-index: 90; max-width: 300px; padding: 5px 8px;
+  border-radius: var(--radius-sm); background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg);
+  font-size: 12px; line-height: 1.4; white-space: pre-line; pointer-events: none;
+}
+
 /* Rendered messages (markdown.js); plain text until the formatter loads */
 .md { overflow-wrap: anywhere; line-height: 1.6; }
 .md:not(.is-formatted) { white-space: pre-wrap; }

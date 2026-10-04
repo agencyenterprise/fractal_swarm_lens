@@ -1,4 +1,5 @@
-import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure } from "./ui.js";
+import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure, tip } from "./ui.js";
+import { forkTips } from "./branch.js";
 import { renderMarkdownInto } from "./markdown.js";
 import { interventionLabel } from "./transcript.js";
 
@@ -31,8 +32,10 @@ function section(title, ...children) {
   return node;
 }
 
+const tipped = (hint, ...args) => tip(button(...args), hint);
+
 function closeButton(actions) {
-  const node = button("×", actions.clearSelection, "icon ghost ins-close");
+  const node = tipped("Close (Esc)", "×", actions.clearSelection, "icon ghost ins-close");
   node.setAttribute("aria-label", "Close");
   return node;
 }
@@ -60,7 +63,7 @@ function clamped(node, lines) {
 
 function badgeFor(event) {
   const tone = eventTone(event);
-  if (tone === "intervention") return el("span", "badge warn", interventionLabel(event));
+  if (tone === "intervention") return tip(el("span", "badge warn", interventionLabel(event)), "Change made when forking");
   return null;
 }
 
@@ -87,8 +90,9 @@ function overviewView(root, _selection, { state, events, run, branch, comments, 
   root.append(section("Agents", agentList(state, actions)));
   const threads = comments.overviewSection(events, state.agents);
   if (threads) root.append(threads);
-  root.append(actionRow(button("Fork here", actions.fork, "primary"), button("Fork with new agent…", actions.addAgent, "ghost"),
-    button("Fork with new goal…", actions.editGoal, "ghost")));
+  root.append(actionRow(tipped(forkTips.here, "Fork here", actions.fork, "primary"),
+    tipped(forkTips.agent, "Fork with new agent…", actions.addAgent, "ghost"),
+    tipped(forkTips.goal, "Fork with new goal…", actions.editGoal, "ghost")));
 }
 
 function agentList(state, actions) {
@@ -98,7 +102,7 @@ function agentList(state, actions) {
   if (!agents.length) list.append(el("p", "muted", "No agents yet"));
   for (const agent of agents) {
     const count = state.activity[agent.id] || 0;
-    const row = button("", () => actions.selectAgent(agent.id), "ins-agent" + (agent.active ? "" : " ins-removed"));
+    const row = tipped("Show this agent and only its events", "", () => actions.selectAgent(agent.id), "ins-agent" + (agent.active ? "" : " ins-removed"));
     const label = el("span", "ins-agent-label");
     label.append(el("span", "ins-agent-name", agent.name), el("span", "ins-agent-model muted", agent.model || ""));
     row.append(avatar(agent), label, bar(count / max, color(agent.id, state.agents)), el("span", "ins-agent-count mono", formatNumber(count)));
@@ -137,11 +141,11 @@ function eventView(root, { event, detail }, { state, events, comments, actions }
   if (badge) root.append(badge);
   // Actions sit above the content: forking at this moment is the reason to select it.
   root.append(actionRow(
-    button("Fork here", actions.fork, "primary"),
-    agent && button("Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
-    agent && button(agent.active ? "Fork without agent…" : "Fork restoring agent…", () => actions.removeAgent(agent), "ghost"),
-    button("Fork with new goal…", actions.editGoal, "ghost"),
-    button("Comment", () => actions.comment(event), "ghost"),
+    tipped(forkTips.here, "Fork here", actions.fork, "primary"),
+    agent && tipped(forkTips.prompt(agent.name), "Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
+    agent && removeButton(agent, actions, "ghost"),
+    tipped(forkTips.goal, "Fork with new goal…", actions.editGoal, "ghost"),
+    tipped("Start a comment thread on this event (C)", "Comment", () => actions.comment(event), "ghost"),
   ));
   const threads = comments.eventSection(event);
   if (threads) root.append(threads);
@@ -149,9 +153,14 @@ function eventView(root, { event, detail }, { state, events, comments, actions }
   const meta = eventMeta(event, data, agent);
   if (meta) root.append(meta);
   const sources = detail?.source?.delivered_sources;
-  if (sources?.length) root.append(section("Read before answering", sourceList(sources, events, state, actions)));
+  if (sources?.length) {
+    const read = section("Read before answering", sourceList(sources, events, state, actions));
+    tip(read.firstChild, "Messages delivered to this agent before it wrote this one");
+    root.append(read);
+  }
   const artifact = data.metadata?.model_output_artifact;
-  if (artifact) root.append(disclosure("Recorded model response", button("Open response", () => actions.readArtifact(artifact))));
+  if (artifact) root.append(disclosure("Recorded model response",
+    tipped("The raw provider response saved for this message", "Open response", () => actions.readArtifact(artifact))));
   if (detail?.source) root.append(disclosure("Source", el("pre", "metadata-box", JSON.stringify(detail.source, null, 2))));
 }
 
@@ -176,13 +185,16 @@ function eventMeta(event, data, agent) {
   const latency = data.metadata?.latency_seconds;
   const model = data.metadata?.model || event.model || agent?.model;
   const parts = [
-    usage && `${formatNumber(usage.input_tokens ?? 0)} in · ${formatNumber(usage.output_tokens ?? 0)} out`,
-    latency !== undefined && `${latency.toFixed(1)}s`,
-    model,
+    usage && [`${formatNumber(usage.input_tokens ?? 0)} in · ${formatNumber(usage.output_tokens ?? 0)} out`, "Input and output tokens of this model call"],
+    latency !== undefined && [`${latency.toFixed(1)}s`, "Time the model took to respond"],
+    model && [model, "Model that wrote this"],
   ].filter(Boolean);
   if (!parts.length) return null;
   const node = el("p", "ins-meta mono muted");
-  node.textContent = parts.join(" · ");
+  parts.forEach(([text, hint], index) => {
+    if (index) node.append(" · ");
+    node.append(tip(el("span", "", text), hint));
+  });
   return node;
 }
 
@@ -231,9 +243,15 @@ function agentView(root, { agentId }, { state, actions }) {
   root.append(section("System prompt", prompt));
   if (memories.length) root.append(section("Memory", memoryList(memories, actions)));
   root.append(actionRow(
-    button("Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
-    button(agent.active ? "Fork without agent…" : "Fork restoring agent…", () => actions.removeAgent(agent), "ghost danger"),
+    tipped(forkTips.prompt(agent.name), "Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
+    removeButton(agent, actions, "ghost danger"),
   ));
+}
+
+function removeButton(agent, actions, className) {
+  return agent.active
+    ? tipped(forkTips.remove(agent.name), "Fork without agent…", () => actions.removeAgent(agent), className)
+    : tipped(forkTips.restore(agent.name), "Fork restoring agent…", () => actions.removeAgent(agent), className);
 }
 
 function stats(pairs) {

@@ -1,4 +1,4 @@
-import { el, button, api, failure, formatNumber, color, eventTone, stageOf, speakerName, avatar } from "./ui.js";
+import { el, button, api, failure, formatNumber, color, eventTone, stageOf, speakerName, avatar, tip } from "./ui.js";
 import { renderMarkdownInto } from "./markdown.js";
 import { Picker } from "./components.js?v=1";
 
@@ -6,7 +6,7 @@ const CHUNK = 60;
 
 export function installCompare(host) {
   const view = new CompareView(host);
-  view.panel = host.registerView({ id: "compare", title: "Compare", onShow: (params) => view.show(params) });
+  view.panel = host.registerView({ id: "compare", title: "Compare", tip: "Two branches side by side, from where they split", onShow: (params) => view.show(params) });
   view.panel.classList.add("cmp");
   return view;
 }
@@ -218,7 +218,7 @@ class CompareView {
     }
     const swap = button("⇄", () => this.render(right, left).catch(failure), "icon ghost cmp-swap");
     swap.setAttribute("aria-label", "Swap sides");
-    swap.title = "Swap sides";
+    tip(swap, "Swap sides");
     bar.append(this.left.root, swap, this.right.root);
     return bar;
   }
@@ -228,7 +228,8 @@ class CompareView {
     const query = new URLSearchParams({ left: left.id, right: right.id, left_cursor: leftCursor, right_cursor: right.head });
     const diff = await api(`/compare?${query}`);
     if (generation !== this.generation) return;
-    container.replaceChildren(...diffBadges(diff).map(([text, tone]) => el("span", `badge ${tone}`.trim(), text)));
+    const scope = `Left at event ${formatNumber(leftCursor)} vs right at event ${formatNumber(right.head)}`;
+    container.replaceChildren(...diffBadges(diff).map(([text, tone]) => tip(el("span", `badge ${tone}`.trim(), text), scope)));
   }
 
   outcome(sides) {
@@ -241,7 +242,7 @@ class CompareView {
       cell.append(last ? this.message(side, last, { eager: true }) : el("p", "muted", "No messages"));
       grid.append(cell);
     }
-    section.append(el("h2", "section-title", "Outcome"), grid);
+    section.append(tip(el("h2", "section-title", "Outcome"), "Last message on each branch"), grid);
     return section;
   }
 
@@ -256,7 +257,8 @@ class CompareView {
     this.rows = { shared: sharedRows, divergent, expanded: false, sides, through: shared };
     const first = divergent.findIndex((candidate) => candidate.differs);
     this.firstDifference = first < 0 ? null : divergent[first];
-    if (this.firstDifference) head.append(button("Jump to first difference", () => this.jumpToFirstDifference(), "ghost cmp-jump"));
+    if (this.firstDifference) head.append(tip(button("Jump to first difference", () => this.jumpToFirstDifference(), "ghost cmp-jump"),
+      "Scroll to the first row where the branches differ"));
     this.list = el("div", "cmp-rows");
     section.append(head, this.list);
     this.renderRows();
@@ -311,7 +313,7 @@ class CompareView {
     const onlyCallouts = [...item.left, ...item.right].every((event) => event.kind !== "message.created");
     if ((item.stage && !onlyCallouts) || item === this.firstDifference) {
       const label = el("div", "cmp-stage", item.stage || "");
-      if (item === this.firstDifference) label.append(el("span", "badge accent", "First difference"));
+      if (item === this.firstDifference) label.append(tip(el("span", "badge accent", "First difference"), "First row where the branches differ"));
       node.append(label);
     }
     if (item === this.firstDifference) this.firstDifferenceNode = node;
@@ -333,6 +335,7 @@ class CompareView {
   positionButton(side, event) {
     const open = button(`#${event.position}`, () => this.host.openTimeline(side.branch.id, event.position), "ghost cmp-position");
     open.setAttribute("aria-label", `Open event ${event.position} in Timeline`);
+    tip(open, `Open event ${event.position} in Timeline`);
     return open;
   }
 

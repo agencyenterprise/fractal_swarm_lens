@@ -68,3 +68,4 @@ button.viz-graph-node:hover .viz-graph-avatar { background: var(--surface-2); }
 .viz-about-button { color: var(--text-3); font-size: 15px; }
 .viz-about { width: min(380px, calc(100vw - 16px)); max-width: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
 .viz-about-question { font-weight: 600; }
+.viz-about-source { color: var(--text-3); font-size: 12px; }

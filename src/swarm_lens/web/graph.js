@@ -1,4 +1,4 @@
-import { el, svg, avatar, color, formatNumber, speakerName } from "./ui.js";
+import { el, svg, avatar, color, formatNumber, speakerName, tip } from "./ui.js";
 
 export const HUMAN = "__human";
 // Room around the ring: half the largest node above, and its name and counts below.
@@ -226,8 +226,8 @@ class InfluenceGraph {
       const shape = edgeShape(a, b, sizes.get(edge.from) / 2 + 3, sizes.get(edge.to) / 2 + 3, width);
       const state = mark ? ` is-${mark.direction}${mark.future ? " is-future" : ""}` : model.highlight ? " is-dim" : "";
       const group = svg("g", { class: `viz-graph-edge${state}` });
-      group.append(svg("title", {}, this.edgeLabel(edge, model)),
-        svg("path", { class: "viz-graph-line", d: shape.line, "stroke-width": width }),
+      tip(group, this.edgeLabel(edge, model));
+      group.append(svg("path", { class: "viz-graph-line", d: shape.line, "stroke-width": width }),
         svg("path", { class: "viz-graph-arrow", d: shape.arrow }));
       items.push(group);
     }
@@ -267,7 +267,7 @@ class InfluenceGraph {
       node.style.left = `${point.x}px`;
       node.style.top = `${point.y}px`;
       node.style.setProperty("--size", `${size}px`);
-      node.title = this.nodeTitle(id, model);
+      tip(node, this.nodeTitle(id, model));
       node.classList.toggle("is-dim", !!involved && !involved.has(id));
       node.classList.toggle("is-author", !!model.selected && authorOf(model.selected) === id);
       node.classList.toggle("is-inactive", this.context.state.agents[id]?.active === false);

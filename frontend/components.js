@@ -143,6 +143,7 @@ export class Picker {
       const on = this.favorites.has(item.value);
       star.setAttribute('aria-pressed', String(on));
       star.setAttribute('aria-label', on ? `Remove ${item.label} from favorites` : `Add ${item.label} to favorites`);
+      star.dataset.tip = on ? 'Remove from favorites' : 'Add to favorites';
     };
     sync();
     keepOpen(star, () => {
@@ -239,7 +240,9 @@ export class Picker {
     const item = this.options.find(item => item.value === this.value);
     this.hiddenInput.value = this.value;
     this.text.textContent = item?.label || this.placeholder;
-    (this.input || this.trigger).title = [item?.label, item?.description].filter(Boolean).join(' · ');
+    const summary = [item?.label, item?.description].filter(Boolean).join(' · ');
+    if (summary) (this.input || this.trigger).dataset.tip = summary;
+    else delete (this.input || this.trigger).dataset.tip;
     this.meta.textContent = this.searchable ? item?.description || '' : '';
     this.meta.hidden = !this.meta.textContent;
     if (this.searchable && !this.machine) this.input.value = item?.label || '';

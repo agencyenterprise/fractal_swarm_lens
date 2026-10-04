@@ -76,7 +76,7 @@ test('the view loads texts with at most six requests in flight and says when it 
   assert.doesNotMatch(root.textContent, /Reading messages/);
   assert.equal(root.querySelectorAll('.echo-point').length, 19);
   assert.equal(root.querySelectorAll('.echo-point.is-future').length, 10);
-  assert.equal(root.querySelector('.echo-point.is-selected title').textContent.startsWith('Alpha · Round 5'), true);
+  assert.equal(root.querySelector('.echo-point.is-selected').dataset.tip.startsWith('Alpha · Round 5'), true);
   assert.equal(toolbar.querySelector('.echo-self-toggle').getAttribute('aria-pressed'), 'false');
   view.destroy();
   assert.equal(root.childNodes.length, 0);

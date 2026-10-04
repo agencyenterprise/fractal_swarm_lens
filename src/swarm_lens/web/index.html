@@ -6,8 +6,8 @@
     <title>Swarm Lens</title>
     <link rel="icon" href="/assets/logos/swarm-lens.ico?v=2" sizes="any" />
     <script src="/assets/theme.js?v=1"></script>
-    <link rel="stylesheet" href="/assets/tailwind.css?v=5" />
-    <link rel="modulepreload" href="/assets/app.js?v=16" />
+    <link rel="stylesheet" href="/assets/tailwind.css?v=6" />
+    <link rel="modulepreload" href="/assets/app.js?v=17" />
   </head>
   <body>
     <header class="appbar">
@@ -19,7 +19,7 @@
       </a>
       <span class="appbar-divider" aria-hidden="true"></span>
       <div id="run-select"></div>
-      <button id="branch-switch" class="branch-switch ghost" aria-haspopup="menu" aria-expanded="false">
+      <button id="branch-switch" class="branch-switch ghost" aria-haspopup="menu" aria-expanded="false" data-tip="Switch branch or fork">
         <span aria-hidden="true">⑂</span><span class="label">Recorded</span><span class="count"></span><span aria-hidden="true" class="muted">▾</span>
       </button>
       <nav id="workspace-tabs" class="segmented" role="tablist" aria-label="View"></nav>
@@ -30,11 +30,11 @@
         <span id="live-status" role="status">Saved history</span>
         <span id="live-elapsed" class="muted"></span>
         <span id="live-connection" class="muted"></span>
-        <label><input id="follow-live" type="checkbox" /> Follow</label>
+        <label data-tip="Move the cursor to each new event as it arrives"><input id="follow-live" type="checkbox" /> Follow</label>
       </div>
       <div class="appbar-actions">
-        <button id="fork-button" class="primary" title="Fork the run at the selected event (F)">Fork here</button>
-        <button id="more-button" class="icon ghost" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
+        <button id="fork-button" class="primary" data-tip="Start a new branch after the selected event (F)">Fork here</button>
+        <button id="more-button" class="icon ghost" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" data-tip="Import, export, plugins and theme">⋯</button>
       </div>
     </header>
 
@@ -42,7 +42,7 @@
       <span id="execution-notice-text"></span>
       <p id="execution-error" role="alert" hidden></p>
       <button id="view-execution-branch">View branch</button>
-      <button id="dismiss-execution-notice" class="icon ghost" aria-label="Dismiss">×</button>
+      <button id="dismiss-execution-notice" class="icon ghost" aria-label="Dismiss" data-tip="Dismiss">×</button>
     </div>
 
     <main id="workspace-views">
@@ -61,7 +61,7 @@
       <form id="dialog-form">
         <div class="dialog-top">
           <div><span id="dialog-kicker" class="kicker"></span><h2 id="dialog-title"></h2></div>
-          <button id="close-dialog" type="button" class="icon ghost" aria-label="Close dialog">×</button>
+          <button id="close-dialog" type="button" class="icon ghost" aria-label="Close dialog" data-tip="Close (Esc)">×</button>
         </div>
         <div id="dialog-content"></div>
         <div id="dialog-error" role="alert"></div>
@@ -74,6 +74,6 @@
     </dialog>
     <div id="menu" class="menu" role="menu" hidden></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js?v=16"></script>
+    <script type="module" src="/assets/app.js?v=17"></script>
   </body>
 </html>

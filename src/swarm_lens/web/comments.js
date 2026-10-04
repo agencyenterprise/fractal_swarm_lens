@@ -1,4 +1,4 @@
-import { el, button, api, post, toast, failure, date, speakerName, stageOf, formatNumber } from "./ui.js";
+import { el, button, api, post, toast, failure, date, speakerName, stageOf, formatNumber, tip } from "./ui.js";
 import { field, openDialog } from "./dialog.js";
 
 const AUTHOR_KEY = "swarm-lens:comment-author";
@@ -184,8 +184,9 @@ export class Comments {
     const head = el("div", "cm-head");
     head.append(el("span", "cm-author", comment.author), this.when(comment.created_at));
     const tools = el("span", "cm-tools");
-    if (comment === thread) tools.append(this.tool(thread.resolved ? "Reopen" : "Resolve",
-      () => this.store.update(thread.id, { resolved: !thread.resolved })));
+    if (comment === thread) tools.append(tip(this.tool(thread.resolved ? "Reopen" : "Resolve",
+      () => this.store.update(thread.id, { resolved: !thread.resolved })),
+      thread.resolved ? "Reopen this thread" : "Mark resolved; the timeline then hides it unless View → Show resolved is on"));
     if (comment.author === this.author) tools.append(
       this.tool("Edit", () => this.edit(comment.id)),
       this.tool("Delete", () => this.confirmDelete(comment, comment === thread ? thread.replies.length : 0)),
@@ -202,7 +203,7 @@ export class Comments {
   when(iso) {
     const node = el("time", "cm-time muted", relativeTime(iso));
     node.dateTime = iso;
-    node.title = new Date(iso).toLocaleString();
+    tip(node, new Date(iso).toLocaleString());
     return node;
   }
 

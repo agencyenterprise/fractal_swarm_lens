@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { mastTraitDetails } from '../../src/swarm_lens/web/mast-details.js';
+import { mastTraitDetails, modeDefinitions } from '../../src/swarm_lens/web/mast-details.js';
 // The formatter loads lazily in the app; warm the module cache so renders settle within one tick here.
 await import('../../src/swarm_lens/web/message-format.js');
 
@@ -85,7 +85,7 @@ test('message reader formats Markdown and math, preserves original text, and ope
   assert.equal(content.querySelectorAll('math').length, 1);
   assert.match(content.querySelector('math').textContent, /×/);
   assert.equal(row.querySelector('time').textContent, '2026-10-04 · 00:00:00 UTC');
-  assert.equal(row.querySelector('time').title, '2026-10-04T00:00:00.123456Z');
+  assert.equal(row.querySelector('time').dataset.tip, '2026-10-04T00:00:00.123456Z');
   const original = row.querySelector('.supporting .mast-message-tools button');
   original.click();
   assert.equal(content.querySelector('pre').textContent, text);
@@ -136,4 +136,15 @@ test('absent and unparsed traits also have accessible native disclosures', t => 
     assert.equal(trait.firstElementChild.tagName, 'SUMMARY');
     assert.equal(trait.querySelector('.mast-badge').textContent, present === null ? 'Unparsed' : 'Absent');
   }
+});
+
+test('failure-mode tooltips use the definition of the displayed name and flag upstream code swaps', () => {
+  const definitions = modeDefinitions({ categories: [
+    { code: '1.3', label: 'Step Repetition', definition_label: 'Step Repetition', definition: 'Repeats a finished step. More detail.\n\nExample.' },
+    { code: '3.2', label: 'No or Incorrect Verification', definition_label: 'Weak Verification', definition: 'Checks exist but are shallow.' },
+    { code: '3.3', label: 'Weak Verification', definition_label: 'No or Incorrect Verification', definition: 'Omission of proper checking.' },
+  ] });
+  assert.equal(definitions.get('1.3'), 'Repeats a finished step.');
+  assert.match(definitions.get('3.2'), /^Omission of proper checking\.\nUpstream files give this name another code/);
+  assert.match(definitions.get('3.3'), /^Checks exist but are shallow\./);
 });

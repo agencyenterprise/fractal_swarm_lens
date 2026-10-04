@@ -1,4 +1,4 @@
-import { el, button, avatar, color, eventTone, stageOf, speakerName, time, formatNumber, failure } from "./ui.js";
+import { el, button, avatar, color, eventTone, stageOf, speakerName, time, formatNumber, failure, tip } from "./ui.js";
 import { renderMarkdownInto } from "./markdown.js";
 
 const PAGE = 150;
@@ -104,6 +104,7 @@ export class Transcript {
     this.search.type = "search";
     this.search.placeholder = "Search";
     this.search.setAttribute("aria-label", "Search transcript");
+    tip(this.search, "Search speakers and text (/)");
     this.search.addEventListener("input", () => this.setFilter({ query: this.search.value }));
     this.search.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
@@ -113,7 +114,7 @@ export class Transcript {
       }
     });
     this.chip = el("span", "tx-chip");
-    this.count = el("span", "tx-count muted");
+    this.count = tip(el("span", "tx-count muted"), "Events that match the filters");
     this.toolbar.append(this.picker, this.search, this.chip, this.count);
     this.list = el("div", "tx-list");
     this.earlier = button("Show earlier", () => this.showMore("before", PAGE), "ghost tx-page");
@@ -125,7 +126,7 @@ export class Transcript {
   // A "Show" button opening checkboxes per event kind; clicking a kind's name shows only that kind.
   buildKindPicker() {
     this.picker = el("div", "tx-show");
-    this.showButton = button("", () => this.toggleKinds(), "tx-show-button");
+    this.showButton = tip(button("", () => this.toggleKinds(), "tx-show-button"), "Event kinds to list");
     this.showButton.setAttribute("aria-haspopup", "true");
     this.showButton.setAttribute("aria-expanded", "false");
     this.showSummary = el("span", "tx-show-summary");
@@ -158,6 +159,7 @@ export class Transcript {
     });
     const only = button(label, () => this.setKinds(new Set([kind])), "tx-kind-only");
     only.setAttribute("aria-label", `Show only ${label}`);
+    tip(only, `Show only ${label.toLowerCase()}`);
     only.append(el("span", "hint", "Only"));
     row.append(box, only);
     this.kindPanel.append(row);
@@ -263,6 +265,7 @@ export class Transcript {
     }
     badge.textContent = formatNumber(count);
     badge.setAttribute("aria-label", `${count} open comment${count === 1 ? "" : "s"}`);
+    tip(badge, badge.getAttribute("aria-label"));
   }
 
   renderToolbar(total, agents, agentId) {
@@ -272,6 +275,7 @@ export class Transcript {
     if (!agentId) return;
     const clear = button("×", () => this.handlers.onClearAgent(), "icon ghost");
     clear.setAttribute("aria-label", "Clear agent filter");
+    tip(clear, "Clear agent filter");
     this.chip.replaceChildren(el("span", "", agents[agentId]?.name || agentId), clear);
   }
 
@@ -348,7 +352,7 @@ export class Transcript {
     const agent = this.props.agents[event.agent_id];
     const label = interventionLabel(event);
     const head = el("div", "tx-head");
-    head.append(el("span", "tx-callout-label", label));
+    head.append(tip(el("span", "tx-callout-label", label), "Change made when forking"));
     if (agent) head.append(el("span", "tx-callout-agent", agent.name));
     head.append(el("time", "tx-time mono", time(event.at)));
     node.append(head);
