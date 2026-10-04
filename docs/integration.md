@@ -70,7 +70,7 @@ A plugin is a `WebExtension(id, router, manifest, assets=None)` from `swarm_lens
 - `manifest()` returns plugin-owned fields such as `title`, `version` and `modes`. `/api/workspace` lists it under `capabilities.web_plugins`, with `id`, `api_prefix` and `ui` added by the server.
 - `assets` is a directory of public browser files, served at `/assets/plugins/{id}/`. It must contain `index.js`, which the explorer imports at startup (`ui.module` in the manifest). Keep Python files out of this directory.
 
-`index.js` exports `install(host, manifest)`. It runs once, after the workspace loads and before a saved link reopens a plugin view. If it throws or fails to load, the explorer reports the plugin by name and continues without it. The host offers:
+`index.js` exports `install(host, manifest)`. It runs once, after the workspace loads and before a saved link reopens a plugin view. If it throws or fails to load, the explorer reports the plugin by name, removes the views, actions and visualizations it registered, and continues without it. The host offers:
 
 | Method | Purpose |
 | --- | --- |

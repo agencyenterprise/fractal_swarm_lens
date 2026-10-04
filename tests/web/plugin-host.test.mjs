@@ -6,23 +6,27 @@ import { installWebPlugins } from '../../src/swarm_lens/web/plugin-host.js';
 
 const manifest = (id, module = `/assets/plugins/${id}/index.js`) => ({ id, title: `${id} title`, ui: module && { module } });
 
-test('plugins install in manifest order with their own host, and a broken plugin does not stop the others', async () => {
-  const calls = [], reports = [];
+test('plugins install in manifest order, and a broken plugin is removed without stopping the others', async () => {
+  const calls = [], reports = [], disposed = [];
   const modules = {
     '/assets/plugins/slow/index.js': new Promise(resolve => setTimeout(() => resolve({ install: (host, m) => calls.push([host.owner, m.id]) }), 10)),
     '/assets/plugins/missing/index.js': Promise.reject(new Error('404')),
     '/assets/plugins/no-install/index.js': Promise.resolve({}),
+    '/assets/plugins/half/index.js': Promise.resolve({ install: async host => { calls.push([host.owner, 'registered']); throw null; } }),
     '/assets/plugins/fast/index.js': Promise.resolve({ install: async (host, m) => calls.push([host.owner, m.id]) }),
   };
   const installed = await installWebPlugins(
-    [manifest('slow'), manifest('missing'), manifest('routes-only', null), manifest('no-install'), manifest('fast')],
-    { hostFor: m => ({ owner: m.title }), report: error => reports.push(error.message), load: url => modules[url] },
+    [manifest('slow'), manifest('missing'), manifest('routes-only', null), manifest('no-install'), manifest('half'), manifest('fast')],
+    { hostFor: m => ({ owner: m.title, dispose: () => disposed.push(m.id) }), report: error => reports.push(error.message),
+      load: url => modules[url] },
   );
   assert.deepEqual(installed, ['slow', 'fast']);
-  assert.deepEqual(calls, [['slow title', 'slow'], ['fast title', 'fast']]);
+  assert.deepEqual(calls, [['slow title', 'slow'], ['half title', 'registered'], ['fast title', 'fast']]);
+  assert.deepEqual(disposed, ['missing', 'no-install', 'half']);
   assert.deepEqual(reports, [
     'Plugin missing title failed to load: 404',
     'Plugin no-install title failed to load: /assets/plugins/no-install/index.js does not export install(host, manifest)',
+    'Plugin half title failed to load: null',
   ]);
 });
 
@@ -36,6 +40,7 @@ test('the bundled MAST plugin installs through the host contract alone', async (
     context: () => ({ workspace: null, run: null, branch: null, cursor: 0 }),
     registerView: config => { views.push(config.id); return window.document.createElement('section'); },
     addAction: action => actions.push(action.label),
+    dispose: () => assert.fail('MAST installed cleanly'),
   };
   const installed = await installWebPlugins([manifest('mast')], {
     hostFor: () => host, report: error => { throw error; },

@@ -3,7 +3,7 @@ import { renderMarkdownInto } from "./markdown.js";
 import { lanesVisualization } from "./timeline.js";
 import { influenceVisualization } from "./graph.js";
 import { builtinVisualizations } from "./viz/index.js";
-import { VisualizationHost, registerVisualization, playbackInterval } from "./visualizations.js";
+import { VisualizationHost, registerVisualization, unregisterVisualization, playbackInterval } from "./visualizations.js";
 import { Transcript } from "./transcript.js";
 import { renderInspector } from "./inspect.js";
 import { installCompare } from "./compare.js";
@@ -643,10 +643,16 @@ document.addEventListener("keydown", (event) => {
 
 // One host API for built-in workspace views (Compare) and web plugins. `owner` titles the
 // plugin's menu group. Navigation methods return promises; callers report their own failures.
+// `dispose()` removes everything the owner registered, so a plugin that fails to install leaves nothing.
 function pluginHost(owner) {
+  const views = [], visualizationIds = [], actions = [];
   return {
     context: () => ({ workspace: view.workspace, run: view.run, branch: view.branch, cursor: view.cursor }),
-    registerView: (config) => workspaceViews.register(config),
+    registerView: (config) => {
+      const panel = workspaceViews.register(config);
+      views.push(config.id);
+      return panel;
+    },
     openView: openWorkspaceView,
     setViewParams: (id, params) => {
       if (workspaceViews.current !== id) return;
@@ -656,12 +662,25 @@ function pluginHost(owner) {
     openTimeline: openTimelineAt,
     openBranchView: async (branchId, cursor, id, params) => {
       if (view.branch?.id !== branchId) await loadBranch(branchId, cursor);
+      else await seek(cursor);
       openWorkspaceView(id, params);
     },
     loadTimeline,
     loadDetail,
-    addAction: (action) => menuActions.push({ ...action, plugin: owner.title }),
-    registerVisualization,
+    addAction: (action) => {
+      const entry = { ...action, plugin: owner.title };
+      menuActions.push(entry);
+      actions.push(entry);
+    },
+    registerVisualization: (config) => {
+      registerVisualization(config);
+      visualizationIds.push(config.id);
+    },
+    dispose: () => {
+      views.forEach((id) => workspaceViews.unregister(id));
+      visualizationIds.forEach(unregisterVisualization);
+      menuActions.splice(0, menuActions.length, ...menuActions.filter((action) => !actions.includes(action)));
+    },
   };
 }
 

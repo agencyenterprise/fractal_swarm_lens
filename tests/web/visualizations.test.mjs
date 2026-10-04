@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { VisualizationHost, registerVisualization, playbackInterval } from '../../src/swarm_lens/web/visualizations.js';
+import { VisualizationHost, registerVisualization, unregisterVisualization, playbackInterval } from '../../src/swarm_lens/web/visualizations.js';
 import { influence, linkMode, messageFlow, flowEdges } from '../../src/swarm_lens/web/graph.js';
 
 const dom = new JSDOM('<!doctype html><section id="viz"></section>', { url: 'http://localhost/' });
@@ -82,4 +82,23 @@ test('without delivered sources, replies link messages; without either, channels
   assert.deepEqual(influence(replies, 3, 'replies').edges.map((edge) => edge.key), ['a>b', 'a>c']);
   assert.deepEqual(messageFlow(replies[0], replies, 'replies').outgoing.map((event) => event.id), ['e2', 'e3']);
   assert.equal(linkMode([message(1, 'a', 'm1')]), 'channels');
+});
+
+test('unregistering the visible view destroys it and shows another view', () => {
+  localStorage.clear();
+  const log = [];
+  registerVisualization(recordingView('base', log));
+  const root = document.createElement('section');
+  const host = new VisualizationHost(root, { seek() {}, togglePlayback() {} });
+  registerVisualization(recordingView('plugin', log));
+  tab(root, 'plugin').click();
+  host.update(context(2));
+  log.length = 0;
+  unregisterVisualization('plugin');
+  assert.equal(tab(root, 'plugin'), undefined);
+  assert.deepEqual(log, ['plugin:destroy']);
+  const pressed = [...root.querySelectorAll('.viz-switch [aria-pressed=true]')];
+  assert.equal(pressed.length, 1);
+  assert.equal(root.querySelectorAll('.viz-view:not([hidden])').length, 1);
+  registerVisualization(recordingView('plugin', log));
 });
