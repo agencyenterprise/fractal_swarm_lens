@@ -49,7 +49,8 @@ def test_discovery_from_entry_points_and_flags_with_params_schema(tmp_path, monk
     install_entry_point(tmp_path, monkeypatch)
     with TestClient(build_app(tmp_path, plugin_specs=["examples.plugins.reference:create"])) as client:
         plugins = {plugin["id"]: plugin for plugin in client.get("/api/plugins").json()["plugins"]}
-        assert list(plugins) == ["activity", "spread-tracer", "event-counter", "message-length", "silence-agent"]
+        assert list(plugins) == ["activity", "influence-ribbon", "spread-tracer", "event-counter", "message-length",
+                                 "silence-agent"]
         assert plugins["message-length"]["capabilities"] == ["analyzer"]
         assert plugins["silence-agent"]["capabilities"] == ["intervention"]
         assert plugins["message-length"]["params_schema"]["properties"]["long_message"]["default"] == 500
@@ -57,6 +58,15 @@ def test_discovery_from_entry_points_and_flags_with_params_schema(tmp_path, monk
         assert client.get("/api/workspace").json()["capabilities"]["web_plugins"][0]["id"] == "mast"
     with pytest.raises(ValueError, match="Duplicate plugin ID: message-length"):
         build_app(tmp_path / "again", plugin_specs=["examples.plugins.reference:create"] * 2)
+
+
+def test_a_broken_plugin_stops_startup_and_is_named(tmp_path, monkeypatch):
+    with pytest.raises(RuntimeError, match="Plugin examples.plugins.missing:create failed to load") as error:
+        build_app(tmp_path, plugin_specs=["examples.plugins.missing:create"])
+    assert isinstance(error.value.__cause__, ModuleNotFoundError)
+    monkeypatch.setattr(sys.modules[__name__], "exploding", lambda services: 1 / 0, raising=False)
+    with pytest.raises(RuntimeError, match=f"Plugin {__name__}:.* failed to load: division by zero"):
+        build_app(tmp_path / "again", plugin_specs=[f"{__name__}:exploding"])
 
 
 def test_params_are_validated_before_a_job_exists(framework, branch, tmp_path):
@@ -193,6 +203,16 @@ def test_views_never_read_findings_computed_from_later_events(framework, branch,
     for _ in range(51):
         plugins.analyze("seen", branch.id, 1, 7)
     assert [a.seq_to for a in plugins.findings(child.id, "seen")[1]] == [4]
+
+
+def test_inline_runs_rejected_by_a_full_job_store_save_no_analysis(framework, branch, tmp_path):
+    from swarm_lens.core.models import Conflict
+
+    plugins = PluginService(framework, (MessageLength(),),
+                            jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label, max_pending=0))
+    with pytest.raises(Conflict):
+        plugins.analyze("message-length", branch.id, 1, 7)
+    assert framework.store.analyses(branch.id, 7) == []
 
 
 def test_successful_runs_record_requested_params_and_stored_history(framework, branch, tmp_path):

@@ -104,7 +104,7 @@ my-plugin = "my_package.my_plugin:create"
 swarm-lens --data data --plugin my_package.my_plugin:create   # repeatable
 ```
 
-Bundled plugins (Activity, MAST and the [spread tracer](plugins/spread-tracer.md)) are listed in `swarm_lens/cli.py` (`BUNDLED_PLUGINS`).
+Bundled plugins (Activity, MAST, [Influence ribbon](plugins/influence-ribbon.md) and [Spread tracer](plugins/spread-tracer.md)) are listed in `swarm_lens/cli.py` (`BUNDLED_PLUGINS`).
 
 ## What the UI does for free
 
