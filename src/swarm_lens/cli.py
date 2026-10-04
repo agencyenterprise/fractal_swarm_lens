@@ -23,11 +23,20 @@ PLUGIN_GROUP = "swarm_lens.plugins"
 BUNDLED_PLUGINS = ("swarm_lens.plugins.activity:create", "swarm_lens.web.plugins.mast:create")
 
 
+def plugin_call(source: str, function, *args):
+    """Call `function`, naming the plugin `source` in any error; a broken plugin still stops startup."""
+    try:
+        return function(*args)
+    except Exception as exc:
+        raise RuntimeError(f"Plugin {source} failed to load: {exc}") from exc
+
+
 def plugin_factories(plugin_specs=()):
     """Bundled plugins, then installed ones (entry point group `swarm_lens.plugins`), then --plugin flags."""
-    return [*(load_factory(spec) for spec in BUNDLED_PLUGINS),
-            *(entry.load() for entry in entry_points(group=PLUGIN_GROUP)),
-            *(load_factory(spec) for spec in plugin_specs)]
+    return [*(plugin_call(spec, load_factory, spec) for spec in BUNDLED_PLUGINS),
+            *(plugin_call(f"entry point {entry.name} ({entry.value})", entry.load)
+              for entry in entry_points(group=PLUGIN_GROUP)),
+            *(plugin_call(spec, load_factory, spec) for spec in plugin_specs)]
 
 
 def install_plugins(services, factories):
@@ -36,7 +45,8 @@ def install_plugins(services, factories):
 
     extensions = []
     for factory in factories:
-        produced = factory(services)
+        source = f"{getattr(factory, '__module__', '?')}:{getattr(factory, '__qualname__', repr(factory))}"
+        produced = plugin_call(source, factory, services)
         for item in produced if isinstance(produced, list | tuple) else (produced,):
             if isinstance(item, WebExtension):
                 extensions.append(item)

@@ -201,17 +201,19 @@ class PluginService:
         """Run an analyzer inline and return its analysis record.
 
         With a job store, the run is also recorded as a completed job, so its findings are shown and readable by
-        other plugins exactly like a background run's.
+        other plugins exactly like a background run's. The job is created first, so a full job store rejects the
+        run before its analysis is saved.
         """
-        record = self._run(plugin_id, branch_id, start, end, params)
+        record = self._run(plugin_id, branch_id, start, end, params, persist=False)
         if plugin_id in self._jobs:
             self._jobs[plugin_id].create({**self._job(record["plugin_id"], record["plugin_version"], branch_id,
                                                       start, end, record["config"]),
                                           "status": "completed", "analysis": record, "finished_at": utc_now()})
+        self.framework.store.save_analysis(record)
         return record
 
     def save(self, plugin: Any, view: BranchView, start: int, end: int, config: dict,
-             items: Iterable[Any]) -> dict[str, Any]:
+             items: Iterable[Any], persist: bool = True) -> dict[str, Any]:
         """Persist returned items as an analysis record; for plugins that run their own job flow.
 
         The input digest covers events 1..end, everything the view could read, read fresh from the store.
@@ -222,7 +224,8 @@ class PluginService:
                   "branch_id": view.branch_id, "cursor": end, "start": start, "end": end, "config": config,
                   "input_digest": digest, "analyses_read": view.analyses_read, "created_at": utc_now(),
                   "output": encode_output(list(items), plugin.id, start, end, {event.id for event in history})}
-        self.framework.store.save_analysis(record)
+        if persist:
+            self.framework.store.save_analysis(record)
         return record
 
     def submit(self, plugin_id: str, branch_id: str, start: int, end: int, params: dict | None = None) -> dict:
@@ -281,7 +284,8 @@ class PluginService:
         return self.framework.fork_with_facts(branch_id, at, name, [
             replace(fact, source={**fact.source, **provenance}) for fact in facts])
 
-    def _run(self, plugin_id: str, branch_id: str, start: int, end: int, params: dict | None) -> dict[str, Any]:
+    def _run(self, plugin_id: str, branch_id: str, start: int, end: int, params: dict | None,
+             persist: bool = True) -> dict[str, Any]:
         plugin = self.plugin(plugin_id)
         if not self._runs(plugin):
             raise DomainError(f"Plugin {plugin_id} is not an analyzer")
@@ -294,7 +298,7 @@ class PluginService:
             events = view.events(start, end)
             items = [item for offset in range(0, len(events), STREAM_BATCH)
                      for item in plugin.on_events(view, events[offset:offset + STREAM_BATCH], validated)]
-        return self.save(plugin, view, start, end, config, items)
+        return self.save(plugin, view, start, end, config, items, persist)
 
     @staticmethod
     def _job(plugin_id: str, version: str, branch_id: str, start: int, end: int, config: dict) -> dict[str, Any]:

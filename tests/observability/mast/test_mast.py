@@ -242,3 +242,32 @@ def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path)
             [marker] = client.get(f"/api/branches/{branch.id}/annotations").json()["annotations"]
             assert (marker["seq_from"], marker["cited_event_ids"], marker["plugin"]) == (2, [event_id], "mast")
     assert hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest() == before
+
+
+def test_legacy_jobs_that_cannot_be_upgraded_are_skipped_and_imported_ones_are_not_redone(tmp_path, monkeypatch):
+    import sqlite3
+    from swarm_lens import Framework
+    from swarm_lens.adapters.sqlite import SQLiteHistory
+    from swarm_lens.cli import build_app
+    from swarm_lens.observability.mast import service as mast_service
+
+    framework = Framework(SQLiteHistory(tmp_path / "history.sqlite"))
+    branch = framework.import_transcript("Saved", "A: Done.\nA: Done.")
+    base = {"plugin_id": "mast", "plugin_version": "0.3.0", "cursor": 2, "created_at": "2026-10-01T00:00:00+00:00",
+            "status": "completed", "config": {"completeness": "unknown"}}
+    legacy = [{**base, "id": "kept", "branch_id": branch.id,
+               "analysis": {"id": "kept", "cursor": 2, "output": parse_response(assessment())}},
+              {**base, "id": "orphan", "branch_id": "deleted-branch"}]
+    with sqlite3.connect(tmp_path / "mast.sqlite") as db:
+        db.execute("CREATE TABLE mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, "
+                   "status TEXT NOT NULL, record TEXT NOT NULL)")
+        db.executemany("INSERT INTO mast_jobs VALUES (?,?,?,?,?)", [
+            (job["id"], job["branch_id"], job["created_at"], job["status"], json.dumps(job)) for job in legacy])
+    db.close()
+    with TestClient(build_app(tmp_path)) as client:
+        jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch.id}).json()["jobs"]
+        assert [item["id"] for item in jobs] == ["kept"]
+    upgraded = []
+    monkeypatch.setattr(mast_service, "upgrade_job", lambda job, event_ids: upgraded.append(job["id"]) or job)
+    with TestClient(build_app(tmp_path)):
+        assert upgraded == []
