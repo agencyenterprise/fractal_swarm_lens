@@ -161,3 +161,4 @@
 .mast-message-content table { border-collapse: collapse; font-size: 12px; }
 .mast-message-content th, .mast-message-content td { padding: 5px 9px; border: 1px solid var(--border); text-align: left; }
 .mast-message-content math[display="block"] { display: block; margin: 10px 0; overflow-x: auto; }
+.fork-effect { margin-top: 4px; color: var(--text); }

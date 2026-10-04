@@ -248,10 +248,10 @@ async function openContextMenu(event, position, point) {
     { heading: `Event ${formatNumber(view.cursor)} · ${time(view.state.occurred_at)}` },
     { label: "Fork here…", hint: "F", onClick: forkDialog },
     ...(agent ? [
-      { label: `Change ${agent.name}'s prompt…`, onClick: () => editAgent(agent) },
-      { label: `${agent.active ? "Remove" : "Restore"} ${agent.name}…`, onClick: () => removeAgent(agent) },
+      { label: `Fork with new prompt for ${agent.name}…`, onClick: () => editAgent(agent) },
+      { label: `Fork ${agent.active ? "without" : "restoring"} ${agent.name}…`, onClick: () => removeAgent(agent) },
     ] : []),
-    { label: "Change goal…", onClick: editGoal },
+    { label: "Fork with new goal…", onClick: editGoal },
   ], { point });
 }
 
@@ -397,7 +397,8 @@ function forkPointLabel(event) {
   return event?.stage_label || "Selected event";
 }
 
-function openBranch(title, fields = [], change) {
+// `effect` says in one line what the new branch changes, so the dialog never reads like an in-place edit.
+function openBranch(title, fields = [], change, effect = "") {
   closeMenu();
   stopPlayback();
   liveView.pause();
@@ -405,14 +406,16 @@ function openBranch(title, fields = [], change) {
   const event = view.events.find((item) => item.position === view.cursor);
   branchDialog({
     source: { branchId: view.branch.id, branchName: view.branch.name, cursor: view.cursor, at: event?.at,
-      label: forkPointLabel(event), defaultName: change ? `${title} experiment` : `Experiment ${runBranches().length}` },
+      label: forkPointLabel(event), defaultName: `Experiment ${runBranches().length}`,
+      effect: `New branch after event ${formatNumber(view.cursor)}.${effect ? ` ${effect}` : ""}` },
     title, fields, change, live: liveView,
     created: async (id) => { await refreshWorkspace(); await loadBranch(id); },
   });
 }
 
 const forkDialog = () => openBranch("Fork here");
-const intervene = (title, fields, kind, buildData) => openBranch(title, fields, (form) => ({ kind, data: buildData(form) }));
+const intervene = (title, effect, fields, kind, buildData) =>
+  openBranch(title, fields, (form) => ({ kind, data: buildData(form) }), effect);
 
 function agentFields(agent = {}) {
   const name = field("Name", "name", agent.name || "New agent");
@@ -422,21 +425,24 @@ function agentFields(agent = {}) {
 const agentData = (id, form) => ({ id, name: form.get("name"), model: form.get("model") || null, system_prompt: form.get("prompt") });
 
 function editAgent(agent) {
-  intervene(`Change ${agent.name}`, agentFields(agent), "agent.updated", (form) => agentData(agent.id, form));
+  intervene("Fork with new prompt", `${agent.name} uses this prompt from here on.`, agentFields(agent), "agent.updated",
+    (form) => agentData(agent.id, form));
 }
 
 function addAgent() {
   const id = crypto.randomUUID();
-  intervene("Add agent", agentFields(), "agent.added", (form) => agentData(id, form));
+  intervene("Fork with new agent", "The new agent joins from here on.", agentFields(), "agent.added", (form) => agentData(id, form));
 }
 
 function removeAgent(agent) {
-  intervene(agent.active ? `Remove ${agent.name}` : `Restore ${agent.name}`, [],
+  intervene(agent.active ? `Fork without ${agent.name}` : `Fork restoring ${agent.name}`,
+    agent.active ? `${agent.name} takes no further turns.` : `${agent.name} takes turns again from here on.`, [],
     agent.active ? "agent.removed" : "agent.updated", () => agent.active ? { id: agent.id } : { id: agent.id, active: true });
 }
 
 function editGoal() {
-  intervene("Change goal", [field("Shared goal", "goal", view.state.environment.goal || "", "textarea")],
+  intervene("Fork with new goal", "All agents work toward this goal from here on.",
+    [field("Shared goal", "goal", view.state.environment.goal || "", "textarea")],
     "environment.updated", (form) => ({ goal: form.get("goal") }));
 }
 
@@ -457,9 +463,9 @@ async function readMemory(memory) {
     const value = await api(`/branches/${view.branch.id}/memory?cursor=${view.cursor}&memory_id=${encodeURIComponent(memory.id)}`);
     const content = el("div", "content-text", value.content);
     if (value.metadata?.type === "task_output") {
-      content.append(button("Edit this output on a new branch", () => {
+      content.append(button("Fork with edited output…", () => {
         $("#dialog").close();
-        intervene("Edit task output", [field("Saved output", "content", value.content, "textarea")],
+        intervene("Fork with edited output", "Later turns read this output.", [field("Saved output", "content", value.content, "textarea")],
           "memory.written", (form) => ({ ...value, content: form.get("content") }));
       }));
     }

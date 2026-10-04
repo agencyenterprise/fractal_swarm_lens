@@ -7,6 +7,7 @@ function forkPoint(source) {
   const point = el('div', 'fork-point');
   const parts = [source.at && time(source.at), source.label, `from ${source.branchName}`].filter(Boolean);
   point.append(el('strong', '', `Event ${source.cursor}`), el('span', 'muted', ` · ${parts.join(' · ')}`));
+  if (source.effect) point.append(el('p', 'fork-effect', source.effect));
   return point;
 }
 

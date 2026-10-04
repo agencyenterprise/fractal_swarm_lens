@@ -87,7 +87,7 @@ function overviewView(root, _selection, { state, run, branch, actions }) {
   if (goal && goal !== task) root.append(section("Goal", el("p", "ins-goal", goal)));
   root.append(section("Agents", agentList(state, actions)));
   if (Object.keys(state.channels).length > 1) root.append(section("Topology", topologyGraph(state, actions.selectAgent)));
-  root.append(actionRow(button("Add agent", actions.addAgent, "ghost"), button("Change goal", actions.editGoal, "ghost")));
+  root.append(actionRow(button("Fork with new agent…", actions.addAgent, "ghost"), button("Fork with new goal…", actions.editGoal, "ghost")));
 }
 
 function agentList(state, actions) {
@@ -137,9 +137,9 @@ function eventView(root, { event, detail }, { state, actions }) {
   // Actions sit above the content: forking at this moment is the reason to select it.
   root.append(actionRow(
     button("Fork here", actions.fork, "primary"),
-    agent && button("Change prompt…", () => actions.editAgent(agent), "ghost"),
-    agent && button("Remove agent…", () => actions.removeAgent(agent), "ghost"),
-    button("Change goal…", actions.editGoal, "ghost"),
+    agent && button("Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
+    agent && button(agent.active ? "Fork without agent…" : "Fork restoring agent…", () => actions.removeAgent(agent), "ghost"),
+    button("Fork with new goal…", actions.editGoal, "ghost"),
   ));
   root.append(eventBody(event, data));
   const meta = eventMeta(event, data, agent);
@@ -221,8 +221,8 @@ function agentView(root, { agentId }, { state, actions }) {
   root.append(section("System prompt", prompt));
   if (memories.length) root.append(section("Memory", memoryList(memories, actions)));
   root.append(actionRow(
-    button("Change prompt…", () => actions.editAgent(agent), "ghost"),
-    button(agent.active ? "Remove agent…" : "Restore agent…", () => actions.removeAgent(agent), "ghost danger"),
+    button("Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
+    button(agent.active ? "Fork without agent…" : "Fork restoring agent…", () => actions.removeAgent(agent), "ghost danger"),
   ));
 }
 
