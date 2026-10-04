@@ -1,0 +1,25 @@
+{
+  "version": "event-graph-rerun-v2",
+  "runs": [
+    {
+      "window": 20,
+      "path": "data/event-experiments/44ba0b8be9e3a36a"
+    },
+    {
+      "window": 10,
+      "path": "data/event-experiments/d95fd3fc080ba25c"
+    }
+  ],
+  "supersedes": [
+    "actor-projection classification",
+    "actor-projection weighted classification",
+    "actor-projection class contrasts"
+  ],
+  "report_code_sha256": "0187e0ab98272346dbb61966900a25147975343653cac35d9bee5c092d04720a",
+  "data_quality_notice": {
+    "source": "jev-scoring-audit-report.json",
+    "requires_cleaned_rerun": true,
+    "affected_conversations": 19,
+    "affected_scoring_packets": 40
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "version": "class-laplacian-contrasts-v1",
+  "runs": [
+    {
+      "window": 20,
+      "directory": "data/class-contrasts/bed712a7824a67d8",
+      "population": {
+        "no_issue": 20,
+        "any_problem": 278,
+        "unresolved": 2,
+        "unknown_label_cells": 129,
+        "task_groups": 255,
+        "single_window": 116,
+        "framework_counts": [
+          {
+            "framework": "AG2",
+            "clean": 4,
+            "problem": 50
+          },
+          {
+            "framework": "AppWorld",
+            "clean": 1,
+            "problem": 18
+          },
+          {
+            "framework": "ChatDev",
+            "clean": 4,
+            "problem": 57
+          },
+          {
+            "framework": "HyperAgent",
+            "clean": 2,
+            "problem": 21
+          },
+          {
+            "framework": "Magentic",
+            "clean": 4,
+            "problem": 52
+          },
+          {
+            "framework": "MetaGPT",
+            "clean": 4,
+            "problem": 59
+          },
+          {
+            "framework": "OpenManus",
+            "clean": 1,
+            "problem": 21
+          }
+        ]
+      }
+    },
+    {
+      "window": 10,
+      "directory": "data/class-contrasts/7d855c3b50d22db2",
+      "population": {
+        "no_issue": 20,
+        "any_problem": 278,
+        "unresolved": 2,
+        "unknown_label_cells": 129,
+        "task_groups": 255,
+        "single_window": 93,
+        "framework_counts": [
+          {
+            "framework": "AG2",
+            "clean": 4,
+            "problem": 50
+          },
+          {
+            "framework": "AppWorld",
+            "clean": 1,
+            "problem": 18
+          },
+          {
+            "framework": "ChatDev",
+            "clean": 4,
+            "problem": 57
+          },
+          {
+            "framework": "HyperAgent",
+            "clean": 2,
+            "problem": 21
+          },
+          {
+            "framework": "Magentic",
+            "clean": 4,
+            "problem": 52
+          },
+          {
+            "framework": "MetaGPT",
+            "clean": 4,
+            "problem": 59
+          },
+          {
+            "framework": "OpenManus",
+            "clean": 1,
+            "problem": 21
+          }
+        ]
+      }
+    }
+  ]
+}

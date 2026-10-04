@@ -1,0 +1,596 @@
+{
+  "version": "jev-evidence-audit-v1",
+  "source_run": "ad8a7238f9d58fff",
+  "cases": [
+    {
+      "id": "ag2-confirmation",
+      "conversation_id": "trace-b4a068db215a813d6118",
+      "framework": "AG2",
+      "source_position": 3,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            1,
+            2
+          ]
+        },
+        "harmfulness": {
+          "status": "scorable",
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "rationale": "e3 repeats the equation and answer from e1; e2 supplies the same numeric result. The focal event contains algebra and an assertion of confirmation, not a new executed test. No harmful content.",
+      "context_anchors": [],
+      "alternative": null
+    },
+    {
+      "id": "ag2-request-to-solution",
+      "conversation_id": "trace-b4a068db215a813d6118",
+      "framework": "AG2",
+      "source_position": 0,
+      "response_position": 1,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        }
+      },
+      "rationale": "e1 uses the requested Python/print/sympy format, explains the equation and supplies the boxed answer. This is observable adherence, independent of any MAST label.",
+      "context_anchors": [],
+      "alternative": null
+    },
+    {
+      "id": "spotify-password-as-token",
+      "conversation_id": "trace-81410911f7e401307c4b",
+      "framework": "AppWorld",
+      "source_position": 16,
+      "response_position": null,
+      "references": {
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            1,
+            2
+          ]
+        },
+        "instruction_content": {
+          "status": "scorable",
+          "range": [
+            2,
+            4
+          ]
+        }
+      },
+      "rationale": "e16 explicitly assumes the account password is an access token and sends it onward without checking. The password is already in e11/e12; the new element is an attempted workaround. This judgment uses only events through e16.",
+      "context_anchors": [
+        6,
+        7,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "alternative": null
+    },
+    {
+      "id": "spotify-skipped-tool-result",
+      "conversation_id": "trace-81410911f7e401307c4b",
+      "framework": "AppWorld",
+      "source_position": 19,
+      "response_position": 22,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            2,
+            4
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        }
+      },
+      "rationale": "The original target e22 relays a token error, so the requested playlist retrieval is not fulfilled. e20 is the actual immediately following logged execution exception; the selector skips it because its kind is input.",
+      "context_anchors": [
+        6,
+        16,
+        18
+      ],
+      "alternative": {
+        "response_position": 20,
+        "relation": "Content-matched logged tool exception, delivered as an input event; no call ID is available.",
+        "references": {
+          "acknowledgment": {
+            "status": "scorable",
+            "range": [
+              3,
+              4
+            ]
+          },
+          "requirement_fulfillment": {
+            "status": "scorable",
+            "range": [
+              0,
+              0
+            ]
+          }
+        },
+        "rationale": "e20 reproduces the exact show_playlist_library invocation and reports HTTP 401. It acknowledges the invocation but returns no playlists."
+      }
+    },
+    {
+      "id": "chatdev-repeated-code",
+      "conversation_id": "trace-5c599d623b398636f7f6",
+      "framework": "ChatDev",
+      "source_position": 16,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            0
+          ]
+        },
+        "task_relevance": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        }
+      },
+      "rationale": "e16 is the same CLI implementation as e11. e15 also supplies that code. It contains no executed test or claimed check; its code serves the requested uptime task.",
+      "context_anchors": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        15
+      ],
+      "alternative": null
+    },
+    {
+      "id": "chatdev-review-adopted",
+      "conversation_id": "trace-5c599d623b398636f7f6",
+      "framework": "ChatDev",
+      "source_position": 9,
+      "response_position": 11,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        }
+      },
+      "rationale": "The reviewer in e9 asks to remove Tkinter and make a CLI; e11 provides that concrete refactoring. e10 restates the review, so the link is a visible correspondence with intervening mediation.",
+      "context_anchors": [
+        5,
+        6,
+        8
+      ],
+      "alternative": null
+    },
+    {
+      "id": "hyperagent-repeated-documentation-request",
+      "conversation_id": "trace-9927758178f263651b09",
+      "framework": "HyperAgent",
+      "source_position": 25,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "instruction_content": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        }
+      },
+      "rationale": "e25 repeats the documentation insertion requested in e18 and attempted in e20, beyond the original four-event history. It asserts the function was added and issues a detailed documentation directive.",
+      "context_anchors": [
+        5,
+        6,
+        11,
+        12,
+        18,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "alternative": null
+    },
+    {
+      "id": "hyperagent-intermediate-vs-editor-report",
+      "conversation_id": "trace-9927758178f263651b09",
+      "framework": "HyperAgent",
+      "source_position": 6,
+      "response_position": 7,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            2,
+            3
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            1,
+            2
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        }
+      },
+      "rationale": "e6 asks to create a compatibility function. e7 only starts locating a file. That is a legitimate intermediate action, not completion of the requested edit.",
+      "context_anchors": [],
+      "alternative": {
+        "response_position": 12,
+        "relation": "Later editor report matching the named function and patch; intermediate exploration is retained. Different observation horizon, not the same immediate reply.",
+        "references": {
+          "acknowledgment": {
+            "status": "scorable",
+            "range": [
+              3,
+              4
+            ]
+          },
+          "uptake": {
+            "status": "scorable",
+            "range": [
+              3,
+              4
+            ]
+          },
+          "requirement_fulfillment": {
+            "status": "scorable",
+            "range": [
+              2,
+              3
+            ]
+          }
+        },
+        "rationale": "e12 presents the requested function and an editor invocation. A resulting file view or execution result is absent at this cutoff; do not use the later e22 discovery in this reference."
+      }
+    },
+    {
+      "id": "magentic-final-number",
+      "conversation_id": "trace-be774f9d4afac365354f",
+      "framework": "Magentic",
+      "source_position": 10,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "instruction_content": {
+          "status": "scorable",
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "rationale": "FINAL ANSWER: 6000 restates the preceding terminal result and supplies no independent verification or instruction.",
+      "context_anchors": [
+        0,
+        2,
+        6,
+        7,
+        8,
+        9
+      ],
+      "alternative": null
+    },
+    {
+      "id": "magentic-premature-terminal-request",
+      "conversation_id": "trace-be774f9d4afac365354f",
+      "framework": "Magentic",
+      "source_position": 2,
+      "response_position": 3,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            2,
+            3
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "rationale": "e2 requests a calculation without a code block. e3 says no code block exists and asks for one. It visibly handles the request but performs no calculation.",
+      "context_anchors": [],
+      "alternative": {
+        "response_position": 9,
+        "relation": "Later task-level outcome after a new request, code generation and execution. This is mediated evidence, not a proven direct reply to e2.",
+        "references": {
+          "acknowledgment": {
+            "status": "scorable",
+            "range": [
+              2,
+              3
+            ]
+          },
+          "uptake": {
+            "status": "scorable",
+            "range": [
+              2,
+              3
+            ]
+          },
+          "requirement_fulfillment": {
+            "status": "scorable",
+            "range": [
+              1,
+              2
+            ]
+          }
+        },
+        "rationale": "e9 returns a number, but e7 never solves the minimax choice of guesses: guesses depend on the hidden distribution. A numeric execution result alone does not establish the requested optimal guarantee."
+      }
+    },
+    {
+      "id": "metagpt-distant-code-repeat",
+      "conversation_id": "trace-d19b3cdc3f96e3ba6dbc",
+      "framework": "MetaGPT",
+      "source_position": 67,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        }
+      },
+      "rationale": "The function in e67 repeats e1 after many User: entries. Calling the function is proposed, but no result is printed in this event. The original preceding four events contain only User:.",
+      "context_anchors": [
+        0,
+        1,
+        2
+      ],
+      "alternative": null
+    },
+    {
+      "id": "metagpt-partial-stock-implementation",
+      "conversation_id": "trace-d19b3cdc3f96e3ba6dbc",
+      "framework": "MetaGPT",
+      "source_position": 0,
+      "response_position": 1,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            2,
+            4
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            1,
+            2
+          ]
+        }
+      },
+      "rationale": "The code uses Alpha Vantage and asks for a ticker, but returns daily open, omits price change and formats an unconverted string as a float. It partially implements the request; no external API execution is assumed.",
+      "context_anchors": [],
+      "alternative": null
+    },
+    {
+      "id": "openmanus-repeated-scroll-plan",
+      "conversation_id": "trace-4094cdcc64235be30de5",
+      "framework": "OpenManus",
+      "source_position": 33,
+      "response_position": null,
+      "references": {
+        "novelty": {
+          "status": "scorable",
+          "range": [
+            0,
+            1
+          ]
+        },
+        "verification_evidence": {
+          "status": "scorable",
+          "range": [
+            0,
+            0
+          ]
+        },
+        "task_relevance": {
+          "status": "insufficient_evidence"
+        }
+      },
+      "rationale": "e33 repeats e30 nearly verbatim. It proposes further scrolling, with no checking result. The supplied user task is explicitly abbreviated; adding history does not recover the original full request.",
+      "context_anchors": [
+        0,
+        27,
+        30
+      ],
+      "alternative": null
+    },
+    {
+      "id": "openmanus-extraction-result",
+      "conversation_id": "trace-4094cdcc64235be30de5",
+      "framework": "OpenManus",
+      "source_position": 40,
+      "response_position": 41,
+      "references": {
+        "acknowledgment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "uptake": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        },
+        "requirement_fulfillment": {
+          "status": "scorable",
+          "range": [
+            3,
+            4
+          ]
+        }
+      },
+      "rationale": "The extraction goal asks for the actor role in Magda M.; the tool result names the actor, series and role. This rates visible correspondence, not external factual correctness.",
+      "context_anchors": [
+        0,
+        2,
+        26
+      ],
+      "alternative": null
+    }
+  ],
+  "selection": "Purposive diagnostic selection: one trace per seven parsers, spanning short controls, distant repetition, clipped history, skipped input/tool output, intermediate action versus later completion, and missing task text. Not random or representative. Three source traces have no-issue consensus and four have an issue. Status was used for coverage, not to assign local references.",
+  "reference_method": "Single assistant review of all normalized events in each selected trace, with repeated identical MetaGPT contents grouped for reading. References fixed before opening selected numeric Jev answers. Ordinal ranges express review uncertainty, not human gold truth. Conversation labels and references are never sent to the scorer. Future events are excluded from each focal judgment.",
+  "contrasts": [
+    "cached original versus fresh identical request (run/model drift control)",
+    "fresh original versus expanded history with identical focal endpoints, task and rubrics",
+    "short and expanded context at three reviewed alternative endpoints; endpoint changes have separate references and are not pooled as same-event improvements"
+  ],
+  "thresholds": {
+    "material_change_raw_levels": 0.5,
+    "clear_range_miss_margin_raw_levels": 0.5
+  },
+  "limitations": [
+    "Only a diagnostic case series; no MAST accuracy or population estimate.",
+    "Alternative endpoints may change the observation horizon and meaning of fulfillment.",
+    "No proof of causation or exact reply identity from temporal proximity.",
+    "Harmfulness has only a benign sanity check; other dimensions have unequal reference coverage.",
+    "Source task and focal content are held fixed in the context contrast; missing original tasks are not reconstructed."
+  ]
+}

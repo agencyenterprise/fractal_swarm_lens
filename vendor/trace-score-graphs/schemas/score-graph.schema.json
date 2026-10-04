@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swarm-lens.local/schemas/score-graph-v1.json",
+  "title": "Independent score layer",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "conversation_id",
+    "score_name",
+    "scope",
+    "directed",
+    "multigraph",
+    "nodes",
+    "temporal_edges",
+    "node_measurements",
+    "edge_measurements",
+    "aggregation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "score-graph-v1"
+    },
+    "conversation_id": {
+      "type": "string"
+    },
+    "score_name": {
+      "enum": [
+        "task_relevance",
+        "novelty",
+        "instruction_content",
+        "verification_evidence",
+        "harmfulness",
+        "agreement",
+        "acknowledgment",
+        "uptake",
+        "requirement_fulfillment"
+      ]
+    },
+    "scope": {
+      "enum": [
+        "message",
+        "interaction"
+      ]
+    },
+    "directed": {
+      "const": true
+    },
+    "multigraph": {
+      "const": true
+    },
+    "nodes": {
+      "type": "array"
+    },
+    "temporal_edges": {
+      "type": "array"
+    },
+    "node_measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "source_event",
+          "response_event",
+          "source_position",
+          "available_at",
+          "score_name",
+          "status",
+          "weight",
+          "raw_answer",
+          "status_answer",
+          "request_sha256",
+          "model"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "source_event": {
+            "type": "string"
+          },
+          "response_event": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "available_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "score_name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "scorable",
+              "insufficient_evidence",
+              "not_applicable",
+              "missing_decision"
+            ]
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -1,
+            "maximum": 1
+          },
+          "raw_answer": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "status_answer": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "request_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "edge_measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "record_id",
+          "source_event",
+          "response_event",
+          "source_position",
+          "available_at",
+          "score_name",
+          "status",
+          "weight",
+          "raw_answer",
+          "status_answer",
+          "request_sha256",
+          "model"
+        ],
+        "properties": {
+          "record_id": {
+            "type": "string"
+          },
+          "source_event": {
+            "type": "string"
+          },
+          "response_event": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "available_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "score_name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "scorable",
+              "insufficient_evidence",
+              "not_applicable",
+              "missing_decision"
+            ]
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": -1,
+            "maximum": 1
+          },
+          "raw_answer": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "status_answer": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "request_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "aggregation": {
+      "type": "null"
+    }
+  }
+}

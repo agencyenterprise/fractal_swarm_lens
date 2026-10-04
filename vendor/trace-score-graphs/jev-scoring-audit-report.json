@@ -1,0 +1,43 @@
+{
+  "run": "data/scoring-audits/05d698d7be39d5bd",
+  "summary": {
+    "conversations": 7,
+    "focal_records": 14,
+    "new_requests": 34,
+    "unique_request_hashes": 32,
+    "billed_cost_usd": 0.007625141999999999,
+    "models": [
+      "typesafe/jev-1.13-20260917"
+    ],
+    "comparisons": {
+      "repeat": {
+        "measurements": 63,
+        "both_scorable": 52,
+        "status_changes": 1,
+        "material_numeric_changes": 0,
+        "mean_absolute_raw_change": 0.03980769230769233
+      },
+      "context": {
+        "measurements": 63,
+        "both_scorable": 53,
+        "status_changes": 2,
+        "material_numeric_changes": 19,
+        "mean_absolute_raw_change": 0.40339622641509437
+      }
+    },
+    "reference_measurements": 40,
+    "reference_compatible": {
+      "cached_original": 26,
+      "fresh_original": 26,
+      "expanded_same_endpoints": 29
+    },
+    "reference_transitions": {
+      "unchanged": 33,
+      "improved": 5,
+      "worsened": 2
+    },
+    "original_files_unchanged": true,
+    "contamination_conversations": 19,
+    "contamination_original_packets": 40
+  }
+}

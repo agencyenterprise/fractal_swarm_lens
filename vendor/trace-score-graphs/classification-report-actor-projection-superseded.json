@@ -1,0 +1,655 @@
+{
+  "status": "complete",
+  "date": "2026-10-04",
+  "source_scoring_run": "ad8a7238f9d58fff",
+  "unit_tests_passed": 23,
+  "new_jev_api_requests": 0,
+  "experiments": [
+    {
+      "experiment_id": "68d5eb7653a9641c",
+      "window_events": 20,
+      "stride_events": 10,
+      "totals": {
+        "conversations": 300,
+        "windows": 1244,
+        "laplacian_pairs": 12440,
+        "events": 13069,
+        "unpaired_or_not_contained_events": 2753,
+        "short_conversations": 115
+      },
+      "masked_label_cells": 129,
+      "unique_task_groups": 255,
+      "methods": {
+        "grouped_5fold": {
+          "individual_task_relevance": {
+            "macro_ap": 0.5345032721770241,
+            "macro_f1": 0.5073415176298628,
+            "macro_roc_auc": 0.6575577780742067,
+            "micro_f1": 0.5633201098565761
+          },
+          "individual_novelty": {
+            "macro_ap": 0.5041082597298814,
+            "macro_f1": 0.4908757648484,
+            "macro_roc_auc": 0.6384795587804913,
+            "micro_f1": 0.5554209569957601
+          },
+          "individual_instruction_content": {
+            "macro_ap": 0.5108635780138508,
+            "macro_f1": 0.49144300721261314,
+            "macro_roc_auc": 0.6434782764793304,
+            "micro_f1": 0.5470341521869383
+          },
+          "individual_verification_evidence": {
+            "macro_ap": 0.5095542435668302,
+            "macro_f1": 0.4856394392493294,
+            "macro_roc_auc": 0.6461295023166095,
+            "micro_f1": 0.540272614622057
+          },
+          "individual_harmfulness": {
+            "macro_ap": 0.4981825705449367,
+            "macro_f1": 0.4605461510583262,
+            "macro_roc_auc": 0.6234960244614772,
+            "micro_f1": 0.5123867069486405
+          },
+          "individual_agreement": {
+            "macro_ap": 0.5045834584304034,
+            "macro_f1": 0.5006278238034263,
+            "macro_roc_auc": 0.639848632291459,
+            "micro_f1": 0.5590596330275229
+          },
+          "individual_acknowledgment": {
+            "macro_ap": 0.5254689852373864,
+            "macro_f1": 0.4986735202757911,
+            "macro_roc_auc": 0.660207465749363,
+            "micro_f1": 0.5636971723928246
+          },
+          "individual_uptake": {
+            "macro_ap": 0.5275518517458656,
+            "macro_f1": 0.5003599957612052,
+            "macro_roc_auc": 0.6563835574032437,
+            "micro_f1": 0.5607131878266216
+          },
+          "individual_requirement_fulfillment": {
+            "macro_ap": 0.5379126188363232,
+            "macro_f1": 0.5230778933821609,
+            "macro_roc_auc": 0.6862691511345511,
+            "micro_f1": 0.5805134189031506
+          },
+          "average_graph": {
+            "macro_ap": 0.5560830957444434,
+            "macro_f1": 0.5288750777727139,
+            "macro_roc_auc": 0.6909173126958116,
+            "micro_f1": 0.585350713842334
+          },
+          "all_laplacians": {
+            "macro_ap": 0.5602575736427288,
+            "macro_f1": 0.5413260932824518,
+            "macro_roc_auc": 0.6946106460204975,
+            "micro_f1": 0.6101060511540861
+          },
+          "scores_only": {
+            "macro_ap": 0.577821413488904,
+            "macro_f1": 0.5478428778938006,
+            "macro_roc_auc": 0.7100794458783051,
+            "micro_f1": 0.6162935323383084
+          },
+          "scores_plus_laplacians": {
+            "macro_ap": 0.5706508185832664,
+            "macro_f1": 0.5515324224208039,
+            "macro_roc_auc": 0.7024720731885422,
+            "micro_f1": 0.6236425690350605
+          },
+          "activity_only": {
+            "macro_ap": 0.5586347939054337,
+            "macro_f1": 0.5029606916473003,
+            "macro_roc_auc": 0.6711125387178497,
+            "micro_f1": 0.5579450418160096
+          },
+          "training_prevalence": {
+            "macro_ap": 0.3599544246849522,
+            "macro_f1": 0.27870026360305195,
+            "macro_roc_auc": 0.4471099391709518,
+            "micro_f1": 0.5654145077720207
+          },
+          "prediction_average": {
+            "macro_ap": 0.5588833508315896,
+            "macro_f1": 0.5264083500952063,
+            "macro_roc_auc": 0.686913378948571,
+            "micro_f1": 0.5917304747320061
+          }
+        },
+        "leave_framework_out": {
+          "individual_task_relevance": {
+            "macro_ap": 0.42278576814265595,
+            "macro_f1": 0.4484341843840916,
+            "macro_roc_auc": 0.538339097635016,
+            "micro_f1": 0.5073224647692732
+          },
+          "individual_novelty": {
+            "macro_ap": 0.4267386477684884,
+            "macro_f1": 0.4275051667700615,
+            "macro_roc_auc": 0.5220498705033458,
+            "micro_f1": 0.48164383561643836
+          },
+          "individual_instruction_content": {
+            "macro_ap": 0.4329137223828079,
+            "macro_f1": 0.42404844129492225,
+            "macro_roc_auc": 0.5468730579891472,
+            "micro_f1": 0.4856040368061739
+          },
+          "individual_verification_evidence": {
+            "macro_ap": 0.40134898242457073,
+            "macro_f1": 0.4116179749150218,
+            "macro_roc_auc": 0.5190503484465163,
+            "micro_f1": 0.46830985915492956
+          },
+          "individual_harmfulness": {
+            "macro_ap": 0.40048499645038216,
+            "macro_f1": 0.4164825872322832,
+            "macro_roc_auc": 0.5256856117399091,
+            "micro_f1": 0.4698338676770621
+          },
+          "individual_agreement": {
+            "macro_ap": 0.4261950038322616,
+            "macro_f1": 0.45430434106985323,
+            "macro_roc_auc": 0.5310597567283578,
+            "micro_f1": 0.5172043010752688
+          },
+          "individual_acknowledgment": {
+            "macro_ap": 0.43198057049853195,
+            "macro_f1": 0.4024857737383905,
+            "macro_roc_auc": 0.5420420860084257,
+            "micro_f1": 0.47004323656578134
+          },
+          "individual_uptake": {
+            "macro_ap": 0.4350532379513691,
+            "macro_f1": 0.4111285775193108,
+            "macro_roc_auc": 0.5475568733637498,
+            "micro_f1": 0.4679832435667265
+          },
+          "individual_requirement_fulfillment": {
+            "macro_ap": 0.4410099423701391,
+            "macro_f1": 0.43848251501398455,
+            "macro_roc_auc": 0.5816437152905667,
+            "micro_f1": 0.4918429003021148
+          },
+          "average_graph": {
+            "macro_ap": 0.43309265391620794,
+            "macro_f1": 0.3873237340002924,
+            "macro_roc_auc": 0.552900492829907,
+            "micro_f1": 0.4411860540892799
+          },
+          "all_laplacians": {
+            "macro_ap": 0.42347230092339444,
+            "macro_f1": 0.42050436623462456,
+            "macro_roc_auc": 0.5601109505098926,
+            "micro_f1": 0.47918538484576223
+          },
+          "scores_only": {
+            "macro_ap": 0.41227785097161285,
+            "macro_f1": 0.4581821067565001,
+            "macro_roc_auc": 0.5647510893895097,
+            "micro_f1": 0.5226519337016574
+          },
+          "scores_plus_laplacians": {
+            "macro_ap": 0.4241606006612176,
+            "macro_f1": 0.45018770226289095,
+            "macro_roc_auc": 0.576590859163309,
+            "micro_f1": 0.5173860911270983
+          },
+          "activity_only": {
+            "macro_ap": 0.4360947492957064,
+            "macro_f1": 0.4319883366980606,
+            "macro_roc_auc": 0.5567296744827858,
+            "micro_f1": 0.4852382344343759
+          },
+          "training_prevalence": {
+            "macro_ap": 0.32075263038107027,
+            "macro_f1": 0.2742371831407123,
+            "macro_roc_auc": 0.3182233177819932,
+            "micro_f1": 0.5333769633507853
+          },
+          "prediction_average": {
+            "macro_ap": 0.42923687036118074,
+            "macro_f1": 0.42772351022518285,
+            "macro_roc_auc": 0.5459958846421761,
+            "micro_f1": 0.491520380839036
+          }
+        }
+      },
+      "paired_comparisons": {
+        "grouped_5fold": {
+          "average_graph_minus_scores_only": {
+            "macro_ap_difference": -0.021738317744460667,
+            "paired_group_bootstrap_95_interval": [
+              -0.046468228475804535,
+              0.007040556221678323
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_scores_only": {
+            "macro_ap_difference": -0.017563839846175155,
+            "paired_group_bootstrap_95_interval": [
+              -0.038421222908641396,
+              0.005963468017940801
+            ],
+            "resamples": 200
+          },
+          "scores_plus_laplacians_minus_scores_only": {
+            "macro_ap_difference": -0.007170594905637762,
+            "paired_group_bootstrap_95_interval": [
+              -0.019962978503562573,
+              0.010051342331298192
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_average_graph": {
+            "macro_ap_difference": 0.004174477898285511,
+            "paired_group_bootstrap_95_interval": [
+              -0.022312614250773362,
+              0.03217426132153162
+            ],
+            "resamples": 200
+          },
+          "prediction_average_minus_all_laplacians": {
+            "macro_ap_difference": -0.0013742228111391919,
+            "paired_group_bootstrap_95_interval": [
+              -0.024032043362395207,
+              0.021360485482556642
+            ],
+            "resamples": 200
+          }
+        },
+        "leave_framework_out": {
+          "average_graph_minus_scores_only": {
+            "macro_ap_difference": 0.02081480294459509,
+            "paired_group_bootstrap_95_interval": [
+              0.005918115099464868,
+              0.043949875090593615
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_scores_only": {
+            "macro_ap_difference": 0.011194449951781538,
+            "paired_group_bootstrap_95_interval": [
+              -0.005415087016580065,
+              0.02409925541568901
+            ],
+            "resamples": 200
+          },
+          "scores_plus_laplacians_minus_scores_only": {
+            "macro_ap_difference": 0.011882749689604732,
+            "paired_group_bootstrap_95_interval": [
+              0.0020465667637964524,
+              0.02445257810619026
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_average_graph": {
+            "macro_ap_difference": -0.009620352992813552,
+            "paired_group_bootstrap_95_interval": [
+              -0.030019592629999755,
+              0.0032231972444890854
+            ],
+            "resamples": 200
+          },
+          "prediction_average_minus_all_laplacians": {
+            "macro_ap_difference": 0.00576456943778636,
+            "paired_group_bootstrap_95_interval": [
+              -0.00924851098315708,
+              0.023207268303761377
+            ],
+            "resamples": 200
+          }
+        }
+      },
+      "audit": {
+        "passed": true,
+        "checks": {
+          "conversations": 300,
+          "source_files": 3301,
+          "folds": 12,
+          "label_models": 2352,
+          "reconstructed_predictions": 117600,
+          "laplacian_pairs": 12440,
+          "windows": 1244
+        },
+        "masked_label_cells": 129,
+        "errors": []
+      },
+      "report": "data/classification/68d5eb7653a9641c/report.html",
+      "results": "data/classification/68d5eb7653a9641c/results.json",
+      "per_label_metrics": "data/classification/68d5eb7653a9641c/per-label-metrics.csv"
+    },
+    {
+      "experiment_id": "eab6e9778df715d4",
+      "window_events": 10,
+      "stride_events": 5,
+      "totals": {
+        "conversations": 300,
+        "windows": 2485,
+        "laplacian_pairs": 24850,
+        "events": 13069,
+        "unpaired_or_not_contained_events": 3152,
+        "short_conversations": 89
+      },
+      "masked_label_cells": 129,
+      "unique_task_groups": 255,
+      "methods": {
+        "grouped_5fold": {
+          "individual_task_relevance": {
+            "macro_ap": 0.5399582143607723,
+            "macro_f1": 0.5031717901811777,
+            "macro_roc_auc": 0.6636784616825319,
+            "micro_f1": 0.5661325793276782
+          },
+          "individual_novelty": {
+            "macro_ap": 0.5018996236810488,
+            "macro_f1": 0.48165817442605574,
+            "macro_roc_auc": 0.6340917266333373,
+            "micro_f1": 0.5458966565349544
+          },
+          "individual_instruction_content": {
+            "macro_ap": 0.5198662136586637,
+            "macro_f1": 0.5073358784966809,
+            "macro_roc_auc": 0.6504438700232099,
+            "micro_f1": 0.5751753583409576
+          },
+          "individual_verification_evidence": {
+            "macro_ap": 0.513853051137075,
+            "macro_f1": 0.4998260348342915,
+            "macro_roc_auc": 0.648990428175237,
+            "micro_f1": 0.5633187772925764
+          },
+          "individual_harmfulness": {
+            "macro_ap": 0.48193269151440876,
+            "macro_f1": 0.4609166541824867,
+            "macro_roc_auc": 0.6041892856506231,
+            "micro_f1": 0.5151424287856072
+          },
+          "individual_agreement": {
+            "macro_ap": 0.5083907501979743,
+            "macro_f1": 0.5106596679106062,
+            "macro_roc_auc": 0.6417362981153294,
+            "micro_f1": 0.5703014933784164
+          },
+          "individual_acknowledgment": {
+            "macro_ap": 0.5380966168203869,
+            "macro_f1": 0.5178785320857416,
+            "macro_roc_auc": 0.6693703139163386,
+            "micro_f1": 0.5797367615549434
+          },
+          "individual_uptake": {
+            "macro_ap": 0.5298426846364718,
+            "macro_f1": 0.5086860433419008,
+            "macro_roc_auc": 0.6515008990293601,
+            "micro_f1": 0.5719534598897734
+          },
+          "individual_requirement_fulfillment": {
+            "macro_ap": 0.5274540769385069,
+            "macro_f1": 0.530114449295991,
+            "macro_roc_auc": 0.6804661506381693,
+            "micro_f1": 0.592873831775701
+          },
+          "average_graph": {
+            "macro_ap": 0.5532837989492191,
+            "macro_f1": 0.527635802821132,
+            "macro_roc_auc": 0.6792816516803407,
+            "micro_f1": 0.5905240037652966
+          },
+          "all_laplacians": {
+            "macro_ap": 0.5622933897914448,
+            "macro_f1": 0.5366450009252431,
+            "macro_roc_auc": 0.6961088818424243,
+            "micro_f1": 0.6064231738035264
+          },
+          "scores_only": {
+            "macro_ap": 0.570615361384292,
+            "macro_f1": 0.5507428456086509,
+            "macro_roc_auc": 0.7024267026951162,
+            "micro_f1": 0.6214442013129103
+          },
+          "scores_plus_laplacians": {
+            "macro_ap": 0.5642836989428884,
+            "macro_f1": 0.5485339676675226,
+            "macro_roc_auc": 0.7069694100835313,
+            "micro_f1": 0.6236357966947302
+          },
+          "activity_only": {
+            "macro_ap": 0.5589713932108522,
+            "macro_f1": 0.5168861401590614,
+            "macro_roc_auc": 0.6761477781681988,
+            "micro_f1": 0.5735071233707184
+          },
+          "training_prevalence": {
+            "macro_ap": 0.3599544246849522,
+            "macro_f1": 0.27870026360305195,
+            "macro_roc_auc": 0.4471099391709518,
+            "micro_f1": 0.5654145077720207
+          },
+          "prediction_average": {
+            "macro_ap": 0.5534199634644889,
+            "macro_f1": 0.5295011003153434,
+            "macro_roc_auc": 0.6873451128660476,
+            "micro_f1": 0.5998125585754451
+          }
+        },
+        "leave_framework_out": {
+          "individual_task_relevance": {
+            "macro_ap": 0.44029447893559237,
+            "macro_f1": 0.4448549132500479,
+            "macro_roc_auc": 0.5558236153856987,
+            "micro_f1": 0.5032149846239866
+          },
+          "individual_novelty": {
+            "macro_ap": 0.42945757807295554,
+            "macro_f1": 0.4129425394543422,
+            "macro_roc_auc": 0.537083064217063,
+            "micro_f1": 0.4686073059360731
+          },
+          "individual_instruction_content": {
+            "macro_ap": 0.4320344076649311,
+            "macro_f1": 0.43198275049795337,
+            "macro_roc_auc": 0.5307534511062333,
+            "micro_f1": 0.491588252067294
+          },
+          "individual_verification_evidence": {
+            "macro_ap": 0.430518930093126,
+            "macro_f1": 0.42672794527233854,
+            "macro_roc_auc": 0.5372623819768488,
+            "micro_f1": 0.4905335628227194
+          },
+          "individual_harmfulness": {
+            "macro_ap": 0.40584260612804596,
+            "macro_f1": 0.409553929615686,
+            "macro_roc_auc": 0.5223666861321957,
+            "micro_f1": 0.46592244418331374
+          },
+          "individual_agreement": {
+            "macro_ap": 0.4254889928411658,
+            "macro_f1": 0.4311184469236959,
+            "macro_roc_auc": 0.5173251266818454,
+            "micro_f1": 0.4911308203991131
+          },
+          "individual_acknowledgment": {
+            "macro_ap": 0.4444369950268007,
+            "macro_f1": 0.4056080111768764,
+            "macro_roc_auc": 0.5504338650893211,
+            "micro_f1": 0.46824644549763034
+          },
+          "individual_uptake": {
+            "macro_ap": 0.43421125559171203,
+            "macro_f1": 0.41762970938534855,
+            "macro_roc_auc": 0.5395808797526878,
+            "micro_f1": 0.470131421744325
+          },
+          "individual_requirement_fulfillment": {
+            "macro_ap": 0.45788855926267324,
+            "macro_f1": 0.4476757325842757,
+            "macro_roc_auc": 0.5991335597257663,
+            "micro_f1": 0.5031597953656335
+          },
+          "average_graph": {
+            "macro_ap": 0.44627587270983265,
+            "macro_f1": 0.3909209096107647,
+            "macro_roc_auc": 0.5544467271353241,
+            "micro_f1": 0.43832020997375326
+          },
+          "all_laplacians": {
+            "macro_ap": 0.42043198109995644,
+            "macro_f1": 0.40689818262365923,
+            "macro_roc_auc": 0.5516970652366326,
+            "micro_f1": 0.46729540614542137
+          },
+          "scores_only": {
+            "macro_ap": 0.4002391246516625,
+            "macro_f1": 0.43887759265983556,
+            "macro_roc_auc": 0.5348796983168752,
+            "micro_f1": 0.520066889632107
+          },
+          "scores_plus_laplacians": {
+            "macro_ap": 0.4091503660572363,
+            "macro_f1": 0.41987349686425396,
+            "macro_roc_auc": 0.5399256971818589,
+            "micro_f1": 0.4775498067201903
+          },
+          "activity_only": {
+            "macro_ap": 0.44721332039368245,
+            "macro_f1": 0.4020531961174724,
+            "macro_roc_auc": 0.5594848944794882,
+            "micro_f1": 0.46015503875968994
+          },
+          "training_prevalence": {
+            "macro_ap": 0.32075263038107027,
+            "macro_f1": 0.2742371831407123,
+            "macro_roc_auc": 0.3182233177819932,
+            "micro_f1": 0.5333769633507853
+          },
+          "prediction_average": {
+            "macro_ap": 0.4456093096957911,
+            "macro_f1": 0.4249772783228902,
+            "macro_roc_auc": 0.5563575406134064,
+            "micro_f1": 0.4943683409436834
+          }
+        }
+      },
+      "paired_comparisons": {
+        "grouped_5fold": {
+          "average_graph_minus_scores_only": {
+            "macro_ap_difference": -0.017331562435072945,
+            "paired_group_bootstrap_95_interval": [
+              -0.041997350095236106,
+              0.009227509461119537
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_scores_only": {
+            "macro_ap_difference": -0.0083219715928472,
+            "paired_group_bootstrap_95_interval": [
+              -0.02914493074221088,
+              0.015083002982305374
+            ],
+            "resamples": 200
+          },
+          "scores_plus_laplacians_minus_scores_only": {
+            "macro_ap_difference": -0.006331662441403596,
+            "paired_group_bootstrap_95_interval": [
+              -0.01782485149890111,
+              0.008898058942226067
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_average_graph": {
+            "macro_ap_difference": 0.009009590842225745,
+            "paired_group_bootstrap_95_interval": [
+              -0.016351207653697016,
+              0.030318971707068935
+            ],
+            "resamples": 200
+          },
+          "prediction_average_minus_all_laplacians": {
+            "macro_ap_difference": -0.008873426326956091,
+            "paired_group_bootstrap_95_interval": [
+              -0.029545900200445143,
+              0.01225782142368156
+            ],
+            "resamples": 200
+          }
+        },
+        "leave_framework_out": {
+          "average_graph_minus_scores_only": {
+            "macro_ap_difference": 0.04603674805817021,
+            "paired_group_bootstrap_95_interval": [
+              0.024682767040026417,
+              0.07260016717523331
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_scores_only": {
+            "macro_ap_difference": 0.02019285644829394,
+            "paired_group_bootstrap_95_interval": [
+              0.006138399931964263,
+              0.034637815152378446
+            ],
+            "resamples": 200
+          },
+          "scores_plus_laplacians_minus_scores_only": {
+            "macro_ap_difference": 0.008911241405573866,
+            "paired_group_bootstrap_95_interval": [
+              -0.0013358097318435674,
+              0.01958386727492684
+            ],
+            "resamples": 200
+          },
+          "all_laplacians_minus_average_graph": {
+            "macro_ap_difference": -0.02584389160987627,
+            "paired_group_bootstrap_95_interval": [
+              -0.04867734873565933,
+              -0.007067760849946488
+            ],
+            "resamples": 200
+          },
+          "prediction_average_minus_all_laplacians": {
+            "macro_ap_difference": 0.025177328595834658,
+            "paired_group_bootstrap_95_interval": [
+              0.010790524032490891,
+              0.042036691539746825
+            ],
+            "resamples": 200
+          }
+        }
+      },
+      "audit": {
+        "passed": true,
+        "checks": {
+          "conversations": 300,
+          "source_files": 3301,
+          "folds": 12,
+          "label_models": 2352,
+          "reconstructed_predictions": 117600,
+          "laplacian_pairs": 24850,
+          "windows": 2485
+        },
+        "masked_label_cells": 129,
+        "errors": []
+      },
+      "report": "data/classification/eab6e9778df715d4/report.html",
+      "results": "data/classification/eab6e9778df715d4/results.json",
+      "per_label_metrics": "data/classification/eab6e9778df715d4/per-label-metrics.csv"
+    }
+  ],
+  "conclusions": [
+    "For both window sizes, score-only summaries outperform the average graph and joint Laplacian features on task-group cross-validation.",
+    "When a framework is held out, averaging graph layers outperforms scores-only, but has approximately the same macro AP as the activity-only baseline.",
+    "Requirement fulfillment has the highest observed held-framework-out macro AP among the nine individual layers at both window sizes. This ranking is exploratory, not selection on an untouched test set.",
+    "Joint use of all Laplacians does not consistently improve over averaging graph layers or using the strongest individual layer.",
+    "This particular projection, window summary and linear classifier has not demonstrated a consistent advantage attributable to combining Laplacians. These results do not rule out other graph representations."
+  ],
+  "reference_label_note": "129 of 4200 reference-label cells are masked because annotations disagree or are unknown. All 300 conversations remain; known labels are used independently.",
+  "metrics_note": "AP is non-interpolated average precision, not accuracy. F1 uses a fixed 0.5 threshold on class-balanced logistic-regression outputs; probabilities are not calibrated.",
+  "references": [
+    "https://arxiv.org/abs/1601.04692",
+    "https://scikit-learn.org/stable/modules/cross_validation.html#cross-validation-iterators-for-grouped-data",
+    "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html"
+  ]
+}
