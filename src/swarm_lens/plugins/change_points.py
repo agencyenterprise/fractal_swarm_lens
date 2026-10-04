@@ -19,6 +19,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from swarm_lens.application.plugins import event_agent_id
 from swarm_lens.core.models import DomainError, Event
 from swarm_lens.plugins import Annotation, Metric, Report
 
@@ -32,8 +33,9 @@ Vector = tuple[float, ...]
 class Params(BaseModel):
     model_config = ConfigDict(extra="forbid")
     signal: Literal["verbosity", "latency", "content"] = Field(
-        "verbosity", description="Message length; reply latency (recorded, else time since the agent's previous "
-                                 "event); or message embedding (text-embedding-3-small, needs OPENAI_API_KEY).")
+        "verbosity", description="Message length; latency (recorded, else time since the agent's previous message "
+                                 "or since it joined); or message embedding (text-embedding-3-small, needs "
+                                 "OPENAI_API_KEY).")
     hazard: float = Field(1 / 30, gt=0, lt=1, description="Prior chance of a change at each message (1/30: about "
                                                           "one change per 30 messages)")
     min_support: int = Field(2, ge=1, le=10, title="Minimum support",
@@ -41,8 +43,8 @@ class Params(BaseModel):
     min_shift: float = Field(0.0, ge=0, title="Minimum shift",
                              description="Hide changes smaller than this, in noise standard deviations")
     band_window: int = Field(10, ge=1, title="Band window",
-                             description="Without round metadata, changes of different agents this many events "
-                                         "apart or closer form a band")
+                             description="Without round metadata, changes of different agents in the same block of "
+                                         "this many events (1-10, 11-20, ...) form a band")
 
 
 @dataclass
@@ -153,26 +155,29 @@ class Scan:
 
     def run(self, events: Sequence[Event]) -> list[tuple[int, Metric | Annotation]]:
         """Findings in emission order, each with the position at which an online run would emit it."""
-        messages = [e for e in events if e.kind == "message.created" and e.data.get("sender_id")]
-        vectors = self._vectors(messages)
+        embedded = self._embeddings(events) if self.params.signal == "content" else {}
         found: list[tuple[int, Metric | Annotation]] = []
         for event in events:
             agent = event.data.get("sender_id") if event.kind == "message.created" else None
-            if agent and event.id in vectors:
-                found += self._message(agent, event, vectors[event.id])
-            actor = agent or event.data.get("agent_id") or event.data.get("owner_id")
-            if actor:
-                self.last_seen[actor] = parse_time(event.occurred_at)
+            value = self._value(event, embedded) if agent else None
+            if value is not None:
+                found += self._message(agent, event, value)
+            if agent or event.kind.startswith("agent."):
+                self.last_seen[agent or event_agent_id(event)] = parse_time(event.occurred_at)
         return found
 
-    def _vectors(self, messages: list[Event]) -> dict[str, Vector]:
-        signal = self.params.signal
-        if signal == "verbosity":
-            return {e.id: (math.log1p(len(e.data.get("content") or "")),) for e in messages}
-        if signal == "latency":
-            return {e.id: (math.log1p(self._latency(e)),) for e in messages}
-        texted = [e for e in messages if (e.data.get("content") or "").strip()]
+    def _embeddings(self, events: Sequence[Event]) -> dict[str, Vector]:
+        texted = [e for e in events if e.kind == "message.created" and e.data.get("sender_id")
+                  and (e.data.get("content") or "").strip()]
         return dict(zip((e.id for e in texted), self.encode([e.data["content"] for e in texted])))
+
+    def _value(self, event: Event, embedded: dict[str, Vector]) -> Vector | None:
+        """The signal for one message, read before `last_seen` moves past it; None skips the message."""
+        if self.params.signal == "verbosity":
+            return (math.log1p(len(event.data.get("content") or "")),)
+        if self.params.signal == "latency":
+            return (math.log1p(self._latency(event)),)
+        return embedded.get(event.id)
 
     def _latency(self, event: Event) -> float:
         recorded = (event.data.get("metadata") or {}).get("latency_seconds")
@@ -186,7 +191,8 @@ class Scan:
         detector = self.detectors.setdefault(
             agent, OnlineDetector(params.hazard, VARIANCE_FLOOR[params.signal], params.min_support))
         steps = self.steps.setdefault(agent, [])
-        steps.append(Step(event, value, self._shown(event, value, steps), (event.data.get("metadata") or {}).get("round")))
+        round_ = (event.data.get("metadata") or {}).get("round")
+        steps.append(Step(event, value, self._shown(event, value, steps), round_))
         boundary = detector.update(value)
         found: list[tuple[int, Metric | Annotation]] = []
         if steps[-1].shown is not None:
@@ -201,7 +207,7 @@ class Scan:
         if self.params.signal == "verbosity":
             return float(len(event.data.get("content") or ""))
         if self.params.signal == "latency":
-            return math.expm1(value[0])
+            return round(math.expm1(value[0]), 6)
         if not steps:
             return None
         previous = steps[-1].value
@@ -233,7 +239,7 @@ class Scan:
 
         The band is emitted online, so agents that change in the same round later are not added to it."""
         key = (("round", changed.round) if changed.round is not None
-               else ("window", changed.event.position // self.params.band_window))
+               else ("window", (changed.event.position - 1) // self.params.band_window))
         members = self.groups.setdefault(key, {})
         members.setdefault(agent, changed.event.position)
         if len(members) < 2 or key in self.banded:
@@ -246,13 +252,23 @@ class Scan:
                                  "round": changed.round if key[0] == "round" else None})]
 
 
+def openai_encoder():
+    """The production encoder; setup problems become messages the user can act on."""
+    try:
+        from swarm_lens.adapters.openai_embeddings import OpenAITextEncoder
+        return OpenAITextEncoder.from_env()
+    except (ImportError, ValueError) as exc:
+        raise DomainError(f"The content signal needs an embedding encoder: {exc}. Set OPENAI_API_KEY and install "
+                          "swarm-lens[embeddings]") from exc
+
+
 class ChangePoints:
     id, version = "change-points", "1.0.0"
     title = "Change points"
     description = "Marks where an agent's behavior shifted (verbosity, latency or content), to jump to and fork from."
     Params = Params
 
-    def __init__(self, encoder_factory: Callable[[], object] | None = None):
+    def __init__(self, encoder_factory: Callable[[], object] = openai_encoder):
         """No run state lives on the instance: every call rebuilds the detectors from the view. The only shared
         state is a memo of embeddings by text hash (the same text always gets the same vector), behind a lock."""
         self._encoder_factory, self._encoder = encoder_factory, None
@@ -261,7 +277,8 @@ class ChangePoints:
 
     def analyze(self, view, start, end, params):
         found = Scan(params, self._encode).run(view.events(1, end))
-        kept = [item for at, item in found if start <= at <= end and getattr(item, "seq_from", start) >= start]
+        kept = [item for at, item in found if start <= at <= end
+                and not (isinstance(item, Annotation) and item.seq_from < start)]
         yield from kept
         yield Report(summary(kept, params))
 
@@ -278,9 +295,6 @@ class ChangePoints:
                 yield item
 
     def _encode(self, texts: list[str]) -> list[Vector]:
-        if self._encoder_factory is None:
-            raise DomainError("The content signal needs an embedding encoder: set OPENAI_API_KEY and install "
-                              "swarm-lens[embeddings]")
         keys = [hashlib.sha256(text.encode()).hexdigest() for text in texts]
         with self._lock:
             missing = {k: t for k, t in zip(keys, texts) if k not in self._cache}
@@ -302,10 +316,5 @@ def summary(findings: list[Metric | Annotation], params: Params) -> dict:
                        "manipulated. See docs/plugins/change-points.md."}
 
 
-def openai_encoder():
-    from swarm_lens.adapters.openai_embeddings import OpenAITextEncoder
-    return OpenAITextEncoder.from_env()
-
-
 def create(services):
-    return ChangePoints(openai_encoder)
+    return ChangePoints()

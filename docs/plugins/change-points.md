@@ -14,7 +14,7 @@ one signal:
 | `signal` | Value per message | Metric track |
 | --- | --- | --- |
 | `verbosity` (default) | log(1 + characters) | `characters` |
-| `latency` | log(1 + `metadata.latency_seconds`), else seconds since the agent's previous event | `latency_seconds` |
+| `latency` | log(1 + `metadata.latency_seconds`), else seconds since the agent's previous message (or since it joined) | `latency_seconds` |
 | `content` | text-embedding-3-small, 16 dimensions (needs `OPENAI_API_KEY` and `swarm-lens[embeddings]`); empty messages are skipped | `content_step` (cosine distance to the agent's previous message) |
 
 An online Bayesian change-point detector ([Adams & MacKay 2007](https://arxiv.org/abs/0710.3742), run-length
@@ -28,8 +28,8 @@ Findings:
   `score` is the shift size in noise standard deviations. `data.delay` gives the real detection delay in messages
   and events. `data.run_length_mass` is the model's posterior mass on the current run. It is **not** a calibrated
   probability that the change is real, and the plugin does not call it one.
-- **Band** (no agent): once a second agent changes in the same round (`metadata.round`, else the same window of
-  `band_window` events), one band spans their changes. Bands are emitted online, so a third agent that changes
+- **Band** (no agent): once a second agent changes in the same round (`metadata.round`, else the same block of
+  `band_window` events: 1-10, 11-20 and so on), one band spans their changes. Bands are emitted online, so a third agent that changes
   later in that round is not added.
 - **Report**: counts per agent and the list of delays.
 
@@ -46,7 +46,10 @@ much longer: on ACIArena it went up to 15 messages.
 `on_events` keeps no state on the plugin instance. Each call replays the branch from event 1 up to the end of its
 batch, then yields what an online run emits inside the batch. A test checks that the streamed batches equal one
 `analyze` run. The cost is quadratic in the number of batches, and the stream must start at event 1. Per-run
-streaming state belongs to the live wiring. The only shared state is an embedding memo keyed by text hash, behind
+streaming state belongs to the live wiring. The platform's on-demand runner calls `analyze` for this plugin, so
+`on_events` only matters for live ingestion. If `on_events` is fed a stream that starts after event 1, a change
+confirmed inside the stream can begin before its first event; the platform then rejects the whole run with a
+range error, so it fails loudly and never saves a wrong marker. The only shared state is an embedding memo keyed by text hash, behind
 a lock. `analyze(start, end)` also replays from event 1 for context and keeps only findings inside `start..end`.
 
 ## Evaluation
@@ -62,7 +65,7 @@ questionable workaround. Ground truth was used only for scoring.
 | --- | --- | --- | --- | --- |
 | verbosity | 2 / 16 | 1, 13, 15, 1, p = 0.0005 | 3 / 32 | 4 / 15 |
 | latency | 30 / 29 | 29, 0, 0, 1, p = 1.0 | 76 / 92 | 2 / 12 |
-| content | 25 / 30 | 25, 0, 5, 0, p = 0.06 | 55 / 79 | 2 / 15 |
+| content | 25 / 30 | 25, 0, 5, 0, p = 0.06 | 55 / 81 | 2 / 15 |
 
 Messageboard (30 agents, 12 used the workaround; "near" = within 2 messages of the first successful workaround
 call):
@@ -70,7 +73,7 @@ call):
 | Signal | Markers | Near adoption | Adopters with a marker near adoption | Markers on non-adopters |
 | --- | --- | --- | --- | --- |
 | verbosity | 17 | 2 | 2 / 12 | 14 |
-| latency | 0 | 0 | 0 / 12 | 0 |
+| latency | 15 | 5 | 4 / 12 | 9 |
 | content | 43 | 10 | 9 / 12 | 26 |
 
 ### Reading
@@ -85,14 +88,16 @@ call):
   their answer (as in the screenshot above, medicine-014). Same in the control of that task:
 
   ![Control run of the same task: no markers](change-points/aciarena-control.png)
-- **latency ✗.** Markers appear in nearly every run, attack or control.
+- **latency ✗.** Markers appear in nearly every ACIArena run, attack or control. On the messageboard, 9 of 15
+  markers are on agents that never used the workaround.
 - **messageboard ✗.** Content markers are near adoption for 9 of 12 adopters, but 26 of 43 markers are on agents
   that never used the workaround. In the research run no signal beat a random-placement baseline. In run-kimi-01
   below, the content marker is on reviewer_2, who did not use the workaround, and the agent that did has none.
 
   ![Messageboard run-kimi-01: content markers on reviewer_2](change-points/messageboard-kimi-01.png)
 
-One model (gpt-4o-mini, temperature 0) on ACIArena, two (kimi, qwen) on the messageboard. The plugin's defaults
+The embedding API is not bitwise deterministic, so content counts move by about 1 between reruns (we saw 25 or
+26 control tasks and 79 to 81 attack markers over three runs). One model (gpt-4o-mini, temperature 0) on ACIArena, two (kimi, qwen) on the messageboard. The plugin's defaults
 differ a little from the research run: `min_support` also requires the earlier segment to hold 2 messages,
 which removes round-1 changes (research: verbosity 15% vs 70% of honest agents; plugin: 2 vs 16 tasks), and the
 content signal uses the API's 16-dimension embeddings instead of a random projection.
