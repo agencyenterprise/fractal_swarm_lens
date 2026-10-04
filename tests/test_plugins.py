@@ -49,7 +49,7 @@ def test_discovery_from_entry_points_and_flags_with_params_schema(tmp_path, monk
     install_entry_point(tmp_path, monkeypatch)
     with TestClient(build_app(tmp_path, plugin_specs=["examples.plugins.reference:create"])) as client:
         plugins = {plugin["id"]: plugin for plugin in client.get("/api/plugins").json()["plugins"]}
-        assert list(plugins) == ["activity", "event-counter", "message-length", "silence-agent"]
+        assert list(plugins) == ["activity", "influence-ribbon", "event-counter", "message-length", "silence-agent"]
         assert plugins["message-length"]["capabilities"] == ["analyzer"]
         assert plugins["silence-agent"]["capabilities"] == ["intervention"]
         assert plugins["message-length"]["params_schema"]["properties"]["long_message"]["default"] == 500

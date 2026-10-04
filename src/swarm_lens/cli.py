@@ -20,7 +20,8 @@ def load_factory(spec: str):
 
 
 PLUGIN_GROUP = "swarm_lens.plugins"
-BUNDLED_PLUGINS = ("swarm_lens.plugins.activity:create", "swarm_lens.web.plugins.mast:create")
+BUNDLED_PLUGINS = ("swarm_lens.plugins.activity:create", "swarm_lens.web.plugins.mast:create",
+                   "swarm_lens.plugins.influence_ribbon:create")
 
 
 def plugin_call(source: str, function, *args):
