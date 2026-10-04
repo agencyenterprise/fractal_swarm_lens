@@ -169,6 +169,11 @@ function moreMenuItems() {
     ...group("data"),
     ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", onClick: saveCheckpoint }] : []),
     ...(view.run?.metadata.dataset_url ? [{ label: "Source and provenance ↗", onClick: () => window.open(view.run.metadata.dataset_url, "_blank", "noopener") }] : []),
+    "---",
+    { heading: "Theme" },
+    ...[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([value, label]) => ({
+      label, current: window.swarmLensTheme.get() === value, onClick: () => window.swarmLensTheme.set(value),
+    })),
   ];
 }
 
