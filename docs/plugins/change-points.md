@@ -13,14 +13,16 @@ one signal:
 
 | `signal` | Value per message | Metric track |
 | --- | --- | --- |
-| `verbosity` (default) | log(1 + characters) | `characters` |
-| `latency` | log(1 + `metadata.latency_seconds`), else seconds since the agent's previous message (or since it joined) | `latency_seconds` |
+| `verbosity` (default) | log(1 + characters); empty messages are skipped | `characters` |
+| `latency` | log(1 + `metadata.latency_seconds`), else seconds since the agent's previous message (or since it joined); skipped when there is neither | `latency_seconds` |
 | `content` | text-embedding-3-small, 16 dimensions (needs `OPENAI_API_KEY` and `swarm-lens[embeddings]`); empty messages are skipped | `content_step` (cosine distance to the agent's previous message) |
 
 An online Bayesian change-point detector ([Adams & MacKay 2007](https://arxiv.org/abs/0710.3742), run-length
 recursion, constant hazard) runs on each series. Segments are diagonal Gaussians. The noise variance comes from
 successive differences (median, chi-square corrected), and the prior from the agent's history so far. The plugin
-also emits `messages_since_change`, the most likely current run length, so the track drops to 1 at each change.
+also emits `messages_since_change`, the most likely (MAP) current run length. The track usually drops when a
+change is reported, but it can also drop without a marker: a short run that never holds `min_support` messages, or
+a change hidden by `min_shift`, is not reported.
 
 Findings:
 
@@ -54,8 +56,8 @@ a lock. `analyze(start, end)` also replays from event 1 for context and keeps on
 
 ## Evaluation
 
-Full method, sources and plan: `swarm-lens-research/change-points/README.md` (plan fixed before results, one
-amendment from the lead before results). Data: 30 ACIArena medicine tasks, each run with and without a malicious
+The full method, sources and plan are in our research notes, not in this repository (plan fixed before results,
+one amendment from the lead before results). Data: 30 ACIArena medicine tasks, each run with and without a malicious
 debater (`debater_0` in every attack run, speaks first), and 10 messageboard runs in which agents may adopt a
 questionable workaround. Ground truth was used only for scoring.
 
@@ -101,6 +103,13 @@ The embedding API is not bitwise deterministic, so content counts move by about 
 differ a little from the research run: `min_support` also requires the earlier segment to hold 2 messages,
 which removes round-1 changes (research: verbosity 15% vs 70% of honest agents; plugin: 2 vs 16 tasks), and the
 content signal uses the API's 16-dimension embeddings instead of a random projection.
+
+### False positives on series with no change
+
+With the defaults (`min_shift` 0, hazard 1/30, `min_support` 2), we ran the detector on 5,000 simulated agent
+series of independent Gaussian log-lengths (SD 0.3, no change at all). At least one marker appeared in 21% of
+20-message series and 35% of 40-message series. Many of these spurious shifts are large in noise SDs: `min_shift` 2
+lowers the rates to 18% and 26%, and `min_shift` 3 to 10% and 13%. Raise `min_shift` to get fewer of them.
 
 ### What it is and what it is not
 

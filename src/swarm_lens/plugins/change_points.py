@@ -174,17 +174,20 @@ class Scan:
     def _value(self, event: Event, embedded: dict[str, Vector]) -> Vector | None:
         """The signal for one message, read before `last_seen` moves past it; None skips the message."""
         if self.params.signal == "verbosity":
-            return (math.log1p(len(event.data.get("content") or "")),)
+            content = event.data.get("content") or ""
+            return (math.log1p(len(content)),) if content.strip() else None
         if self.params.signal == "latency":
-            return (math.log1p(self._latency(event)),)
+            latency = self._latency(event)
+            return None if latency is None else (math.log1p(latency),)
         return embedded.get(event.id)
 
-    def _latency(self, event: Event) -> float:
+    def _latency(self, event: Event) -> float | None:
+        """None when nothing is recorded and the agent has no earlier message or `agent.*` event to measure from."""
         recorded = (event.data.get("metadata") or {}).get("latency_seconds")
         if recorded is not None:
             return max(float(recorded), 0.0)
         previous = self.last_seen.get(event.data["sender_id"])
-        return max((parse_time(event.occurred_at) - previous).total_seconds(), 0.0) if previous else 0.0
+        return max((parse_time(event.occurred_at) - previous).total_seconds(), 0.0) if previous else None
 
     def _message(self, agent: str, event: Event, value: Vector) -> list[tuple[int, Metric | Annotation]]:
         params = self.params

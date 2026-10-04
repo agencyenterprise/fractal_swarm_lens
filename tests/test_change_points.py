@@ -7,8 +7,9 @@ import pytest
 
 from swarm_lens import Fact, PluginService
 from swarm_lens.adapters.jobs import JobStore
+from swarm_lens.core.models import Event
 from swarm_lens.plugins import Annotation, Metric
-from swarm_lens.plugins.change_points import ChangePoints, OnlineDetector, Params, create
+from swarm_lens.plugins.change_points import ChangePoints, OnlineDetector, Params, Scan, create
 from swarm_lens.web.api import create_app
 from tests.conftest import Facts
 
@@ -120,6 +121,23 @@ def test_latency_falls_back_to_the_gap_since_the_agents_previous_message(framewo
     assert [value for _, value in series["points"]] == [60.0] * 3 + [61.0] + [60.0] * 4 + [600.0] * 8
     [change] = annotations(client, branch)
     assert change["seq_from"] == position(framework, branch, "m8") and change["label"].startswith("Latency shift ×")
+
+
+def test_latency_skips_a_first_message_with_nothing_to_measure_from():
+    """A stream without the agent's `agent.added` gives its first message no gap; it is skipped, not read as 0."""
+    events = [Event(f"e{i}", "b", i, "message.created", {"id": f"m{i}", "sender_id": "a", "content": "hi"},
+                    (START + timedelta(minutes=i)).isoformat(), START.isoformat()) for i in range(1, 5)]
+    found = Scan(Params(signal="latency"), lambda texts: []).run(events)
+    assert [(m.seq, m.value) for _, m in found if m.name == "latency_seconds"] == [(2, 60.0), (3, 60.0), (4, 60.0)]
+
+
+def test_verbosity_skips_empty_messages_like_content(framework, client):
+    branch = debate(framework, blank=("c", 3))
+    assert analyze(client, branch)["status"] == "completed"
+    [series] = [s for s in client.get(f"/api/branches/{branch.id}/series").json()["series"]
+                if (s["name"], s["agent_id"]) == ("characters", "c")]
+    assert len(series["points"]) == ROUNDS - 1 and 0.0 not in [value for _, value in series["points"]]
+    assert position(framework, branch, "c-3") not in [seq for seq, _ in series["points"]]
 
 
 def test_one_transition_with_a_revised_boundary_is_reported_once():
