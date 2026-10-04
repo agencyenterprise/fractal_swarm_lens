@@ -44,12 +44,13 @@ For an application-owned composition root:
 ```python
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.judge import OpenAIMastJudge
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.adapters.jobs import JobStore
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.mast import mast_extension
 from swarm_lens.web.api import create_app
 
 service = MastService(framework, MastPlugin(OpenAIMastJudge()),
-                      MastJobs("data/mast.sqlite"), artifacts)
+                      JobStore("data/mast.sqlite", "mast", "MAST"), artifacts)
 app = create_app(framework, artifacts, extensions=(mast_extension(service),))
 ```
 

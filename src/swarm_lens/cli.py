@@ -22,9 +22,13 @@ def main():
     import uvicorn
     from .web.api import create_app
     from .web.mast import mast_extension
+    from .web.timeline_report import TimelineService, timeline_extension
+    from .adapters.jobs import JobStore
     from .observability.mast import MastPlugin
     from .observability.mast.judge import OpenAIMastJudge
-    from .observability.mast.service import MastJobs, MastService
+    from .observability.mast.service import MastService
+    from .adapters.openai_chat import OpenAIChat
+    from .observability.timeline import TimelinePlugin
 
     try:
         from dotenv import load_dotenv
@@ -34,7 +38,10 @@ def main():
         load_dotenv(args.env_file, override=False)
 
     framework = Framework(SQLiteHistory(args.data / "history.sqlite"),
-                          versions=GitVersions(args.data / "history.git"), plugins=(ActivityPlugin(),))
+                          versions=GitVersions(args.data / "history.git"),
+                          plugins=(ActivityPlugin(), TimelinePlugin(OpenAIChat(
+                              env_prefix="TIMELINE", extra="timeline", default_model="gpt-5.6-sol",
+                              max_completion_tokens=32_768, max_retries=2))))
     artifacts = FileArtifacts(args.data / "artifacts")
     from importlib import import_module
     from .live.service import LiveService
@@ -54,8 +61,10 @@ def main():
     runtimes.append(TraceCrewAIRuntime(framework, tools=tools))
     live = LiveService(framework, args.data / "live.sqlite", tuple(runtimes))
     mast = MastService(framework, MastPlugin(OpenAIMastJudge()),
-                       MastJobs(args.data / "mast.sqlite"), artifacts)
-    uvicorn.run(create_app(framework, artifacts, extensions=(mast_extension(mast),), live=live),
+                       JobStore(args.data / "mast.sqlite", "mast", "MAST"), artifacts)
+    timeline = TimelineService(framework, JobStore(args.data / "timeline.sqlite", "timeline", "timeline"))
+    uvicorn.run(create_app(framework, artifacts, extensions=(mast_extension(mast), timeline_extension(timeline)),
+                           live=live),
                 host=args.host, port=args.port)
 
 
