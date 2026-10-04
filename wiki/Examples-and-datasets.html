@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Examples and datasets — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a aria-current="page" href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a  href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Examples and datasets</h1>
+<h2>Medical debate from the demo</h2>
+<p>From the repository root on <code>main</code>, with your virtual environment active:</p>
+<pre><code class="language-sh">python -m pip install -e '.[web,aciarena,mast]'
+git submodule update --init vendor/aciarena
+python -m examples.aciarena.samples import \
+  --input examples/aciarena/samples/llm-debate-medicine-misalign-20261004 \
+  --data data
+swarm-lens --data data --port 8765
+</code></pre>
+<p>This imports saved files; it does not regenerate them or call a model. Choose <strong>ACIArena · LLMDebate · medicine-000 · Without attack · 20 rounds</strong> or <strong>With malicious agent</strong>. Each has 64 model responses: three initial responses, 20 three-agent debate rounds, and aggregation. The question concerns dental impression materials; it is a benchmark scenario, not clinical guidance.</p>
+<p>The malicious-agent example uses upstream <code>MisalignAgent</code>. Both bundled medical runs were scored incorrect by the native task grader and the attack was scored unsuccessful. These labels do not establish whether a cascade occurred.</p>
+<h2>Other bundled examples</h2>
+<table>
+<thead>
+<tr>
+<th>Folder under <code>examples/aciarena/samples/</code></th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>llm-debate-pair-20261003</code></td>
+<td>Math debate, control versus name-leak injection</td>
+</tr>
+<tr>
+<td><code>mad-medicine-misalign-20261004</code></td>
+<td>Medical MAD control/attack pair; moderator stops at bootstrap</td>
+</tr>
+<tr>
+<td><code>llm-debate-code-malicious-report-20261004</code></td>
+<td>Code scenario with GPT-4o mini</td>
+</tr>
+<tr>
+<td><code>llm-debate-code-malicious-report-gpt4o-20261004</code></td>
+<td>Code scenario with GPT-4o</td>
+</tr>
+<tr>
+<td><code>llm-debate-code-malicious-report-gemini31pro-20261004</code></td>
+<td>Code scenario with Gemini via OpenRouter</td>
+</tr>
+</tbody>
+</table>
+<p>Use the same import command with the desired folder. A 20-round configuration is an upper schedule parameter for MAD, not a guarantee of 20 completed rounds: the bundled MAD pair stops early.</p>
+<h2>Generating new data</h2>
+<p>The generator supports math, medicine, and code scenarios, paired conditions, and concurrent execution. Generation requires credentials and makes paid model calls. See the <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/aciarena/README.md">versioned ACIArena guide</a> for commands, budgets, manifests, and the distinction between upstream attacks and the local <code>medicine-wrong-option</code> extension.</p>
+<p>The 30-task wrong-option batch and the separate message-board dataset are not bundled. The AI Village importer requires dataset access. Do not expect those conversations to appear after cloning.</p>
+<h2>Evidence to retain</h2>
+<p>Keep the manifest, source revision, trace hashes, model settings, exact inputs/outputs, delivered-source links, and native grader outputs. Some upstream option-letter extraction can misread an answer. Inspect raw responses before treating a grader label as established truth.</p>
+<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Examples-and-datasets.md">View Markdown source ↗</a></div></main></div></body></html>

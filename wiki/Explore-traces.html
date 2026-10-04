@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Explore traces — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a aria-current="page" href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a  href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Explore traces</h1>
+<h2>Timeline</h2>
+<p>Choose a run, then a branch. Move the cursor to inspect the state at a particular event. The transcript preserves later messages but dims them; the inspector shows the selected event, agent, or run. Use the View and Show controls to include tools, memories, and observations.</p>
+<p>The visualization switch changes the panel above the transcript:</p>
+<table>
+<thead>
+<tr>
+<th>View</th>
+<th>Question it helps inspect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lanes</td>
+<td>Who acted, and in what order?</td>
+</tr>
+<tr>
+<td>Influence</td>
+<td>Which agents' messages were read by others?</td>
+</tr>
+<tr>
+<td>Blast radius</td>
+<td>Which later messages have a recorded path from a selected message?</td>
+</tr>
+<tr>
+<td>Phrase spread</td>
+<td>Where does a chosen phrase appear across agents and stages?</td>
+</tr>
+<tr>
+<td>Echo</td>
+<td>How much five-word phrase overlap exists with messages an agent read?</td>
+</tr>
+<tr>
+<td>Activity</td>
+<td>Where do recorded activity, length, tokens, or latency change?</td>
+</tr>
+</tbody>
+</table>
+<p>These are descriptive views, not validated causal or cascade classifiers. Influence uses delivered-source links where available, with reply/channel fallbacks. Inspect provenance before interpreting an edge as evidence of exposure. Missing measurements are not zeros.</p>
+<h2>Compare</h2>
+<p>Open Compare and explicitly choose the two branches or paired runs. Review the final outcomes and then the stage-aligned transcript. Independent control and attack runs need not share a common history. A comparison alone does not control for model stochasticity or establish causality.</p>
+<h2>Branch</h2>
+<p>Select an event and choose <strong>Fork here</strong> (keyboard: <code>F</code>). Other fork actions change a goal, prompt, or agent configuration. A branch preserves history through its fork point. Creating a branch stores an experiment; <strong>Create and run</strong> additionally executes through an available runtime. See <a href="Live-collection-and-branching.html">branching semantics</a>.</p>
+<h2>Reports and sharing</h2>
+<p>Reports contains saved MAST analyses for the selected branch. The analysis dialog starts a job; the workspace report displays its result. An empty Reports view does not mean the conversation has no failures—it means no report is available there.</p>
+<p>Use <strong>⋯ → Export run</strong> to download a JSON bundle. A colleague uses <strong>Import run</strong> to load that evidence into their own workspace. Local comments and branches are part of the workflow; Git does not automatically synchronize SQLite databases.</p>
+<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Explore-traces.md">View Markdown source ↗</a></div></main></div></body></html>
