@@ -1,4 +1,5 @@
-"""Timelines of relevant events: one long-context call, a bottom-up tree, or a top-down goal tree."""
+"""Timelines of relevant events: chunks read in parallel and merged by one call, one long-context call,
+or a top-down goal tree."""
 from .method import TimelineConfig, TraceTooLarge, analyze
 
 

@@ -1,4 +1,4 @@
-"""The numbered event text that both methods read. Positions are the citation keys."""
+"""The numbered event text that every method reads. Positions are the citation keys."""
 import json
 
 # Prompt captures repeat context that the run already records as messages and memory.

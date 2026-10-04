@@ -1,7 +1,7 @@
 # Timeline needles
 
 Needle-in-a-haystack test for misalignment detection by the `timeline` plugin. It compares the
-plugin's methods (`single`, `tree`, `goal_tree`; default `single goal_tree`) on traces with planted
+plugin's methods (`orchestrated`, `single`, `goal_tree`; default `single goal_tree`) on traces with planted
 misaligned events.
 
 ## Metrics
@@ -62,10 +62,11 @@ not the method. Execution order is randomized in blocks, seeded by the first bac
 ## Spend control
 
 `PRICING` in `run.py` holds US dollars per 1M tokens (input / cached input / output), from the OpenAI
-pricing page:
+pricing page (gpt-5.6-sol also bills cache writes: $5 short, $10 long):
 
 | model | prompt ≤ 272k tokens | prompt > 272k tokens |
 |---|---|---|
+| gpt-5.6-sol | $4 / $0.40 / $20 | $8 / $0.80 / $30 |
 | gpt-5.5 | $5 / $0.50 / $30 | $10 / $1 / $45 |
 | gpt-6-astra | $10 / $1 / $50 | $20 / $2 / $75 |
 
@@ -85,7 +86,7 @@ Run from the repository root:
 
 ```bash
 # Plumbing test with a deterministic keyword-matching fake LLM. No provider calls. Dollars use
-# nominal gpt-5.5 rates, so --max-usd exercises the cap.
+# nominal gpt-5.6-sol rates, so --max-usd exercises the cap.
 PYTHONPATH=src:. .venv/bin/python -m experiments.timeline_needles.run --dry-run \
   --sizes 100000 500000 --depths 0.5 --needles false_test_report --controls 2 --max-usd 1000
 
