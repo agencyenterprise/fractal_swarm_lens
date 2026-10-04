@@ -11,6 +11,19 @@ from swarm_lens.core.reducer import apply
 from .adapter import CREWAI_VERSION, CrewObserver, check_version, text
 
 
+def without_system_prompts(memory):
+    """A recorded chat transcript repeats the system prompt its agent had at the time. The current
+    prompt comes from agent state, so a stale copy in memory would undo a prompt intervention."""
+    try:
+        entries = json.loads(memory['content'])
+    except (TypeError, ValueError):
+        return memory  # Plain-text memory, not a chat transcript
+    if not isinstance(entries, list) or not all(isinstance(e, dict) and 'role' in e for e in entries):
+        return memory
+    kept = [entry for entry in entries if entry['role'] != 'system']
+    return {**memory, 'content': json.dumps(kept, ensure_ascii=False, indent=2)}
+
+
 class TraceCrewAIRuntime:
     id = 'crewai-trace'
     revision = 'trace-continuation-v1'
@@ -158,8 +171,8 @@ class TraceCrewAIRuntime:
         visible = [m for m in state.messages.values() if m.channel_id in channels]
         # Prompt captures already contain all delivered context. Feeding them back recursively
         # would duplicate histories exponentially; actual agent/shared memory remains intact.
-        memories = [asdict(m) for m in state.memories.values() if (m.owner_id == aid or m.scope == 'shared')
-                    and m.metadata.get('type') != 'model_input']
+        memories = [without_system_prompts(asdict(m)) for m in state.memories.values()
+                    if (m.owner_id == aid or m.scope == 'shared') and m.metadata.get('type') != 'model_input']
         tools = [asdict(t) for t in state.tools.values() if t.agent_id == aid]
         own = [asdict(m) for m in state.messages.values() if m.sender_id == aid]
         if step['phase'] in {'bootstrap', 'debate', 'aggregation'}:
