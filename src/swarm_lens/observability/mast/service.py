@@ -4,7 +4,21 @@ import hashlib
 import json
 
 from swarm_lens.application.plugins import record_failure
+from swarm_lens.core.findings import encode_output
 from swarm_lens.core.models import DomainError, new_id, utc_now
+from .method import MastPlugin
+
+
+def upgrade_job(record):
+    """A job saved before plugin version 0.4.0 in the new shape: its assessment becomes the report, its
+    evidence becomes annotations, and the analyzed range is 1..cursor."""
+    record = {**record, "start": 1, "end": record["cursor"]}
+    analysis = record.get("analysis")
+    if analysis and "format" not in analysis["output"]:
+        items = MastPlugin.results(analysis["output"], 1, record["cursor"])
+        record["analysis"] = {**analysis, "start": 1, "end": record["cursor"],
+                              "output": encode_output(items, MastPlugin.id, 1, record["cursor"])}
+    return record
 
 
 class MastService:

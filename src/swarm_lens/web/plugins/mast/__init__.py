@@ -6,9 +6,15 @@ __all__ = ["create", "mast_extension"]
 
 
 def create(services: PluginServices) -> WebExtension:
-    """The MAST report view with the OpenAI judge; its jobs and findings live in the shared plugin service."""
+    """The MAST report view with the OpenAI judge; its jobs and findings live in the shared plugin service.
+
+    Jobs from before the shared store (data/mast.sqlite) are copied in on every start; the old file is only read.
+    """
+    from swarm_lens.adapters.jobs import read_jobs
     from swarm_lens.observability.mast import MastPlugin
     from swarm_lens.observability.mast.judge import OpenAIMastJudge
-    from swarm_lens.observability.mast.service import MastService
+    from swarm_lens.observability.mast.service import MastService, upgrade_job
 
-    return mast_extension(MastService(services.plugins, MastPlugin(OpenAIMastJudge()), services.artifacts))
+    service = MastService(services.plugins, MastPlugin(OpenAIMastJudge()), services.artifacts)
+    service.jobs.import_records(upgrade_job(job) for job in read_jobs(services.data / "mast.sqlite", "mast_jobs"))
+    return mast_extension(service)

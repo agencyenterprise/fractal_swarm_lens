@@ -207,3 +207,38 @@ def test_duplicate_extension_ids_rejected(service):
     extension = mast_extension(service)
     with pytest.raises(ValueError, match="Duplicate"):
         create_app(service.framework, extensions=(extension, extension))
+
+
+def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path):
+    import hashlib
+    import sqlite3
+    from swarm_lens import Framework
+    from swarm_lens.adapters.sqlite import SQLiteHistory
+    from swarm_lens.cli import build_app
+
+    framework = Framework(SQLiteHistory(tmp_path / "history.sqlite"))
+    branch = framework.import_transcript("Saved", "A: Done.\nA: Done.")
+    event_id = framework.history(branch.id)[-1].id
+    output = parse_response(assessment())
+    output["evidence"] = {"status": "complete", "traits": {"1.3": {"status": "located", "explanation": "Repeated.",
+        "occurrences": [{"start_position": 2, "end_position": 2, "supporting_event_ids": [event_id],
+                         "counterevidence_event_ids": [], "explanation": "Said twice."}]}}}
+    job = {"id": "old-job", "plugin_id": "mast", "plugin_version": "0.3.0", "branch_id": branch.id, "cursor": 2,
+           "created_at": "2026-10-01T00:00:00+00:00", "status": "completed", "config": {"completeness": "unknown"},
+           "judge": {"model": "old-judge"}, "analysis": {"id": "old-job", "cursor": 2, "output": output}}
+    with sqlite3.connect(tmp_path / "mast.sqlite") as db:
+        db.execute("CREATE TABLE mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, "
+                   "status TEXT NOT NULL, record TEXT NOT NULL)")
+        db.execute("INSERT INTO mast_jobs VALUES (?,?,?,?,?)",
+                   (job["id"], branch.id, job["created_at"], job["status"], json.dumps(job)))
+    db.close()
+    before = hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest()
+    for _ in range(2):
+        with TestClient(build_app(tmp_path)) as client:
+            jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch.id}).json()["jobs"]
+            assert [item["id"] for item in jobs] == ["old-job"]
+            report = client.get("/api/plugins/mast/analyses/old-job").json()["analysis"]["output"]["report"]
+            assert report["labels"] == output["labels"]
+            [marker] = client.get(f"/api/branches/{branch.id}/annotations").json()["annotations"]
+            assert (marker["seq_from"], marker["cited_event_ids"], marker["plugin"]) == (2, [event_id], "mast")
+    assert hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest() == before

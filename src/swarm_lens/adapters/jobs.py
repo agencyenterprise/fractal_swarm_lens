@@ -68,6 +68,14 @@ class JobStore:
             db.execute(f"UPDATE {self.table} SET status='running', record=? WHERE id=?", (json.dumps(record), job_id))
             return record
 
+    def import_records(self, records):
+        """Add records in one transaction, keeping any job that already exists; safe to repeat."""
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.executemany(f"INSERT OR IGNORE INTO {self.table} VALUES (?,?,?,?,?)", [
+                (record["id"], record["branch_id"], record["created_at"], record["status"], json.dumps(record))
+                for record in records])
+
     def recover_interrupted(self):
         # Single-server startup only. Never silently repeat a model call after a crash.
         with self.connection() as db:
@@ -77,3 +85,13 @@ class JobStore:
                 record.update(status="interrupted", error="Server restarted before the job finished. Start a new analysis to retry.")
                 db.execute(f"UPDATE {self.table} SET status='interrupted', record=? WHERE id=?", (json.dumps(record), record["id"]))
 
+
+def read_jobs(path, table):
+    """Every record of a job table in another database, opened read-only; none when the file does not exist."""
+    if not Path(path).is_file():
+        return []
+    db = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        return [json.loads(row[0]) for row in db.execute(f"SELECT record FROM {table}")]
+    finally:
+        db.close()

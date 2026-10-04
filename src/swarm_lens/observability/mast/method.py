@@ -84,7 +84,7 @@ def annotations(output, start, end):
     for label in output["labels"]:
         if not label["present"]:
             continue
-        evidence = output["evidence"]["traits"].get(label["code"], {})
+        evidence = output.get("evidence", {}).get("traits", {}).get(label["code"], {})
         title = f"MAST {label['code']} {label['label']}"
         base = {"code": label["code"], "group": label["group"], "evidence_status": evidence.get("status", "unavailable")}
         occurrences = evidence.get("occurrences", [])
