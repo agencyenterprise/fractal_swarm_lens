@@ -3,9 +3,9 @@ import { renderMarkdown } from "./markdown.js";
 
 const PAGE = 150;
 const LATER_PAGE = 50;
-const MESSAGE_TONES = new Set(["message", "risk", "intervention"]);
-const CALLOUT_TONES = new Set(["risk", "intervention"]);
-const ALL_TONES = new Set(["message", "risk", "observation", "intervention", "tool", "memory"]);
+const MESSAGE_TONES = new Set(["message", "intervention"]);
+const CALLOUT_TONES = new Set(["intervention"]);
+const ALL_TONES = new Set(["message", "observation", "intervention", "tool", "memory"]);
 const INTERVENTION_LABELS = {
   "agent.updated": "Prompt changed",
   "agent.removed": "Agent removed",
@@ -240,7 +240,7 @@ export class Transcript {
   calloutEntry(event, tone) {
     const node = el("article", `tx-entry tx-callout tx-${tone}`);
     const agent = this.props.agents[event.agent_id];
-    const label = tone === "risk" ? event.stage_label || event.label : interventionLabel(event);
+    const label = interventionLabel(event);
     const head = el("div", "tx-head");
     head.append(el("span", "tx-callout-label", label));
     if (agent) head.append(el("span", "tx-callout-agent", agent.name));

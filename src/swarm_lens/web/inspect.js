@@ -61,18 +61,15 @@ function clamped(node, lines) {
 
 function badgeFor(event) {
   const tone = eventTone(event);
-  if (tone === "risk") return el("span", "badge danger", event.stage_label || event.label);
   if (tone === "intervention") return el("span", "badge warn", interventionLabel(event));
   return null;
 }
 
 function overviewView(root, _selection, { state, run, branch, actions }) {
   const task = state.environment.task || state.environment.goal || "";
-  const title = run.metadata?.task_title || task.split("\n")[0] || run.name;
+  const title = run.name;
   const head = el("header", "ins-overview-head");
   head.append(el("h2", "ins-title", title));
-  const condition = run.metadata?.condition_label;
-  if (condition) head.append(el("span", run.metadata.condition === "injection" ? "badge danger" : "badge", condition));
   root.append(head);
   if (branch.parent_id) {
     const added = branch.head - branch.fork_position;
@@ -80,7 +77,7 @@ function overviewView(root, _selection, { state, run, branch, actions }) {
   }
   if (task && task !== title) {
     const text = el("p", "ins-task", task);
-    if (run.metadata?.source_type === "aciarena_example" || task.length > LONG_TASK) {
+    if (task.length > LONG_TASK) {
       text.classList.add("ins-clamped");
       text.style.setProperty("--lines", 4);
       root.append(text, button("Read full task", actions.readTask, "ghost ins-more"));

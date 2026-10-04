@@ -47,11 +47,9 @@
 button.tx-more { height: 24px; margin: 4px 0 0 24px; padding: 0 6px; color: var(--accent-text); font-size: 12px; }
 
 .tx-callout { margin: 6px 12px; padding: 8px 12px; border-left-width: 3px; border-radius: var(--radius-sm); }
-.tx-callout.tx-risk { border-left-color: var(--danger); background: var(--danger-soft); }
 .tx-callout.tx-intervention { border-left-color: var(--warn); background: var(--warn-soft); }
 .tx-callout.tx-selected { box-shadow: 0 0 0 1px var(--accent); }
 .tx-callout-label { font-weight: 600; }
-.tx-risk .tx-callout-label { color: var(--danger); }
 .tx-intervention .tx-callout-label { color: var(--warn); }
 .tx-callout-agent { color: var(--text-2); }
 .tx-callout-text {

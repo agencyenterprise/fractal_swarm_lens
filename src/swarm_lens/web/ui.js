@@ -86,16 +86,12 @@ export function logoFor(agent) {
   return null;
 }
 
-const RISK_LABEL = /injection|malicious|attack/i;
-
 // One visual category per event; every module colors and filters by it.
 export function eventTone(event) {
-  // Benchmark sources record the injected attack as an intervention; risk outranks it.
-  if (event.kind === "observation.recorded" && RISK_LABEL.test(event.label)) return "risk";
   if (event.intervention) return "intervention";
   const family = event.kind.split(".")[0];
   if (["message", "tool", "memory"].includes(family)) return family;
-  if (family === "observation") return event.label === "model_input" ? "trace" : "observation";
+  if (family === "observation") return "observation";
   return "state";
 }
 

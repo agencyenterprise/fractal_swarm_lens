@@ -5,17 +5,16 @@ const LABEL_WIDTH = 150, ROW = 34, RULER = 40, EDGE = 24, EVENT_SPACE = 22, MAX_
 const STORAGE_KEY = "swarm-lens.timeline.view";
 const VIEW_OPTIONS = [
   ["message", "Messages", true],
-  ["risk", "Risk & observations", true],
   ["intervention", "Changes", true],
   ["tool", "Tools", true],
   ["memory", "Memory", false],
-  ["trace", "Model inputs", false],
+  ["observation", "Observations", false],
   ["connections", "Connections", true],
   ["compact", "Compact gaps", true],
 ];
 // Which View toggle shows each tone; setup events (`state`) have no lane marker.
-const TOGGLE_FOR_TONE = { message: "message", risk: "risk", observation: "risk", intervention: "intervention",
-  tool: "tool", memory: "memory", trace: "trace" };
+const TOGGLE_FOR_TONE = { message: "message", observation: "observation", intervention: "intervention",
+  tool: "tool", memory: "memory" };
 const TICK_MINUTES = [1 / 60, 1 / 30, 1 / 12, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 240, 720, 1440];
 const MIN_TICK_SPACING = 90;
 const ICONS = {
@@ -32,7 +31,6 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 function flagText(event, tone) {
   if (tone === "resume") return `Task ${event.resume_point.next_task + 1}`;
-  if (tone === "risk") return event.stage_label || event.label;
   if (tone === "intervention") return event.stage_label || event.preview?.split("\n")[0] || event.label;
   return "";
 }
@@ -109,7 +107,7 @@ function stageBands(ordered, tones) {
   const bands = [];
   for (const event of ordered) {
     const label = stageOf(event);
-    if (!label || ["risk", "intervention", "resume"].includes(tones.get(event.id))) continue;
+    if (!label || ["intervention", "resume"].includes(tones.get(event.id))) continue;
     const last = bands.at(-1);
     if (last?.label === label) last.last = event;
     else bands.push({ label, first: event, last: event });

@@ -125,9 +125,9 @@ button.tl-label:hover { background: var(--surface-2); border-color: var(--border
   border: 0; border-radius: 4px; background: transparent;
 }
 .tl-marker:hover { background: transparent; }
-.tl-marker:is([data-tone="risk"], [data-tone="intervention"], [data-tone="resume"]) { z-index: 1; }
+.tl-marker:is([data-tone="intervention"], [data-tone="resume"]) { z-index: 1; }
 .tl-marker.is-future { opacity: .3; }
-.tl-marker.is-future:is([data-tone="risk"], [data-tone="intervention"]) { opacity: .5; }
+.tl-marker.is-future[data-tone="intervention"] { opacity: .5; }
 .tl-shape {
   width: 10px; height: 10px; border-radius: 50%;
   background: var(--c); box-shadow: 0 0 0 2px var(--surface);
@@ -136,12 +136,10 @@ button.tl-label:hover { background: var(--surface-2); border-color: var(--border
 .tl-marker:hover .tl-shape, .tl-marker:focus-visible .tl-shape { scale: 1.3; }
 .tl-marker.is-selected .tl-shape { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent); }
 
-[data-tone="risk"] .tl-shape { width: 11px; height: 11px; border-radius: 2px; background: var(--danger); rotate: 45deg; }
 [data-tone="intervention"] .tl-shape { width: 10px; height: 10px; border-radius: 3px; background: var(--warn); }
 [data-tone="tool"] .tl-shape { width: 8px; height: 8px; border-radius: 2px; background: var(--surface); border: 1.5px solid var(--text-2); }
 [data-tone="memory"] .tl-shape { width: 8px; height: 8px; background: var(--surface); border: 1.5px solid var(--text-3); }
 [data-tone="observation"] .tl-shape { width: 8px; height: 8px; border-radius: 1px; background: var(--surface); border: 1.5px solid var(--text-3); rotate: 45deg; }
-[data-tone="trace"] .tl-shape { width: 2px; height: 12px; border-radius: 1px; background: var(--text-3); box-shadow: none; opacity: .55; }
 [data-tone="resume"] .tl-shape { width: 9px; height: 10px; border-radius: 0; background: var(--text-2); clip-path: polygon(0 0, 100% 50%, 0 100%); box-shadow: none; }
 
 .tl-flag {
@@ -151,7 +149,6 @@ button.tl-label:hover { background: var(--surface-2); border-color: var(--border
   text-overflow: ellipsis; white-space: nowrap;
 }
 .tl-flag:empty { display: none; }
-[data-tone="risk"] .tl-flag { background: var(--danger-soft); color: var(--danger); }
 [data-tone="intervention"] .tl-flag { background: var(--warn-soft); color: var(--warn); }
 [data-tone="resume"] .tl-flag { background: var(--surface-2); color: var(--text-2); }
 

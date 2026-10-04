@@ -81,15 +81,11 @@ function loadTimeline(branchId) {
 async function refreshWorkspace() {
   view.workspace = await api("/workspace");
   timelines.clear();
-  const rank = (run) => run.metadata.source_type === "aciarena_example" ? (run.metadata.condition === "control" ? 0 : 1) : 2;
-  view.workspace.runs.sort((a, b) => rank(a) - rank(b));
   updateRunPicker();
 }
 
 const runBranches = (runId = view.run?.id) => view.workspace.branches.filter((branch) => branch.run_id === runId);
 const rootBranch = (runId) => runBranches(runId).find((branch) => !branch.parent_id);
-const pairedRuns = () => !view.run.metadata.example_pair ? []
-  : view.workspace.runs.filter((run) => run.metadata.example_pair === view.run.metadata.example_pair);
 
 // URL routing
 
@@ -122,7 +118,7 @@ function updateRunPicker() {
   runPicker.setOptions(view.workspace.runs.map((run) => {
     const count = runBranches(run.id).length;
     return { value: run.id, label: run.name,
-      badge: run.metadata.framework?.toUpperCase() || (run.metadata.source_type === "aciarena_example" ? "ACIARENA" : "TRACE"),
+      badge: run.metadata.framework?.toUpperCase(),
       description: `${time(run.created_at)} UTC · ${count} branch${count === 1 ? "" : "es"}` };
   }));
   if (view.run) runPicker.value = view.run.id;
@@ -133,22 +129,8 @@ runPicker.onchange = (event) => {
 };
 
 function renderAppBar() {
-  const runs = pairedRuns();
-  const conditions = $("#condition-switch");
-  conditions.hidden = runs.length < 2;
-  conditions.replaceChildren(...runs.map((run) => {
-    const option = button(run.metadata.condition_label || run.name, () => switchRun(run.id));
-    option.setAttribute("aria-pressed", String(run.id === view.run.id));
-    return option;
-  }));
   $("#branch-switch .label").textContent = view.branch.name;
   $("#branch-switch .count").textContent = runBranches().length > 1 ? `${runBranches().length} branches` : "";
-}
-
-async function switchRun(runId) {
-  const branch = rootBranch(runId);
-  if (!branch || branch.id === view.branch.id) return;
-  await loadBranch(branch.id, Math.min(view.cursor, branch.head));
 }
 
 function branchMenuItems() {
@@ -442,8 +424,7 @@ function markdownBlock(text) {
 }
 
 function readTask() {
-  openDialog(view.run.metadata.task_title || "Task", markdownBlock(view.state.environment.task || view.state.environment.goal || ""),
-    { kicker: view.run.metadata.task_id || "" });
+  openDialog("Task", markdownBlock(view.state.environment.task || view.state.environment.goal || ""), { kicker: view.run.name });
 }
 
 async function readMemory(memory) {

@@ -109,10 +109,10 @@ test('clicks, steps, and keys seek to the nearest shown event', () => {
   assert.ok(marker(root, 7).classList.contains('is-future'));
 });
 
-test('the injection event is a flagged risk marker', () => {
+test('an intervention is flagged with the label its source recorded', () => {
   const { root } = setup([...history, injection]);
   const node = marker(root, 10);
-  assert.equal(node.dataset.tone, 'risk');
+  assert.equal(node.dataset.tone, 'intervention');
   assert.equal(node.querySelector('.tl-flag').textContent, 'Instruction injection installed');
 });
 

@@ -40,25 +40,20 @@ function sharedThrough(workspace, left, right) {
   return Math.min(shared, left.head, right.head);
 }
 
+// Any branch of any run can be compared; the current run's branches come first.
 function candidatesFor(workspace, branch) {
-  const run = runOf(workspace, branch);
-  const pair = run.metadata?.example_pair;
-  const pairedRoots = pair ? workspace.runs
-    .filter((other) => other.id !== run.id && other.metadata?.example_pair === pair)
-    .map((other) => workspace.branches.find((candidate) => candidate.run_id === other.id && !candidate.parent_id))
-    .filter(Boolean) : [];
-  return [...workspace.branches.filter((candidate) => candidate.run_id === run.id), ...pairedRoots];
+  const own = workspace.branches.filter((candidate) => candidate.run_id === branch.run_id);
+  return [...own, ...workspace.branches.filter((candidate) => candidate.run_id !== branch.run_id)];
 }
 
 function defaultLeft(candidates, right) {
   return candidates.find((candidate) => candidate.id === right.parent_id)
-    || candidates.find((candidate) => candidate.run_id !== right.run_id)
     || candidates.find((candidate) => candidate.id !== right.id);
 }
 
 function branchLabel(workspace, branch) {
   const run = runOf(workspace, branch);
-  return `${run.metadata?.condition_label || run.name} · ${branch.name}`;
+  return `${run.name} · ${branch.name}`;
 }
 
 function branchOption(workspace, branch) {
@@ -68,7 +63,7 @@ function branchOption(workspace, branch) {
 
 // Row alignment
 
-const isShown = (event) => event.kind === "message.created" || ["risk", "intervention"].includes(eventTone(event));
+const isShown = (event) => event.kind === "message.created" || eventTone(event) === "intervention";
 
 function segments(events) {
   const result = [];
@@ -163,9 +158,6 @@ class CompareView {
     const right = valid(params.right) || branch;
     const left = valid(params.left) && params.left !== right.id ? valid(params.left) : defaultLeft(this.candidates, right);
     if (!left) return this.renderEmpty();
-    // The control condition reads as the baseline, so it sits on the left unless the URL says otherwise.
-    const isControl = (candidate) => runOf(workspace, candidate).metadata?.condition === "control";
-    if (!params.left && isControl(right) && !isControl(left)) return this.render(right, left);
     return this.render(left, right);
   }
 
@@ -387,8 +379,7 @@ class CompareView {
   }
 
   callout(side, event) {
-    const tone = eventTone(event) === "risk" ? "danger" : "warn";
-    const node = el("div", `cmp-callout ${tone}`);
+    const node = el("div", "cmp-callout warn");
     const head = el("div", "cmp-callout-head");
     head.append(el("span", "cmp-callout-label", event.stage_label || event.label), this.positionButton(side, event));
     node.append(head);
