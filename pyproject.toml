@@ -29,6 +29,7 @@ where = ["src"]
 swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/viz/*.js", "web/*.txt", "web/logos/*", "adapters/*.sql"]
 "swarm_lens.observability.mast" = ["assets.json"]
 "swarm_lens.web.plugins.mast" = ["static/*.js"]
+"swarm_lens.plugins.stance_lanes" = ["assets/*.js", "assets/*.css"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
