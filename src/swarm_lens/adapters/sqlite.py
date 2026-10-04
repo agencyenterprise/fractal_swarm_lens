@@ -7,10 +7,66 @@ from pathlib import Path
 
 from swarm_lens.application.ports import RunContents
 from swarm_lens.core.models import Branch, Comment, Conflict, DomainError, Event, Run, State
+from . import snapshots, texts
+
+SCHEMA = Path(__file__).with_name("schema.sql").read_text()
+SCHEMA_VERSION = 2
+V1_TEXT_TABLES = {"messages": "event_id, message_id, run_id, channel_id, sender_id, sender_name, role, content, "
+                              "reply_to_id",
+                  "memory_revisions": "event_id, memory_id, run_id, owner_id, scope, content"}
+V1_SNAPSHOT_COLUMNS = ("base_branch TEXT", "base_cursor INTEGER", "chain_entities INTEGER NOT NULL DEFAULT 0",
+                       "full_entities INTEGER NOT NULL DEFAULT 0", "format INTEGER NOT NULL DEFAULT 1")
 
 
 def encode(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
+def _content_columns(data, refs):
+    """The (content, content_digest) projection columns: exactly one holds a value."""
+    return (None, data["content"]) if "content" in refs else (data["content"], None)
+
+
+def _statements(script):
+    statement = ""
+    for line in script.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            yield statement
+            statement = ""
+
+
+def _create_schema(db):
+    """Create the current schema, migrating a version 1 workspace in the same transaction."""
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    if version > SCHEMA_VERSION:
+        raise DomainError(f"Unsupported database schema version: {version}")
+    if version == 1 and db.execute("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='texts'").fetchone():
+        raise DomainError("This workspace was upgraded to storage version 2, but a process running older Swarm Lens "
+                          "code marked it version 1 again. Stop every process that uses it, then run "
+                          "'PRAGMA user_version = 2' on it; the upgrade had already finished.")
+    if version == 1:
+        _set_aside_v1(db)
+    for statement in _statements(SCHEMA):
+        db.execute(statement)
+    if version == 1:
+        _restore_v1_text_tables(db)
+    db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
+def _set_aside_v1(db):
+    """Version 1 kept every text inline: add the new columns and move aside the tables whose text becomes optional."""
+    db.execute("ALTER TABLE events ADD COLUMN text_refs TEXT")
+    for column in V1_SNAPSHOT_COLUMNS:
+        db.execute(f"ALTER TABLE snapshots ADD COLUMN {column}")
+    for table in V1_TEXT_TABLES:
+        db.execute(f"ALTER TABLE {table} RENAME TO {table}_v1")
+
+
+def _restore_v1_text_tables(db):
+    for table, columns in V1_TEXT_TABLES.items():
+        db.execute(f"INSERT INTO {table} ({columns}) SELECT {columns} FROM {table}_v1")
+        db.execute(f"DROP TABLE {table}_v1")
 
 
 class SQLiteHistory:
@@ -18,11 +74,10 @@ class SQLiteHistory:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as db:
-            version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 1:
-                raise DomainError(f"Unsupported database schema version: {version}")
+            db.execute("BEGIN IMMEDIATE")
+            _create_schema(db)
+            db.commit()
             db.execute("PRAGMA journal_mode=WAL")
-            db.executescript(Path(__file__).with_name("schema.sql").read_text())
 
     @contextmanager
     def connection(self):
@@ -89,20 +144,21 @@ class SQLiteHistory:
         segments = []
         with self.connection() as db:
             while True:
-                rows = db.execute("SELECT * FROM events WHERE branch_id=? AND position<=? AND position>? ORDER BY position",
-                                  (branch.id, cursor, after)).fetchall()
-                segments.append([self._event(row) for row in rows])
+                segments.append(db.execute("SELECT * FROM events WHERE branch_id=? AND position<=? AND position>? "
+                                           "ORDER BY position", (branch.id, cursor, after)).fetchall())
                 if not branch.parent_id or branch.fork_position <= after:
                     break
                 cursor = min(cursor, branch.fork_position)
                 branch = Branch(**dict(db.execute("SELECT * FROM branches WHERE id=?", (branch.parent_id,)).fetchone()))
-        return [event for segment in reversed(segments) for event in segment]
+            return self._events(db, [row for segment in reversed(segments) for row in segment])
 
     @staticmethod
-    def _event(row):
-        data = dict(row)
-        data["data"], data["source"] = json.loads(data["data"]), json.loads(data["source"])
-        return Event(**data)
+    def _events(db, rows):
+        parsed = [(row, json.loads(row["data"]), json.loads(row["text_refs"] or "[]")) for row in rows]
+        found = texts.load(db, (data[name] for _, data, refs in parsed for name in refs))
+        return [Event(row["id"], row["branch_id"], row["position"], row["kind"], texts.unpack(data, refs, found),
+                      row["occurred_at"], row["recorded_at"], json.loads(row["source"]), row["schema_version"])
+                for row, data, refs in parsed]
 
     def append(self, branch_id: str, events: list[Event], expected_head: int) -> None:
         with self.connection() as db:
@@ -121,17 +177,20 @@ class SQLiteHistory:
     @classmethod
     def _insert_events(cls, db, run_id, events):
         for event in events:
+            data, refs = texts.pack(db, event.data)
             try:
-                db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?)", (
-                    event.id, event.branch_id, event.position, event.kind, encode(event.data),
-                    event.occurred_at, event.recorded_at, encode(event.source), event.schema_version))
-                cls._index(db, run_id, event)
+                db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?)", (
+                    event.id, event.branch_id, event.position, event.kind, encode(data),
+                    event.occurred_at, event.recorded_at, encode(event.source), event.schema_version,
+                    encode(refs) if refs else None))
+                cls._index(db, run_id, event, data, refs)
             except sqlite3.IntegrityError as exc:
                 raise Conflict("Duplicate event or invalid entity reference") from exc
 
     @staticmethod
-    def _index(db, run_id, event):
-        d, kind = event.data, event.kind
+    def _index(db, run_id, event, d, refs):
+        """Project one event; `d` is its stored data, whose fields named in `refs` hold text digests."""
+        kind = event.kind
         if kind.startswith("agent."):
             db.execute("INSERT OR IGNORE INTO agents VALUES (?,?)", (run_id, d["id"]))
             db.execute("INSERT INTO agent_revisions VALUES (?,?,?,?,?,?,?)", (
@@ -141,11 +200,14 @@ class SQLiteHistory:
             db.execute("INSERT INTO channel_revisions VALUES (?,?,?,?)", (event.id, run_id, d["id"], d["name"]))
             db.executemany("INSERT INTO channel_members VALUES (?,?,?)", [(event.id, run_id, aid) for aid in d["members"]])
         elif kind == "message.created":
-            db.execute("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?)", (
-                event.id, d["id"], run_id, d["channel_id"], d["sender_id"], d["sender_name"], d["role"], d["content"], d["reply_to_id"]))
+            db.execute("INSERT INTO messages (event_id, message_id, run_id, channel_id, sender_id, sender_name, role, "
+                       "content, content_digest, reply_to_id) VALUES (?,?,?,?,?,?,?,?,?,?)", (
+                event.id, d["id"], run_id, d["channel_id"], d["sender_id"], d["sender_name"], d["role"],
+                *_content_columns(d, refs), d["reply_to_id"]))
         elif kind == "memory.written":
-            db.execute("INSERT INTO memory_revisions VALUES (?,?,?,?,?,?)", (
-                event.id, d["id"], run_id, d["owner_id"], d["scope"], d["content"]))
+            db.execute("INSERT INTO memory_revisions (event_id, memory_id, run_id, owner_id, scope, content, "
+                       "content_digest) VALUES (?,?,?,?,?,?,?)", (
+                event.id, d["id"], run_id, d["owner_id"], d["scope"], *_content_columns(d, refs)))
         elif kind.startswith("tool."):
             db.execute("INSERT INTO tool_revisions VALUES (?,?,?,?,?,?,?,?,?)", (
                 event.id, d["id"], run_id, d["agent_id"], d["tool_name"], encode(d["arguments"]),
@@ -155,23 +217,12 @@ class SQLiteHistory:
 
     def save_snapshot(self, state: State) -> None:
         with self.connection() as db:
-            self._insert_snapshot(db, state)
-
-    @staticmethod
-    def _insert_snapshot(db, state):
-        db.execute("INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (state.branch_id, state.cursor, encode(state.to_dict())))
+            db.execute("BEGIN IMMEDIATE")
+            snapshots.save(db, state)
 
     def snapshot(self, branch_id: str, cursor: int) -> State | None:
         with self.connection() as db:
-            while True:
-                row = db.execute("SELECT state FROM snapshots WHERE branch_id=? AND cursor<=? ORDER BY cursor DESC LIMIT 1",
-                                 (branch_id, cursor)).fetchone()
-                if row:
-                    return State.from_dict(json.loads(row[0]))
-                branch = db.execute("SELECT * FROM branches WHERE id=?", (branch_id,)).fetchone()
-                if not branch or not branch["parent_id"]:
-                    return None
-                branch_id, cursor = branch["parent_id"], min(cursor, branch["fork_position"])
+            return snapshots.load(db, branch_id, cursor)
 
     def save_analysis(self, record: dict) -> None:
         with self.connection() as db:
@@ -230,8 +281,9 @@ class SQLiteHistory:
             row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone() or self._missing("run")
             branches = [Branch(**dict(row)) for row in db.execute(
                 "SELECT * FROM branches WHERE run_id=? ORDER BY created_at, id", (run_id,))]
-            own_events = {branch.id: [self._event(event) for event in db.execute(
-                "SELECT * FROM events WHERE branch_id=? ORDER BY position", (branch.id,))] for branch in branches}
+            own_events = {branch.id: self._events(db, db.execute(
+                "SELECT * FROM events WHERE branch_id=? ORDER BY position", (branch.id,)).fetchall())
+                for branch in branches}
             comments = [self._comment(comment) for comment in db.execute(
                 "SELECT comments.* FROM comments JOIN branches ON branches.id=comments.branch_id "
                 "WHERE branches.run_id=?", (run_id,))]
@@ -246,6 +298,6 @@ class SQLiteHistory:
                 self._insert_branch(db, branch)
             for events, state in batches:
                 self._insert_events(db, run.id, events)
-                self._insert_snapshot(db, state)
+                snapshots.save(db, state)
             for comment in comments:
                 self._insert_comment(db, comment)

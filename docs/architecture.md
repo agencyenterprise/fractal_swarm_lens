@@ -12,7 +12,7 @@ The reducer validates references and lifecycle transitions. For example, a messa
 
 A branch belongs to one run and records `parent_id`, `fork_position`, and `head`. Its effective history is its parent's prefix through the fork position followed by its own events. Parent events after the fork never become visible to the child. A child can itself be forked at any available cursor, including an inherited point before its own creation.
 
-Replay loads the closest eligible snapshot, then applies events through the requested cursor. Reverse scrubbing reconstructs the earlier state; it does not attempt to undo mutations. Snapshots accelerate reads and can be regenerated from history. Reads return detached state, so a plugin cannot alter persisted history by editing an object it received.
+Replay loads the closest eligible snapshot, then applies events through the requested cursor. Reverse scrubbing reconstructs the earlier state; it does not attempt to undo mutations. Snapshots accelerate reads and can be regenerated from history. A snapshot row is either a full state or a delta on the nearest earlier snapshot of the same effective history, which can belong to an ancestor branch; a chain of deltas stays within the size of its full row, so a read decodes at most about twice the state's entities. Reads return detached state, so a plugin cannot alter persisted history by editing an object it received.
 
 Writes use an expected head. SQLite commits each batch and its relational projections atomically; an intervening writer produces a conflict. An ingest spanning multiple batches retains earlier successful batches if a later batch fails. Applications own retry/resume policy and stable source IDs. Runtime continuations also reject output if the branch changed while that output was being produced.
 
@@ -22,7 +22,9 @@ Comments annotate history without becoming part of it. A comment anchors to one 
 
 ## SQLite and Git
 
-SQLite is the query and replay store. It contains runs, branches, events, snapshots, analysis records, entity identities, and revision tables for agents, channels, membership, messages, memory, tools, and environment. Revision queries must follow branch ancestry and cursor limits; scanning a projection table alone combines multiple histories.
+SQLite is the query and replay store. It contains runs, branches, events, snapshots, analysis records, entity identities, and revision tables for agents, channels, membership, messages, memory, tools, and environment. Text fields longer than 256 characters (message, memory and observation `content`) are stored once in the `texts` table, keyed by SHA-256 and compressed with zlib; events, snapshots and the message and memory projections hold the digest, and reads return the original text. Opening a version 1 workspace migrates it in one transaction; its existing texts and full snapshots stay as they were and remain readable. The upgrade is offline: stop every process that uses the workspace (servers, collectors, scripts) before opening it with storage version 2 code, because a process running older code fails on the new tables and can mark the workspace version 1 again; opening such a workspace fails with instructions instead of migrating twice. A snapshot chain that cannot be read (a missing base row or a damaged payload) raises a `RuntimeWarning` and the read replays history; saving a state at that cursor replaces the damaged row.
+
+Known storage limitations: the delta bound counts entities, not bytes, so large non-`content` fields (environment task, agent or channel metadata, tool results) are repeated in every delta and a read can decode many obsolete copies. A state read decompresses every text of the state, so it is slower than reading an uncompressed full snapshot (about 2.6 times at 30,000 messages in the benchmark). A memory that repeats a growing conversation is a new text at each revision; whole-text deduplication only compresses it, so that pattern still grows quadratically. The benchmark measures one run per size. Revision queries must follow branch ancestry and cursor limits; scanning a projection table alone combines multiple histories.
 
 Git is the checkpoint/version adapter. A bare repository stores manifests, canonical state, and the branch's local events. A child checkpoint has the exact historical fork checkpoint as its ancestor. Creating an older checkpoint does not rewind a branch's latest ref. There is no shared mutable checkout. Git is not in the ingestion hot path, and there is no automatic merge of divergent agent runs.
 
@@ -38,7 +40,7 @@ For model-internal experiments, store the proposed intervention and its configur
 
 ## Scaling without changing the core
 
-The current explorer loads one selected branch's event summaries and compact state. Timeline rendering limits event DOM nodes to the horizontal viewport. For larger runs, move timeline paging and aggregate state queries into a query adapter, reduce snapshot duplication, and queue runtime work. Replace SQLite with another `HistoryStore` if concurrent write load requires it. UI layouts, live subscriptions, and custom inspectors remain outer concerns.
+The current explorer loads one selected branch's event summaries and compact state. Timeline rendering limits event DOM nodes to the horizontal viewport. For larger runs, move timeline paging and aggregate state queries into a query adapter and queue runtime work. `tools/benchmark_storage.py` measures storage, replay, timeline, and export/import costs on a synthetic text-heavy run. Replace SQLite with another `HistoryStore` if concurrent write load requires it. UI layouts, live subscriptions, and custom inspectors remain outer concerns.
 
 ## Optional observability
 
