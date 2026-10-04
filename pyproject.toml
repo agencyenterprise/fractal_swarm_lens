@@ -26,7 +26,7 @@ swarm-lens = "swarm_lens.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/*.txt", "web/logos/*", "adapters/*.sql"]
+swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/viz/*.js", "web/*.txt", "web/logos/*", "adapters/*.sql"]
 "swarm_lens.observability.mast" = ["assets.json"]
 
 [tool.pytest.ini_options]
