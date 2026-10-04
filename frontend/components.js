@@ -10,21 +10,31 @@ function node(tag, className = '', text = '') {
   element.textContent = text;
   return element;
 }
+const ICONS = {
+  check: 'm5 12 4 4L19 6',
+  search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  chevron: 'm8 9 4-4 4 4m-8 6 4 4 4-4',
+  star: 'M12 3.6l2.55 5.17 5.7.83-4.13 4.02.98 5.68L12 16.6l-5.1 2.7.98-5.68L3.75 9.6l5.7-.83z',
+};
 function icon(kind) {
   const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   for (const [key, value] of Object.entries({ viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true' })) element.setAttribute(key, value);
   element.classList.add('size-4', 'shrink-0');
   const path = document.createElementNS(element.namespaceURI, 'path');
-  path.setAttribute('d', kind === 'check' ? 'm5 12 4 4L19 6' : kind === 'search' ? 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0' : 'm8 9 4-4 4 4m-8 6 4 4 4-4');
+  path.setAttribute('d', ICONS[kind]);
   path.setAttribute('stroke-linecap', 'round');
   path.setAttribute('stroke-linejoin', 'round');
   element.append(path);
   return element;
 }
 
-/** Zag handles focus, dismissal, typeahead, ARIA, and keyboard selection. */
+/**
+ * Zag handles focus, dismissal, typeahead, ARIA, and keyboard selection.
+ * `favorites` ({ has(value), toggle(value) }) adds a star to each option and a "Favorites only" filter.
+ */
 export class Picker {
-  constructor({ id, name = '', label, searchable = false, dark = false, compact = false, hideLabel = false, placeholder = 'Choose an option', value = '', options = [] }) {
+  constructor({ id, name = '', label, heading = label, searchable = false, dark = false, compact = false, hideLabel = false,
+    placeholder = 'Choose an option', value = '', options = [], favorites = null }) {
     this.id = id || `picker-${++sequence}`;
     this.searchable = searchable;
     this.library = searchable ? combobox : select;
@@ -35,7 +45,11 @@ export class Picker {
     this.options = [];
     this.rows = [];
     this.labelText = label;
+    this.headingText = heading;
     this.placeholder = placeholder;
+    this.favorites = favorites;
+    this.favoritesOnly = false;
+    this.query = '';
     this.root = node('div', `ui-picker min-w-0 ${dark ? 'picker-dark' : ''} ${compact ? 'picker-compact' : ''}`);
     this.root.dataset.pickerRoot = '';
     this.label = node('label', hideLabel ? 'sr-only' : 'ui-label', label);
@@ -63,9 +77,12 @@ export class Picker {
     this.positioner = node('div', 'picker-positioner z-[100]!');
     this.positioner.dataset.searchable = String(searchable);
     this.panel = node('div', 'picker-panel');
-    this.heading = node('div', 'picker-panel-heading', searchable ? 'CONVERSATIONS' : label);
+    this.heading = node('div', 'picker-panel-heading');
+    this.headingLabel = node('span');
+    this.heading.append(this.headingLabel);
+    if (favorites) this.heading.append(this.favoritesFilter());
     this.list = node('div', 'picker-list');
-    this.empty = node('div', 'picker-empty', 'No matching conversations');
+    this.empty = node('div', 'picker-empty');
     this.empty.setAttribute('role', 'status');
     this.footer = node('div', 'picker-footer', searchable ? '↑ ↓ Navigate    ↵ Open    esc Close' : '↑ ↓ Navigate    ↵ Select');
     this.panel.append(this.heading, this.list, this.empty, this.footer);
@@ -104,6 +121,44 @@ export class Picker {
     this.value = this._value;
   }
 
+  favoritesFilter() {
+    const toggle = node('button', 'picker-favorites-filter');
+    toggle.type = 'button';
+    toggle.append(icon('star'), node('span', '', 'Favorites only'));
+    toggle.setAttribute('aria-pressed', 'false');
+    keepOpen(toggle, () => {
+      this.favoritesOnly = !this.favoritesOnly;
+      toggle.setAttribute('aria-pressed', String(this.favoritesOnly));
+      this.setCollection(this.visibleOptions());
+    });
+    return toggle;
+  }
+
+  favoriteStar(item) {
+    const star = node('button', 'picker-star');
+    star.type = 'button';
+    star.tabIndex = -1;
+    star.append(icon('star'));
+    const sync = () => {
+      const on = this.favorites.has(item.value);
+      star.setAttribute('aria-pressed', String(on));
+      star.setAttribute('aria-label', on ? `Remove ${item.label} from favorites` : `Add ${item.label} to favorites`);
+    };
+    sync();
+    keepOpen(star, () => {
+      this.favorites.toggle(item.value);
+      if (this.favoritesOnly) this.setCollection(this.visibleOptions());
+      else sync();
+    });
+    return star;
+  }
+
+  visibleOptions() {
+    const query = this.query.toLocaleLowerCase().trim();
+    return this.options.filter(item => (!this.favoritesOnly || this.favorites.has(item.value))
+      && (!query || [item.label, item.description, item.detail, item.badge].join(' ').toLocaleLowerCase().includes(query)));
+  }
+
   setCollection(items) {
     this.collection = this.library.collection({ items, itemToValue: item => item.value,
       itemToString: item => item.label, isItemDisabled: item => Boolean(item.disabled) });
@@ -120,11 +175,14 @@ export class Picker {
       const check = node('span', 'picker-check');
       check.append(icon('check'));
       row.append(copy, check);
+      if (this.favorites) row.prepend(this.favoriteStar(item));
       return { item, row, title, check };
     });
     this.list.replaceChildren(...this.rows.map(row => row.row));
     this.empty.hidden = items.length !== 0;
-    this.heading.textContent = this.searchable ? `CONVERSATIONS · ${items.length}` : this.labelText;
+    this.empty.textContent = this.favoritesOnly && !this.query ? 'No favorites yet. Star an item to add it.' : 'No matches';
+    this.headingLabel.textContent = items.length === this.options.length ? `${this.headingText} · ${items.length}`
+      : `${this.headingText} · ${items.length} of ${this.options.length}`;
     this.machine?.updateProps({ collection: this.collection });
     if (this.machine) this.render();
   }
@@ -144,12 +202,14 @@ export class Picker {
       },
       onOpenChange: ({ open, reason }) => {
         if (this.searchable && open && reason !== 'input-change') {
-          this.setCollection(this.options);
+          this.query = '';
+          this.setCollection(this.visibleOptions());
           queueMicrotask(() => this.input.select());
         }
         if (this.searchable && !open) queueMicrotask(() => {
           if (!this.machine) return;
-          this.setCollection(this.options);
+          this.query = '';
+          this.setCollection(this.visibleOptions());
           this.api.setInputValue(this.options.find(item => item.value === this.value)?.label || '');
           this.input.scrollLeft = 0;
         });
@@ -160,8 +220,8 @@ export class Picker {
       defaultInputValue: this.options.find(item => item.value === this.value)?.label || '',
       onInputValueChange: ({ inputValue, reason }) => {
         if (reason !== 'input-change') return;
-        const query = inputValue.toLocaleLowerCase().trim();
-        this.setCollection(this.options.filter(item => [item.label, item.description, item.detail, item.badge].join(' ').toLocaleLowerCase().includes(query)));
+        this.query = inputValue;
+        this.setCollection(this.visibleOptions());
       },
     });
     this.machine = new VanillaMachine(this.library.machine, props);
@@ -206,6 +266,19 @@ export class Picker {
     this.positioner.remove();
     this.machine = null;
   }
+}
+
+// Controls inside the open panel act without selecting an option or closing the panel.
+function keepOpen(control, action) {
+  for (const type of ['pointerdown', 'pointerup', 'mousedown']) control.addEventListener(type, event => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  control.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  });
 }
 
 export function mountPickers(container) {

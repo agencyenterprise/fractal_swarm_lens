@@ -27,8 +27,22 @@ const timelines = new Map();
 const menuActions = [];
 let seekTicket = 0, inspectorTicket = 0, seekTimer, playTimer;
 
-const runPicker = new Picker({ id: "conversation", label: "Run", searchable: true, hideLabel: true,
-  placeholder: "Search runs…" });
+// A set of ids kept in this browser; favorites stay personal until runs carry shared metadata.
+function browserSet(key) {
+  let ids = new Set();
+  try { ids = new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { /* Storage unavailable; the set lasts for this visit. */ }
+  return {
+    has: (id) => ids.has(id),
+    toggle(id) {
+      if (!ids.delete(id)) ids.add(id);
+      try { localStorage.setItem(key, JSON.stringify([...ids])); } catch { /* Storage unavailable; the set lasts for this visit. */ }
+    },
+  };
+}
+const favoriteRuns = browserSet("swarm-lens:favorite-runs");
+
+const runPicker = new Picker({ id: "conversation", label: "Run", heading: "Runs", searchable: true, hideLabel: true,
+  placeholder: "Search runs…", favorites: favoriteRuns });
 $("#run-select").append(runPicker.root);
 runPicker.mount();
 
@@ -576,6 +590,7 @@ function installPlugins() {
     loadDetail,
     openTimeline: (branchId, cursor) => openTimelineAt(branchId, cursor).catch(failure),
     setViewParams: (params) => pluginHost().setViewParams("compare", params),
+    favoriteRuns,
   });
   for (const manifest of view.workspace.capabilities.web_plugins || []) {
     renderers[manifest.ui?.renderer]?.(manifest, pluginHost());

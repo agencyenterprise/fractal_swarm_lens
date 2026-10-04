@@ -146,7 +146,10 @@ class CompareView {
   }
 
   picker(label) {
-    return new Picker({ label, compact: true, hideLabel: true, placeholder: "Choose a branch" });
+    // Stars belong to runs; every branch of a starred run shows the star.
+    const runId = (branchId) => branchById(this.workspace, branchId)?.run_id;
+    const favorites = { has: (id) => this.host.favoriteRuns.has(runId(id)), toggle: (id) => this.host.favoriteRuns.toggle(runId(id)) };
+    return new Picker({ label, heading: "Branches", compact: true, hideLabel: true, placeholder: "Choose a branch", favorites });
   }
 
   show(params = {}) {
