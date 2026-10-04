@@ -60,6 +60,10 @@ The AI Village example reconstructs observations. A changed prompt does not gene
 
 This is a working foundation, not a claim of deployment readiness at arbitrary scale. Before exposing it to a team, supply application authentication and deployment configuration. A larger workload needs paged history/state reads, snapshot retention, and asynchronous runtime jobs. These changes fit the existing outer adapters and application services.
 
+### Upgrading a workspace
+
+Storage version 2 stores each long text once and saves snapshots as deltas. The first open with this code migrates a version 1 `history.sqlite` in place. Stop every process that uses the workspace first (the server, collectors, and scripts) and back it up; the upgrade is not safe while older code still has the database open. See [architecture](docs/architecture.md#sqlite-and-git) for the storage format and its known limitations.
+
 ## Comments and sharing
 
 Researchers can comment on any event of a branch, reply in threads, and resolve threads, much as in Google Docs. Comments are not history events. They are stored in their own table and never change replay, state, or forks. A comment belongs to the branch where it was written. A branch also shows its ancestors' comments anchored at or before its fork point. A reply answers a thread's top-level comment and shares its event. Only a top-level comment can be resolved. Deleting it deletes its replies.
