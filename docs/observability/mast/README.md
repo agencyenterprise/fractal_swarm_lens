@@ -23,6 +23,18 @@ Saved reports can be reopened from **MAST reports** without opening the setup di
 
 The explorer's `WorkspaceViews` registry lets UI plugins register a tab, panel, and show/hide lifecycle. MAST uses this slot alongside the retained timeline, conversation feed, and inspector; future visualizations can use the same interface. Switching conversation branches returns to the timeline to avoid displaying a report for the wrong branch.
 
+### Expandable trait details
+
+New reports from plugin version 0.3.0 include a separate evidence-localization request after the existing MAST judgment. This adds one model request when at least one judgment was parsed. The original classification prompt and verdicts are retained. The additional request explains each parsed trait and locates occurrences for positive traits, including supporting events and relevant later correction or counterevidence. It can report that a positive judgment could not be supported; it does not force an occurrence.
+
+Click a trait row to expand its saved explanation and chronological context. Each occurrence lists its inclusive event span and counts of supporting, counterevidence, and context events. The initial view shows supporting and counterevidence entries with only the first cited message expanded; **Show full context** reveals the intervening events in their original order. Message cards render Markdown and LaTeX equations, show compact UTC timestamps, and offer an **Original text** toggle for the exact recorded content. Long messages scroll within the reader. Event links open the recorded event in the timeline and inspector. Opening details is read-only and never calls the judge. Older reports display an evidence-unavailable notice and the separately labeled overall summary; run a new analysis to obtain evidence.
+
+The message formatter is built from `frontend/mast-message.js` using Markdown-it and KaTeX, with a bundled local browser asset (`npm run build:mast-message`, included in `npm run build`). Equations use native MathML; no remote scripts, images, or fonts are loaded from message content. Recorded HTML remains text, and the original message is retained without rewriting or summarizing it.
+
+The library returns this data in `analysis.output.evidence`, including the evidence version, request hash, model metadata, raw response, validation warnings, and details keyed by trait code. Event references are checked against the exact analyzed prefix, and positions are resolved from that input. Invalid references discard that trait's occurrences. Failure of the additional request preserves the original assessment with evidence marked unavailable. Raw transcript imports can cite their containing observation, but do not gain invented message identities.
+
+`web/mast_details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/mast-details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
+
 ## Sub-API and registration
 
 The normal CLI includes the MAST router in the main FastAPI application and its `/docs`:
@@ -36,6 +48,7 @@ The normal CLI includes the MAST router in the main FastAPI application and its 
 | POST | `/api/plugins/mast/preview` | Check the same frozen snapshot and token budget without calling the judge |
 | GET | `/api/plugins/mast/analyses?branch_id=...` | Most recent 50 jobs for this branch |
 | GET | `/api/plugins/mast/analyses/{job_id}` | Job state and saved result |
+| GET | `/api/plugins/mast/analyses/{job_id}/traits/{code}` | Saved trait explanation, occurrence spans, and original context text |
 
 `completeness` is `unknown` (default), `complete`, or `partial`. A data boundary alone is not evidence of task termination. Jobs always analyze the submitted snapshot, even if its run later continues.
 

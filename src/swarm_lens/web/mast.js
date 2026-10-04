@@ -1,6 +1,7 @@
 import { $, el, button, api, post, toast, failure } from "./ui.js";
 import { field, openDialog } from "./dialog.js?v=4";
 import { workspaceURL } from "./workspace.js";
+import { mastTraitDetails } from "./mast-details.js?v=2";
 
 const prefix = "/plugins/mast";
 const active = new Set(["queued", "running"]);
@@ -93,17 +94,17 @@ function renderResult(root, job, host) {
     const group = el("section", "mast-category-group");
     group.append(el("h4", "", title));
     for (const label of output.labels.filter((item) => item.code.startsWith(prefix))) {
-      const row = el("div", "mast-label-row");
-      const name = el("div");
-      name.append(el("span", "mast-code", label.code), el("span", "", label.label));
-      row.append(name, el("span", `mast-badge ${label.present === true ? "present" : label.present === null ? "unknown" : ""}`,
-        label.present === null ? "Unparsed" : label.present ? "Present" : "Absent"));
-      group.append(row);
+      group.append(mastTraitDetails(label, job, host));
     }
     categories.append(group);
   }
   root.append(categories, el("p", "mast-assessment-note", "LLM assessment · not human reviewed. MAST classifies failure modes; these labels do not establish cascade occurrence."));
   if (output.warnings.length) root.append(details("Parsing notes", output.warnings.join("\n")));
+  if (output.evidence?.warnings?.length) root.append(details("Evidence notes", output.evidence.warnings.join("\n")));
+  if (output.evidence) root.append(details("Evidence provenance", JSON.stringify({
+    version: output.evidence.version, status: output.evidence.status,
+    prompt_sha256: output.evidence.prompt_sha256, judge: output.evidence.judge,
+  }, null, 2)));
   root.append(details("Raw judge response", output.raw_response),
     details("Upstream taxonomy notes", output.upstream.upstream_notes.join("\n\n")),
     details("Analysis provenance", JSON.stringify({
@@ -127,6 +128,7 @@ function analyzeDialog(manifest, selection, host) {
   ]);
   root.append(completeness.fragment,
     el("p", "", `The selected trace will be sent to OpenAI (${manifest.judge.model}) with MAST's definitions and examples.`),
+    el("p", "", "A second model request will locate supporting messages and context for the trait details."),
     el("p", "", "Your results will open as a saved report in the workspace."));
   const inputStatus = el("div", "mast-input-preview");
   inputStatus.setAttribute("role", "status");

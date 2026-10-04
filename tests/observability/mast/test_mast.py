@@ -33,6 +33,10 @@ class FakeJudge:
 
     def complete(self, prompt):
         self.prompts.append(prompt)
+        if prompt.startswith("Explain the supplied MAST judgments"):
+            text = json.dumps({"traits": [{"code": c["code"], "explanation": "No localized support in this fixture.",
+                                           "occurrences": []} for c in assets()["categories"]]})
+            return {"text": text, "model": "test-judge", "finish_reason": "stop"}
         return {"text": self.text, "model": "test-judge", "finish_reason": "stop"}
 
 
@@ -90,13 +94,13 @@ def test_api_discovery_import_and_analysis_persist_after_restart(service):
         record = client.get(f"/api/plugins/mast/analyses/{job_id}").json()
         assert record["status"] == "completed"
         assert record["analysis"]["output"]["human_reviewed"] is False
-        assert len(service.plugin.judge.prompts) == 1
+        assert len(service.plugin.judge.prompts) == 2
         assert service.framework.store.analyses(branch["id"], branch["head"])[0]["id"] == job_id
         assert client.get("/api/plugins/caspian/capabilities").status_code == 404
     with TestClient(app(service)) as client:
         jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch["id"]}).json()["jobs"]
         assert jobs[0]["id"] == job_id and jobs[0]["status"] == "completed"
-        assert len(service.plugin.judge.prompts) == 1
+        assert len(service.plugin.judge.prompts) == 2
 
 
 def test_frozen_prefix_and_fork_never_include_future_parent_events(service, branch):
