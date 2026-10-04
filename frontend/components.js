@@ -194,6 +194,10 @@ export class Picker {
       id: this.id, collection: this.collection, name: this.searchable ? undefined : this.name,
       defaultValue: this.value ? [this.value] : [], disabled: this.disabled, required: this.required,
       positioning: { placement: 'bottom-start', strategy: 'fixed', gutter: 7, sameWidth: !this.searchable, overflowPadding: 12 },
+      // The panel header holds controls (Favorites only); using them must not dismiss the panel.
+      onInteractOutside: (event) => {
+        if (this.panel.contains(event.detail?.target)) event.preventDefault();
+      },
       onValueChange: ({ value }) => {
         const previous = this._value;
         this._value = value[0] || '';
