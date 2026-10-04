@@ -98,7 +98,8 @@ def test_cli_composition_serves_bundled_and_configured_plugins(tmp_path):
 
     with TestClient(build_app(tmp_path, plugin_specs=[f"{__name__}:notes_plugin"])) as client:
         capabilities = client.get("/api/workspace").json()["capabilities"]
-        assert [plugin["id"] for plugin in client.get("/api/plugins").json()["plugins"]] == ["activity", "stance-lanes"]
+        plugin_ids = [plugin["id"] for plugin in client.get("/api/plugins").json()["plugins"]]
+        assert plugin_ids == ["activity", "influence-ribbon", "stance-lanes"]
         assert capabilities["live"]["runtimes"] == ["crewai-trace"]
         mast, stance, notes = capabilities["web_plugins"]
         assert (mast["id"], stance["id"], notes["id"], notes["ui"]) == ("mast", "stance-lanes", "notes", None)
