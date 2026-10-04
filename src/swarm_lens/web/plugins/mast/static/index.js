@@ -188,7 +188,7 @@ function renderReport(root, job, host, definitions) {
   if (job.stages?.length) root.append(details(`${job.stages.length} saved analysis stages`, savedStages(job)));
   if (active.has(job.status)) return root.append(progressRow(job));
   if (!job.analysis) return root.append(el("p", "muted", "No assessment was produced."));
-  const output = job.analysis.output;
+  const output = job.analysis.output.report;
   if (output.chunking) root.append(el("p", "muted", `${output.chunking.chunk_count} chunks · ${output.chunking.reconciliation_steps} reconciliation steps. ${output.chunking.limitation}`));
   root.append(outcomeStrip(output));
   if (output.summary) root.append(el("p", "mast-summary", output.summary));

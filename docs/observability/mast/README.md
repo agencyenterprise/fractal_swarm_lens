@@ -49,7 +49,9 @@ Click a trait row to expand its saved explanation and chronological context. Eac
 
 Messages use the explorer's shared formatter, built from `frontend/message-format.js` using Markdown-it and KaTeX into a bundled local browser asset (`npm run build:message-format`, included in `npm run build`) that loads on first use. Equations use native MathML; no remote scripts, images, or fonts are loaded from message content. Recorded HTML remains text, and the original message is retained without rewriting or summarizing it.
 
-The library returns this data in `analysis.output.evidence`, including the evidence version, request hash, model metadata, raw response, validation warnings, and details keyed by trait code. Event references are checked against the exact analyzed prefix, and positions are resolved from that input. Invalid references discard that trait's occurrences. Failure of the additional request preserves the original assessment with evidence marked unavailable. Raw transcript imports can cite their containing observation, but do not gain invented message identities.
+The library returns this data in `analysis.output.report.evidence`, including the evidence version, request hash, model metadata, raw response, validation warnings, and details keyed by trait code. Event references are checked against the exact analyzed prefix, and positions are resolved from that input. Invalid references discard that trait's occurrences. Failure of the additional request preserves the original assessment with evidence marked unavailable. Raw transcript imports can cite their containing observation, but do not gain invented message identities.
+
+Each located occurrence of a present trait is also saved as an annotation (`MAST <code> <label>`, its span, the supporting events as cited event IDs, and the explanation and counterevidence in `data`); a present trait without a located occurrence spans the whole analyzed prefix. The explorer draws them as timeline markers like any [plugin's findings](../../plugins.md). On startup, existing jobs from the separate `mast.sqlite` file are copied into the shared job store and their reports are wrapped in the findings format. The old file is only read; completed chunk stages and artifacts are preserved, and no provider calls are repeated.
 
 `web/plugins/mast/details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/plugins/mast/static/details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
 
@@ -74,13 +76,15 @@ For an application-owned composition root:
 ```python
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.judge import OpenAIMastJudge
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens import PluginService
+from swarm_lens.adapters.jobs import JobStore
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.plugins.mast import mast_extension
 from swarm_lens.web.api import create_app
 
-service = MastService(framework, MastPlugin(OpenAIMastJudge()),
-                      MastJobs("data/mast.sqlite"), artifacts)
-app = create_app(framework, artifacts, extensions=(mast_extension(service),))
+plugins = PluginService(framework, jobs=lambda name, label: JobStore("data/jobs.sqlite", name, label))
+service = MastService(plugins, MastPlugin(OpenAIMastJudge()), artifacts)
+app = create_app(framework, artifacts, plugins=plugins, extensions=(mast_extension(service),))
 ```
 
 MAST is an ordinary [web plugin](../../integration.md#write-a-web-plugin): everything it adds lives in `src/swarm_lens/web/plugins/mast/`, and its browser module (`static/index.js`) installs the Reports view and the **Analyze with MAST…** action through the same host API any plugin uses. Duplicate IDs/routes fail startup. Routes must use the plugin's namespace. The domain/application layers and CASPIAN remain independent of FastAPI.
@@ -95,6 +99,6 @@ Integration changes are explicit: Swarm Lens supplies its saved event projection
 
 Projection v2 preserves every event in order and replaces exact repeated strings with references to a shared text table. Canonically serialized JSON memory snapshots can reference those same strings. References retain every occurrence: repeated agent behavior is still visible at each event. `decode_trace` reconstructs the original projection, including the exact memory strings; tests compare both complete saved ACIArena examples and their prefixes. Original histories and raw model-call artifacts remain untouched. The lossless input projection itself contains no summaries or dropped turns; the upstream MAST judgment prompt template, definitions, and examples remain unchanged. Oversized inputs now use the chunked analysis and reconciliation extension described above. Plugin version 0.2.0 and each report's input summary identify this representation change; older reports retain their original judge and input.
 
-Jobs persist in `mast.sqlite`, and completed assessments use the existing history-store analysis records. Unfinished jobs become `interrupted` after restart; paid requests are not automatically repeated. Start another analysis to retry. The initial executor uses FastAPI background tasks, at most four pending jobs, and **one server process**. Distributed execution is not implemented.
+Jobs persist in the shared plugin job store (`jobs.sqlite`, table `mast_jobs`), and completed assessments use the existing history-store analysis records. Unfinished jobs become `interrupted` after restart; paid requests are not automatically repeated. Start another analysis to retry. The initial executor uses FastAPI background tasks, at most four pending jobs, and **one server process**. Distributed execution is not implemented.
 
 Responses are rendered as text. Integration tests verify persistence, parsing, and isolation, not classification accuracy or CASPIAN validity.

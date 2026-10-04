@@ -1,83 +1,33 @@
 """Durable on-demand jobs; the input is frozen before scheduling the judge."""
-from contextlib import contextmanager
 from dataclasses import asdict
 import hashlib
 import json
-from pathlib import Path
-import sqlite3
 
-from swarm_lens.core.models import Conflict, DomainError, new_id, utc_now
+from swarm_lens.core.findings import encode_output
+from swarm_lens.core.models import DomainError, new_id, utc_now
 from .errors import provider_failure
+from .method import MastPlugin
 
 
-class MastJobs:
-    def __init__(self, path):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.connection() as db:
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("CREATE TABLE IF NOT EXISTS mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL, record TEXT NOT NULL)")
+def upgrade_job(record, event_ids):
+    """Wrap a job from the separate store in the shared findings format, keeping chunk artifacts intact.
 
-    @contextmanager
-    def connection(self):
-        db = sqlite3.connect(self.path, timeout=30)
-        db.row_factory = sqlite3.Row
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
-
-    def create(self, record):
-        with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
-            pending = db.execute("SELECT COUNT(*) FROM mast_jobs WHERE status IN ('queued','running')").fetchone()[0]
-            if pending >= 4:
-                raise Conflict("Four MAST jobs are already pending; wait for one to finish")
-            db.execute("INSERT INTO mast_jobs VALUES (?,?,?,?,?)", (
-                record["id"], record["branch_id"], record["created_at"], record["status"], json.dumps(record)))
-
-    def get(self, job_id):
-        with self.connection() as db:
-            row = db.execute("SELECT record FROM mast_jobs WHERE id=?", (job_id,)).fetchone()
-        if row is None:
-            raise DomainError("Unknown MAST job")
-        return json.loads(row[0])
-
-    def list(self, branch_id):
-        with self.connection() as db:
-            return [json.loads(row[0]) for row in db.execute(
-                "SELECT record FROM mast_jobs WHERE branch_id=? ORDER BY created_at DESC LIMIT 50", (branch_id,))]
-
-    def update(self, record):
-        with self.connection() as db:
-            db.execute("UPDATE mast_jobs SET status=?, record=? WHERE id=?", (
-                record["status"], json.dumps(record), record["id"]))
-
-    def claim(self, job_id):
-        with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT record FROM mast_jobs WHERE id=? AND status='queued'", (job_id,)).fetchone()
-            if row is None:
-                return None
-            record = json.loads(row[0])
-            record.update(status="running", started_at=utc_now())
-            db.execute("UPDATE mast_jobs SET status='running', record=? WHERE id=?", (json.dumps(record), job_id))
-            return record
-
-    def recover_interrupted(self):
-        # Single-server startup only. Never silently repeat a model call after a crash.
-        with self.connection() as db:
-            rows = db.execute("SELECT record FROM mast_jobs WHERE status IN ('queued','running')").fetchall()
-            for row in rows:
-                record = json.loads(row[0])
-                record.update(status="interrupted", error="Server restarted before the job finished. Start a new analysis to retry.")
-                db.execute("UPDATE mast_jobs SET status='interrupted', record=? WHERE id=?", (json.dumps(record), record["id"]))
+    Its assessment becomes the report, evidence becomes annotations, and the range is 1..cursor.
+    `event_ids` are the analyzed events.
+    """
+    record = {**record, "start": 1, "end": record["cursor"]}
+    analysis = record.get("analysis")
+    if analysis and "format" not in analysis["output"]:
+        items = MastPlugin.results(analysis["output"], 1, record["cursor"])
+        record["analysis"] = {**analysis, "start": 1, "end": record["cursor"],
+                              "output": encode_output(items, MastPlugin.id, 1, record["cursor"], event_ids)}
+    return record
 
 
 class MastService:
-    def __init__(self, framework, plugin, jobs, artifacts):
-        self.framework, self.plugin, self.jobs, self.artifacts = framework, plugin, jobs, artifacts
+    def __init__(self, plugins, plugin, artifacts):
+        self.plugins, self.plugin, self.artifacts = plugins, plugin, artifacts
+        self.framework, self.jobs = plugins.framework, plugins.jobs(plugin.id, "MAST")
 
     def preview(self, branch_id, cursor, completeness):
         history = self.framework.history(branch_id, cursor)
@@ -99,7 +49,7 @@ class MastService:
             raise DomainError(summary["reason"])
         input_digest = hashlib.sha256(json.dumps([asdict(e) for e in history], sort_keys=True).encode()).hexdigest()
         record = {"id": new_id(), "plugin_id": self.plugin.id, "plugin_version": self.plugin.version,
-                  "branch_id": branch_id, "cursor": cursor, "created_at": utc_now(), "status": "queued",
+                  "branch_id": branch_id, "start": 1, "end": cursor, "cursor": cursor, "created_at": utc_now(), "status": "queued",
                   "config": config, "input_digest": input_digest, "judge": description, "input_summary": summary,
                   "trace_artifact": self.artifacts.put(json.dumps({"text": trace}, ensure_ascii=False).encode()),
                   "prompt_artifact": self.artifacts.put(json.dumps({"text": prompt}, ensure_ascii=False).encode())}
@@ -138,11 +88,9 @@ class MastService:
             else:
                 output = self.plugin.evaluate(trace, prompt)
             output["input_summary"] = record.get("input_summary")
-            analysis = {key: record[key] for key in (
-                "id", "plugin_id", "plugin_version", "branch_id", "cursor", "created_at", "config", "input_digest",
-            )}
-            analysis["output"] = output
-            self.framework.store.save_analysis(analysis)
+            cursor = record["cursor"]
+            analysis = self.plugins.save(self.plugin, self.plugins.view(record["branch_id"], cursor), 1, cursor,
+                                         record["config"], self.plugin.results(output, 1, cursor))
             record.update(status="completed" if output["parse_status"] == "complete" else "needs_review",
                           analysis=analysis)
         except Exception as exc:

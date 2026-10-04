@@ -2,23 +2,26 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import re
 
 from fastapi import APIRouter
 
 from swarm_lens.adapters.artifacts import FileArtifacts
 from swarm_lens.application.framework import Framework
+from swarm_lens.application.plugins import PLUGIN_ID, PluginService
 
-PLUGIN_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 PLUGIN_ENTRY = "index.js"
 
 
 @dataclass(frozen=True)
 class PluginServices:
-    """What the host gives a web plugin factory: `factory(services) -> WebExtension`."""
+    """What the host gives a plugin factory: `factory(services)` returns a plugin, a WebExtension, or several.
+
+    A method plugin reads branches only through the BranchView it is given; `framework` is for web routes.
+    """
     framework: Framework
     artifacts: FileArtifacts
     data: Path
+    plugins: PluginService
 
 
 @dataclass(frozen=True)

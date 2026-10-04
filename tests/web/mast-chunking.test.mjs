@@ -87,3 +87,21 @@ test('parallel progress shows active ranges and saved stages in chronological or
   assert.match(root.textContent, /Finishing in-flight calls after an error/);
   view.onHide();
 });
+
+test('completed chunked reports render through the shared findings format', async t => {
+  const job = { id: 'completed-job', branch_id: 'branch', cursor: 3730, judge: { model: 'test-model' },
+    created_at: new Date().toISOString(), status: 'completed', config: { completeness: 'complete' },
+    analysis: { output: { format: 'swarm-lens.findings/v1', metrics: [], annotations: [], report: {
+      summary: 'The reconciled assessment.', task_completed: true, labels: [], warnings: [], raw_response: 'Saved response',
+      upstream: { revision: 'test-revision', upstream_notes: [] },
+      chunking: { chunk_count: 4, reconciliation_steps: 1, limitation: 'Chunk summaries may omit distant context.' },
+    } } } };
+  t.mock.method(globalThis, 'fetch', async path => ({ ok: true, json: async () => path.endsWith('/taxonomy') ? { categories: [] } : { jobs: [job] } }));
+  const { root, view } = host();
+  await view.onShow({ report: job.id });
+  assert.match(root.textContent, /4 chunks · 1 reconciliation steps/);
+  assert.match(root.textContent, /The reconciled assessment/);
+  assert.match(root.textContent, /Task completed/);
+  assert.equal(root.querySelector('.mast-progress'), null);
+  view.onHide();
+});

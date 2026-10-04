@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from swarm_lens import Fact, Framework
+from swarm_lens import Fact, Framework, PluginService
 from swarm_lens.adapters.sqlite import SQLiteHistory
 from swarm_lens.observability import ObservabilityPlugin
 from swarm_lens.observability.caspian import Caspian, CaspianConfig, ChannelEvent, Turn
@@ -40,19 +40,20 @@ class NumericSource:
 
 def run(root):
     plugin = ObservabilityPlugin('caspian', Caspian.version, factory, NumericHistory())
-    framework = Framework(SQLiteHistory(Path(root) / 'history.sqlite'), plugins=(plugin,))
+    framework = Framework(SQLiteHistory(Path(root) / 'history.sqlite'))
+    plugins = PluginService(framework, (plugin,))
     recorded = framework.create_run('CASPIAN synthetic application')
     framework.ingest(recorded.id, NumericSource())
     # Four agent creation events + six observed turns, safely before default warmup.
     cursor = 10
-    parent = framework.analyze(plugin.id, recorded.id, cursor)
+    parent = plugins.analyze(plugin.id, recorded.id, 1, cursor)
     child = framework.fork(recorded.id, cursor, 'Check source evidence')
     framework.intervene(child.id, 'agent.updated', {
         'id': 'reviewer', 'system_prompt': 'Verify source evidence before passing claims downstream.'
     }, expected_head=cursor)
     nested = framework.fork(child.id, cursor + 1, 'Nested verification')
-    branch = framework.analyze(plugin.id, nested.id, cursor + 1)
-    assert parent['output']['turns'] == branch['output']['turns']
+    branch = plugins.analyze(plugin.id, nested.id, 1, cursor + 1)
+    assert parent['output']['report']['turns'] == branch['output']['report']['turns']
     assert parent['input_digest'] != branch['input_digest']
     return {'parent_analysis': parent, 'nested_branch_analysis': branch,
             'interpretation': 'The recorded prompt intervention adds no runtime evidence; scores stay unchanged.'}

@@ -8,8 +8,8 @@
     <script type="importmap">{ "imports": { "swarm-lens/": "/assets/" } }</script>
     <link rel="icon" href="/assets/logos/swarm-lens.ico?v=2" sizes="any" />
     <script src="/assets/theme.js?v=1"></script>
-    <link rel="stylesheet" href="/assets/tailwind.css?v=6" />
-    <link rel="modulepreload" href="/assets/app.js?v=18" />
+    <link rel="stylesheet" href="/assets/tailwind.css?v=7" />
+    <link rel="modulepreload" href="/assets/app.js?v=19" />
   </head>
   <body>
     <header class="appbar">
@@ -35,6 +35,9 @@
         <label data-tip="Move the cursor to each new event as it arrives"><input id="follow-live" type="checkbox" /> Follow</label>
       </div>
       <div class="appbar-actions">
+        <button id="analyze-button" class="ghost" aria-haspopup="menu" aria-expanded="false" hidden>
+          Analyze<span class="analyze-active" aria-hidden="true" hidden></span><span aria-hidden="true" class="muted">▾</span>
+        </button>
         <button id="fork-button" class="primary" data-tip="Start a new branch after the selected event (F)">Fork here</button>
         <button id="more-button" class="icon ghost" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" data-tip="Import, export, plugins and theme">⋯</button>
       </div>
@@ -76,6 +79,6 @@
     </dialog>
     <div id="menu" class="menu" role="menu" hidden></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js?v=18"></script>
+    <script type="module" src="/assets/app.js?v=19"></script>
   </body>
 </html>

@@ -3,16 +3,17 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from swarm_lens import Fact
+from swarm_lens import Fact, PluginService
 from swarm_lens.application.framework import IterableSource
 from swarm_lens.adapters.artifacts import FileArtifacts
+from swarm_lens.adapters.jobs import JobStore
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.chunking import (
     evaluate_chunks, parse_reconciliation, reconciliation_prompt, map_budget,
 )
 from swarm_lens.observability.mast.method import assets, history_document
 from swarm_lens.observability.mast.trace import decode_trace
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.plugins.mast import mast_extension
 
@@ -75,8 +76,9 @@ def recording(framework, count=18, width=1800):
 
 
 def make_service(framework, tmp_path, judge=None, limit=18_000, workers=1):
-    return MastService(framework, MastPlugin(judge or ChunkJudge(), max_trace_characters=limit, workers=workers),
-                       MastJobs(tmp_path / 'jobs.sqlite'), FileArtifacts(tmp_path / 'artifacts'))
+    plugins = PluginService(framework, jobs=lambda name, label: JobStore(tmp_path / 'jobs.sqlite', name, label))
+    return MastService(plugins, MastPlugin(judge or ChunkJudge(), max_trace_characters=limit, workers=workers),
+                       FileArtifacts(tmp_path / 'artifacts'))
 
 
 def test_chunks_cover_every_event_and_overlap_without_future_leakage(framework):
@@ -140,7 +142,8 @@ def test_token_budget_can_trigger_chunking_below_character_guard(framework):
 def test_api_reconciles_instead_of_or_and_preserves_stage_artifacts(framework, tmp_path):
     branch = recording(framework)
     service = make_service(framework, tmp_path)
-    with TestClient(create_app(framework, service.artifacts, extensions=(mast_extension(service),))) as client:
+    with TestClient(create_app(framework, service.artifacts, plugins=service.plugins,
+                               extensions=(mast_extension(service),))) as client:
         payload = {'branch_id': branch.id, 'cursor': branch.head, 'completeness': 'complete'}
         preview = client.post('/api/plugins/mast/preview', json=payload).json()
         assert preview['strategy'] == 'chunked' and preview['chunk_count'] > 1
@@ -149,7 +152,7 @@ def test_api_reconciles_instead_of_or_and_preserves_stage_artifacts(framework, t
         assert response.status_code == 202
         job = client.get('/api/plugins/mast/analyses/' + response.json()['id']).json()
         assert job['status'] == 'completed', job
-        output = job['analysis']['output']
+        output = job['analysis']['output']['report']
         assert all(c['present'] is False for c in output['labels'])
         assert output['task_completed'] is True  # Not the last chunk's local "no".
         assert job['progress']['phase'] == 'finished'
@@ -179,6 +182,27 @@ def test_cross_chunk_evidence_is_deduplicated_and_resolves_in_full_prefix(framew
     assert detail['occurrences'][0]['start_position'] == 1
     assert detail['occurrences'][0]['end_position'] == branch.head
     assert len(detail['occurrences'][0]['events']) == branch.head
+    _, annotations = service.plugins.findings(branch.id)
+    assert len(annotations) == 1
+    assert (annotations[0].seq_from, annotations[0].seq_to, annotations[0].plugin) == (1, branch.head, 'mast')
+    assert annotations[0].cited_event_ids == tuple(detail['occurrences'][0]['supporting_event_ids'])
+
+
+def test_chunked_analysis_implements_shared_plugin_contract_and_selected_range(framework, tmp_path):
+    branch = recording(framework)
+    plugin = MastPlugin(ChunkJudge(positive=True), max_trace_characters=18_000, workers=3)
+    plugins = PluginService(framework, [plugin],
+                            jobs=lambda name, label: JobStore(tmp_path / 'jobs.sqlite', name, label))
+    start, end = 3, branch.head - 1
+    result = plugins.analyze('mast', branch.id, start, end, {'completeness': 'partial'})
+    assert result['output']['report']['chunking']['workers'] == 3
+    assert result['output']['report']['parse_status'] == 'complete'
+    _, annotations = plugins.findings(branch.id)
+    assert len(annotations) == 1
+    assert (annotations[0].seq_from, annotations[0].seq_to) == (start, end)
+    known = {event.id for event in framework.history(branch.id)[start - 1:end]}
+    assert set(annotations[0].cited_event_ids) <= known
+    assert plugins.branch_jobs(branch.id)[0]['analysis'] == result
 
 
 def test_reconciliation_is_hierarchical_when_reports_do_not_fit(framework):
@@ -215,7 +239,7 @@ def test_unknown_chunk_cannot_turn_into_global_absence(framework, tmp_path):
     service.execute(job['id'])
     result = service.jobs.get(job['id'])
     assert result['status'] == 'needs_review'
-    assert next(c for c in result['analysis']['output']['labels'] if c['code'] == '1.1')['present'] is None
+    assert next(c for c in result['analysis']['output']['report']['labels'] if c['code'] == '1.1')['present'] is None
 
 
 @pytest.mark.parametrize('response', [
@@ -319,7 +343,7 @@ def test_parallel_chunks_save_out_of_order_but_reconcile_in_order(framework, tmp
         order = [i for r in reports for i in r['source_chunks']]
         assert order == sorted(order)
     assert order == [c['index'] for c in chunks]  # Final reconciliation covers every chunk.
-    assert result['analysis']['output']['chunking']['workers'] == 3
+    assert result['analysis']['output']['report']['chunking']['workers'] == 3
 
 
 def test_failure_stops_new_chunks_and_saves_successful_inflight_work(framework, tmp_path, monkeypatch):

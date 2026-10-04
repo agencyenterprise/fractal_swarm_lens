@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swarm Lens end card</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { text-align: center; }
+  .logo { width: 160px; height: 160px; border-radius: 36px; box-shadow: 0 16px 36px rgba(0,0,0,.18); }
+  .pop { opacity: 0; transform: scale(1.35); }
+  body.play .pop { animation: pop .38s cubic-bezier(.2,.9,.25,1.2) forwards; animation-delay: var(--d, 0s); }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  h1 { font-size: 128px; line-height: 1; margin: 36px 0 34px; font-weight: 800; letter-spacing: -.035em; }
+  .pills { display: flex; gap: 18px; justify-content: center; margin-bottom: 44px; }
+  .pills span { font-size: 40px; font-weight: 650; color: var(--ink); background: var(--surface); border: 1.5px solid var(--faint);
+    padding: 12px 30px; border-radius: 999px; }
+  .cta { font-size: 34px; color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <img class="logo pop" data-logo alt="">
+      <h1 class="pop" style="--d:.06s">Swarm Lens</h1>
+      <div class="pills pop" style="--d:.5s"><span>Open source</span><span>Self-hosted</span></div>
+      <div class="cta rise" style="--d:1.0s">Bring your own agent traces</div>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  window.play = () => {
+    document.body.classList.add("play");
+    cue("hit");
+    setTimeout(() => cue("slam"), 500);
+    return 3.6;
+  };
+</script>
+</body>
+</html>

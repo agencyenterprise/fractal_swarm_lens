@@ -6,6 +6,11 @@ import os
 import re
 from threading import BoundedSemaphore
 
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+from swarm_lens.core.findings import Annotation, Report
 from swarm_lens.core.models import DomainError
 from .trace import encode_trace, FORMAT
 from .evidence import generate_evidence
@@ -75,8 +80,34 @@ def history_trace(history, completeness="unknown"):
     return json.dumps(encode_trace(history_document(history, completeness)), ensure_ascii=False)
 
 
+def annotations(output, start, end):
+    """One annotation per localized occurrence of a present trait, citing its supporting events; a present trait
+    without a localized occurrence spans the whole analyzed range."""
+    for label in output["labels"]:
+        if not label["present"]:
+            continue
+        evidence = output.get("evidence", {}).get("traits", {}).get(label["code"], {})
+        title = f"MAST {label['code']} {label['label']}"
+        base = {"code": label["code"], "group": label["group"], "evidence_status": evidence.get("status", "unavailable")}
+        occurrences = evidence.get("occurrences", [])
+        for occurrence in occurrences:
+            yield Annotation(occurrence["start_position"], occurrence["end_position"], title,
+                             data={**base, "explanation": occurrence["explanation"],
+                                   "counterevidence_event_ids": occurrence["counterevidence_event_ids"]},
+                             cited_event_ids=tuple(occurrence["supporting_event_ids"]))
+        if not occurrences:
+            yield Annotation(start, end, title, data={**base, "explanation": evidence.get("explanation", "")})
+
+
 class MastPlugin:
+    """An LLM judge of the MAST failure taxonomy; its report is the full assessment."""
     id, version = "mast", "0.5.0"
+    title = "MAST trace analysis"
+    description = "Classifies the saved prefix against the 14 MAST failure modes and locates evidence."
+
+    class Params(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        completeness: Literal["unknown", "complete", "partial"] = "unknown"
 
     def __init__(self, judge, *, max_trace_characters=None, workers=None):
         self.judge = judge
@@ -154,11 +185,17 @@ class MastPlugin:
         output["evidence"] = generate_evidence(self, trace, output["labels"], assets()["categories"])
         return output
 
-    def run(self, context, config):
+    @staticmethod
+    def results(output, start, end):
+        return [Report(output), *annotations(output, start, end)]
+
+    def analyze(self, view, start, end, params):
         from .chunking import evaluate_chunks
-        prepared = self.prepare_analysis(context.history(), config)
+        prepared = self.prepare_analysis(view.events(start, end), params.model_dump())
         if not prepared["summary"]["can_analyze"]:
             raise DomainError(prepared["summary"]["reason"])
         if prepared["chunks"]:
-            return evaluate_chunks(self, prepared["trace"], prepared["chunks"])
-        return self.evaluate(prepared["trace"], prepared["prompt"])
+            output = evaluate_chunks(self, prepared["trace"], prepared["chunks"])
+        else:
+            output = self.evaluate(prepared["trace"], prepared["prompt"])
+        return self.results(output, start, end)

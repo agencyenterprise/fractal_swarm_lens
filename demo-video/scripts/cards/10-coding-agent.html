@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coding agent writes plugins</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { display: grid; gap: 30px; justify-items: center; }
+  h1, h2 { margin: 0; text-align: center; letter-spacing: -.03em; line-height: 1.1; }
+  h1 { font-size: 66px; font-weight: 800; }
+  h2 { font-size: 50px; font-weight: 650; color: var(--muted); }
+  .slam { opacity: 0; transform: scale(1.08); filter: blur(8px); }
+  .slam.in { animation: slam .32s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes slam { to { opacity: 1; transform: none; filter: none; } }
+  .term { width: 1360px; }
+  .body { padding: 24px 34px 28px; font-size: 26px; line-height: 1.5; height: 560px; white-space: pre; }
+  .ask { color: var(--ink); font-weight: 650; }
+  .ask::before { content: "> "; color: var(--muted); }
+  .status { color: var(--muted); }
+  .k { color: #8e3fb0; } .s { color: #a3561b; } .c { color: #8a8a85; } .f { color: #2d63b5; }
+  .caret { display: inline-block; width: 12px; height: 27px; background: var(--ink); vertical-align: -4px; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <h1 class="slam" id="title">Connect your coding agent: Claude Code, Codex, any CLI</h1>
+      <div class="term window rise" style="--d:.15s">
+        <div class="window-bar"><i></i><i></i><i></i><span style="margin-left:12px">coding agent session</span></div>
+        <div class="body mono" id="out"></div>
+      </div>
+      <h2 class="slam" id="line2">It writes plugins that watch the swarm or change it</h2>
+    </div>
+  </div>
+<script src="cards.js"></script>
+<script>
+  // The snippet uses the real web plugin API: host.registerVisualization({ id, title, mount }).
+  const ask = "Add a view that shows when each agent changes its answer";
+  const code = [
+    '<span class="status">Writing plugins/stance-drift.js</span>',
+    "",
+    '<span class="f">host</span>.<span class="f">registerVisualization</span>({',
+    '  id: <span class="s">"stance-drift"</span>,',
+    '  title: <span class="s">"Stance drift"</span>,',
+    '  <span class="f">mount</span>(root, actions) {',
+    '    <span class="k">return</span> {',
+    '      <span class="f">update</span>({ events, cursor, agents }) { <span class="c">/* plot answers per round */</span> },',
+    '      <span class="f">destroy</span>() { root.<span class="f">replaceChildren</span>(); },',
+    "    };",
+    "  },",
+    "});",
+  ];
+  const out = document.getElementById("out");
+  async function run() {
+    const line = document.createElement("div");
+    line.className = "ask";
+    out.append(line);
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    for (const ch of ask) { line.textContent += ch; line.append(caret); cue("key"); await wait(20); }
+    caret.remove();
+    cue("enter");
+    await wait(300);
+    for (const html of code) {
+      const row = document.createElement("div");
+      row.innerHTML = html || "&nbsp;";
+      out.append(row);
+      cue("tick");
+      await wait(130);
+    }
+    await wait(700);
+    document.getElementById("line2").classList.add("in");
+    cue("slam");
+  }
+  window.play = () => {
+    document.body.classList.add("play");
+    document.getElementById("title").classList.add("in");
+    cue("slam");
+    wait(450).then(run);
+    return 7.0;
+  };
+</script>
+</body>
+</html>

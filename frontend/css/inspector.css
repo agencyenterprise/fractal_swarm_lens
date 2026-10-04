@@ -71,3 +71,11 @@ button.ins-agent:hover { background: var(--surface-2); }
 .ins-memory-text { flex: 1; min-width: 0; overflow: hidden; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 .ins-note { font-size: 12px; }
 
+
+.ins-findings { display: flex; flex-direction: column; gap: 6px; }
+.ins-finding { display: flex; flex-direction: column; padding: 6px 10px; border-left: 2px solid var(--c, var(--warn)); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surface-2); }
+.ins-finding-label { font-weight: 500; overflow-wrap: anywhere; }
+.ins-finding-source { font-size: 12px; }
+.ins-metrics { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; margin: 0; font-size: 12px; }
+.ins-metrics dt { overflow: hidden; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; }
+.ins-metrics dd { margin: 0; text-align: right; }
