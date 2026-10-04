@@ -1,6 +1,6 @@
 import { api, post, formatNumber } from "./ui.js";
 
-export const NO_FINDINGS = Object.freeze({ series: [], annotations: [] });
+export const NO_FINDINGS = Object.freeze({ series: [], annotations: [], titles: {} });
 export const ACTIVE_JOB = new Set(["queued", "running"]);
 const POLL_MS = 1000;
 const MAX_POINTS = 2000;
@@ -36,7 +36,8 @@ export class PluginClient {
     if (!this.findings.has(branchId)) {
       const id = encodeURIComponent(branchId);
       const request = Promise.all([api(`/branches/${id}/series?max_points=${MAX_POINTS}`), api(`/branches/${id}/annotations`)])
-        .then(([{ series }, { annotations }]) => ({ series, annotations }));
+        .then(([{ series }, { annotations }]) => ({ series, annotations,
+          titles: Object.fromEntries(this.plugins.map((plugin) => [plugin.id, plugin.title])) }));
       request.catch(() => this.findings.delete(branchId));
       this.findings.set(branchId, request);
     }
@@ -91,6 +92,9 @@ export class PluginClient {
     setTimeout(poll, POLL_MS);
   }
 }
+
+// `titles` maps plugin ids to the titles /api/plugins reports; a plugin no longer registered shows its id.
+export const pluginTitle = (titles, pluginId) => titles[pluginId] || pluginId;
 
 export const eventSpan = ({ seq_from, seq_to }) =>
   seq_from === seq_to ? `Event ${formatNumber(seq_from)}` : `Events ${formatNumber(seq_from)}–${formatNumber(seq_to)}`;
