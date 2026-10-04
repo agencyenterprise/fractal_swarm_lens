@@ -159,6 +159,15 @@ def test_estimate_equals_gaussian_conditional_mutual_information():
     assert estimate.te == pytest.approx(gaussian_cmi(covariance, 1, 1, shrinkage=0.0, jitter=1e-12), rel=1e-6)
 
 
+def test_identical_embeddings_are_insufficient_data_without_dividing_by_zero():
+    series = {agent: [method.Utterance(agent, 3 * t + i, f"{agent}{t}", "same", {o: t for o in AGENTS if o != agent},
+                                       method.RECORDED) for t in range(24)] for i, agent in enumerate(AGENTS)}
+    with np.errstate(all="raise"):
+        features = method.project(series, lambda text: [0.1, 0.3, 0.7], 3)
+        found = method.couplings(series, features, method.Guard())
+    assert {c.reason for c in found} == {"only 1 distinct message combinations"}
+
+
 def test_bundled_factory_registers_and_fails_loudly_without_a_key(tmp_path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     framework = Framework(SQLiteHistory(tmp_path / "history.sqlite"), versions=GitVersions(tmp_path / "history.git"))

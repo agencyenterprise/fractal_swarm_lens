@@ -17,6 +17,7 @@ import numpy as np
 
 RECORDED, ASSUMED = "recorded", "assumed"
 RANK_TOLERANCE = 1e-8
+SINGULAR_FLOOR = 1e-10  # singular values below this are rounding noise, e.g. when every embedding is identical
 
 
 @dataclass(frozen=True)
@@ -78,14 +79,15 @@ def utterances(events: Iterable) -> dict[str, list[Utterance]]:
 def project(series: dict[str, list[Utterance]], vectors: Callable[[str], Sequence[float]],
             components: int) -> dict[str, np.ndarray]:
     """Per-trace PCA of all utterance embeddings, each component standardized. Only components above the
-    numerical rank tolerance are kept, so the feature width can be smaller than `components` (at least 1)."""
+    numerical rank tolerance and an absolute floor are kept, so the feature width can be smaller than
+    `components` (at least 1)."""
     agents = sorted(series)
     stacked = np.array([vectors(u.text) for agent in agents for u in series[agent]], dtype=float)
     if not np.isfinite(stacked).all():
         raise ValueError("Embeddings must be finite")
     centered = stacked - stacked.mean(axis=0)
     _, singular, basis = np.linalg.svd(centered, full_matrices=False)
-    kept = int(np.sum(singular[:components] > RANK_TOLERANCE * max(singular[0], np.finfo(float).tiny)))
+    kept = int(np.sum(singular[:components] > max(RANK_TOLERANCE * singular[0], SINGULAR_FLOOR)))
     scores = np.zeros((len(stacked), max(kept, 1)))
     if kept:
         scores[:] = centered @ basis[:kept].T

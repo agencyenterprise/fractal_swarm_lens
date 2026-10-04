@@ -51,6 +51,10 @@ For a target Y, a source X and the other agents Z, over Y's messages t:
   a source or target that does not vary, or a target that the full model predicts with more than 98%
   of its variance in some direction (repeated messages). In our first prototype these cases
   produced 5 to 11 nat values that only numerical jitter held in place.
+- **Coverage:** a target message is used only when its target had read the source and every other
+  agent. With many agents or sparse delivery records few messages qualify, and the regression needs
+  at least 2 × columns of them (columns grow with the number of agents), so most pairs come out as
+  insufficient data.
 - **No significance:** the report shows effect sizes only. A within-trace shuffle is not a valid
   null here (see objection 1 below), and we do not give a reference level for "no coupling".
 
