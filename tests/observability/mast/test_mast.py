@@ -4,11 +4,13 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
+from swarm_lens import PluginService
 from swarm_lens.adapters.artifacts import FileArtifacts
+from swarm_lens.adapters.jobs import JobStore
 from swarm_lens.core.models import DomainError
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.method import assets, make_prompt, parse_response
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.plugins.mast import mast_extension
 
@@ -42,12 +44,13 @@ class FakeJudge:
 
 @pytest.fixture
 def service(framework, tmp_path):
-    return MastService(framework, MastPlugin(FakeJudge()), MastJobs(tmp_path / "mast.sqlite"),
-                       FileArtifacts(tmp_path / "artifacts"))
+    plugins = PluginService(framework, jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    return MastService(plugins, MastPlugin(FakeJudge()), FileArtifacts(tmp_path / "artifacts"))
 
 
 def app(service):
-    return create_app(service.framework, service.artifacts, extensions=(mast_extension(service),))
+    return create_app(service.framework, service.artifacts, plugins=service.plugins,
+                      extensions=(mast_extension(service),))
 
 
 def test_bundled_assets_match_pinned_notebook_and_retain_ambiguities():
@@ -94,9 +97,9 @@ def test_api_discovery_import_and_analysis_persist_after_restart(service):
         job_id = submitted.json()["id"]
         record = client.get(f"/api/plugins/mast/analyses/{job_id}").json()
         assert record["status"] == "completed"
-        assert record["analysis"]["output"]["human_reviewed"] is False
+        assert record["analysis"]["output"]["report"]["human_reviewed"] is False
         assert len(service.plugin.judge.prompts) == 2
-        assert service.framework.store.analyses(branch["id"], branch["head"])[0]["id"] == job_id
+        assert service.framework.store.analyses(branch["id"], branch["head"])[0] == record["analysis"]
         assert client.get("/api/plugins/caspian/capabilities").status_code == 404
     with TestClient(app(service)) as client:
         jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch["id"]}).json()["jobs"]
@@ -148,8 +151,10 @@ def test_invalid_provider_output_is_saved_for_review_not_scored_negative(service
     service.execute(job["id"])
     result = service.jobs.get(job["id"])
     assert result["status"] == "needs_review"
-    assert all(label["present"] is None for label in result["analysis"]["output"]["labels"])
-    assert result["analysis"]["output"]["raw_response"] == service.plugin.judge.text
+    report = result["analysis"]["output"]["report"]
+    assert all(label["present"] is None for label in report["labels"])
+    assert report["raw_response"] == service.plugin.judge.text
+    assert result["analysis"]["output"]["annotations"] == []
 
 
 def test_provider_error_has_no_fabricated_results_or_sensitive_detail(service, branch):
@@ -202,3 +207,67 @@ def test_duplicate_extension_ids_rejected(service):
     extension = mast_extension(service)
     with pytest.raises(ValueError, match="Duplicate"):
         create_app(service.framework, extensions=(extension, extension))
+
+
+def test_reports_saved_before_the_shared_job_store_still_list_and_open(tmp_path):
+    import hashlib
+    import sqlite3
+    from swarm_lens import Framework
+    from swarm_lens.adapters.sqlite import SQLiteHistory
+    from swarm_lens.cli import build_app
+
+    framework = Framework(SQLiteHistory(tmp_path / "history.sqlite"))
+    branch = framework.import_transcript("Saved", "A: Done.\nA: Done.")
+    event_id = framework.history(branch.id)[-1].id
+    output = parse_response(assessment())
+    output["evidence"] = {"status": "complete", "traits": {"1.3": {"status": "located", "explanation": "Repeated.",
+        "occurrences": [{"start_position": 2, "end_position": 2, "supporting_event_ids": [event_id],
+                         "counterevidence_event_ids": [], "explanation": "Said twice."}]}}}
+    job = {"id": "old-job", "plugin_id": "mast", "plugin_version": "0.3.0", "branch_id": branch.id, "cursor": 2,
+           "created_at": "2026-10-01T00:00:00+00:00", "status": "completed", "config": {"completeness": "unknown"},
+           "judge": {"model": "old-judge"}, "analysis": {"id": "old-job", "cursor": 2, "output": output}}
+    with sqlite3.connect(tmp_path / "mast.sqlite") as db:
+        db.execute("CREATE TABLE mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, "
+                   "status TEXT NOT NULL, record TEXT NOT NULL)")
+        db.execute("INSERT INTO mast_jobs VALUES (?,?,?,?,?)",
+                   (job["id"], branch.id, job["created_at"], job["status"], json.dumps(job)))
+    db.close()
+    before = hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest()
+    for _ in range(2):
+        with TestClient(build_app(tmp_path)) as client:
+            jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch.id}).json()["jobs"]
+            assert [item["id"] for item in jobs] == ["old-job"]
+            report = client.get("/api/plugins/mast/analyses/old-job").json()["analysis"]["output"]["report"]
+            assert report["labels"] == output["labels"]
+            [marker] = client.get(f"/api/branches/{branch.id}/annotations").json()["annotations"]
+            assert (marker["seq_from"], marker["cited_event_ids"], marker["plugin"]) == (2, [event_id], "mast")
+    assert hashlib.sha256((tmp_path / "mast.sqlite").read_bytes()).hexdigest() == before
+
+
+def test_legacy_jobs_that_cannot_be_upgraded_are_skipped_and_imported_ones_are_not_redone(tmp_path, monkeypatch):
+    import sqlite3
+    from swarm_lens import Framework
+    from swarm_lens.adapters.sqlite import SQLiteHistory
+    from swarm_lens.cli import build_app
+    from swarm_lens.observability.mast import service as mast_service
+
+    framework = Framework(SQLiteHistory(tmp_path / "history.sqlite"))
+    branch = framework.import_transcript("Saved", "A: Done.\nA: Done.")
+    base = {"plugin_id": "mast", "plugin_version": "0.3.0", "cursor": 2, "created_at": "2026-10-01T00:00:00+00:00",
+            "status": "completed", "config": {"completeness": "unknown"}}
+    legacy = [{**base, "id": "kept", "branch_id": branch.id,
+               "analysis": {"id": "kept", "cursor": 2, "output": parse_response(assessment())}},
+              {**base, "id": "orphan", "branch_id": "deleted-branch"}]
+    with sqlite3.connect(tmp_path / "mast.sqlite") as db:
+        db.execute("CREATE TABLE mast_jobs (id TEXT PRIMARY KEY, branch_id TEXT NOT NULL, created_at TEXT NOT NULL, "
+                   "status TEXT NOT NULL, record TEXT NOT NULL)")
+        db.executemany("INSERT INTO mast_jobs VALUES (?,?,?,?,?)", [
+            (job["id"], job["branch_id"], job["created_at"], job["status"], json.dumps(job)) for job in legacy])
+    db.close()
+    with TestClient(build_app(tmp_path)) as client:
+        jobs = client.get("/api/plugins/mast/analyses", params={"branch_id": branch.id}).json()["jobs"]
+        assert [item["id"] for item in jobs] == ["kept"]
+    upgraded = []
+    monkeypatch.setattr(mast_service, "upgrade_job", lambda job, event_ids: upgraded.append(job["id"]) or job)
+    with TestClient(build_app(tmp_path)):
+        assert upgraded == []

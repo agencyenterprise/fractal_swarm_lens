@@ -1,7 +1,6 @@
 from collections import defaultdict
 from collections.abc import Iterator
 import hashlib
-import json
 from copy import deepcopy
 from dataclasses import asdict, replace
 from typing import Any
@@ -10,7 +9,7 @@ from swarm_lens.core.models import (Branch, Comment, Conflict, DomainError, Even
                                     comment_text, new_id, utc_now)
 from swarm_lens.core.reducer import apply, compare
 from .bundle import RunBundle, export_bundle, parse_bundle
-from .ports import HistoryStore, Plugin, Runtime, Source, VersionStore
+from .ports import HistoryStore, Runtime, Source, VersionStore
 
 
 IMPORT_SNAPSHOT_INTERVAL = 100
@@ -26,34 +25,10 @@ class IterableSource:
         yield from self._facts
 
 
-class PluginContext:
-    def __init__(self, framework: "Framework", branch_id: str, cursor: int):
-        self._framework, self.branch_id, self.cursor = framework, branch_id, cursor
-
-    @property
-    def state(self) -> State:
-        return self._framework.state(self.branch_id, self.cursor)
-
-    def history(self, branch_id: str | None = None, cursor: int | None = None) -> list[Event]:
-        return self._framework.history(branch_id or self.branch_id, self.cursor if cursor is None else cursor)
-
-    def branches(self) -> list[Branch]:
-        return self._framework.store.branches(self._framework.store.branch(self.branch_id).run_id)
-
-    def fork(self, name: str) -> Branch:
-        return self._framework.fork(self.branch_id, self.cursor, name)
-
-    def intervene(self, branch_id: str, kind: str, data: dict, expected_head: int) -> Event:
-        return self._framework.intervene(branch_id, kind, data, expected_head, actor="plugin")
-
-
 class Framework:
     def __init__(self, store: HistoryStore, *, versions: VersionStore | None = None,
-                 runtime: Runtime | None = None, plugins: tuple[Plugin, ...] = ()):
+                 runtime: Runtime | None = None):
         self.store, self.versions, self.runtime = store, versions, runtime
-        self.plugins = {plugin.id: plugin for plugin in plugins}
-        if len(self.plugins) != len(plugins):
-            raise ValueError("Duplicate plugin ID")
 
     def create_run(self, name: str, metadata: dict | None = None) -> Branch:
         if not name.strip():
@@ -169,26 +144,20 @@ class Framework:
             self.intervene(branch.id, **intervention, expected_head=cursor, actor="explorer")
         return self.store.branch(branch.id)
 
+    def fork_with_facts(self, branch_id: str, cursor: int, name: str, facts: list[Fact]) -> Branch:
+        """Fork at `cursor` and append `facts`, after checking them against a private copy of the fork's state."""
+        state = self.state(branch_id, cursor)
+        for fact in facts:
+            self._event(state, fact)
+        branch = self.fork(branch_id, cursor, name)
+        self.ingest(branch.id, IterableSource(facts), expected_head=cursor)
+        return self.store.branch(branch.id)
+
     def diff(self, left: str, right: str, left_cursor: int | None = None,
              right_cursor: int | None = None) -> dict:
         if self.store.branch(left).run_id != self.store.branch(right).run_id:
             raise DomainError("Compare branches from the same run")
         return compare(self.state(left, left_cursor), self.state(right, right_cursor))
-
-    def analyze(self, plugin_id: str, branch_id: str, cursor: int, config: dict | None = None) -> dict:
-        if plugin_id not in self.plugins:
-            raise DomainError("Unknown plugin")
-        plugin = self.plugins[plugin_id]
-        events = self.history(branch_id, cursor)
-        digest = hashlib.sha256(json.dumps([asdict(event) for event in events], sort_keys=True).encode()).hexdigest()
-        config = deepcopy(config or {})
-        # The plugin gets its own copy, so the record keeps the configuration as requested.
-        output = plugin.run(PluginContext(self, branch_id, cursor), deepcopy(config))
-        record = {"id": new_id(), "plugin_id": plugin.id, "plugin_version": plugin.version,
-                  "branch_id": branch_id, "cursor": cursor, "config": config,
-                  "input_digest": digest, "created_at": utc_now(), "output": output}
-        self.store.save_analysis(record)
-        return record
 
     def continue_run(self, branch_id: str, steps: int) -> int:
         if not self.runtime or not self.runtime.capabilities().get("continue", False):
@@ -310,5 +279,4 @@ class Framework:
 
     def capabilities(self) -> dict[str, Any]:
         return {"runtime": self.runtime.capabilities() if self.runtime else {"continue": False},
-                "git": self.versions is not None,
-                "plugins": [{"id": p.id, "version": p.version} for p in self.plugins.values()]}
+                "git": self.versions is not None}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swarm Lens title</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  .stack { text-align: center; position: relative; }
+  .slot { width: 160px; height: 160px; margin: 0 auto; }
+  #logo { position: absolute; left: 0; top: 0; width: 320px; height: 320px; border-radius: 72px;
+    transform-origin: 0 0; z-index: 2; }
+  h1 { font-size: 124px; line-height: 1; margin: 42px 0 24px; font-weight: 800; letter-spacing: -.03em; }
+  p { font-size: 44px; margin: 0; color: var(--muted); font-weight: 450; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="stack">
+      <div class="slot" id="slot"></div>
+      <h1 class="rise" style="--d:1.75s">Swarm Lens</h1>
+      <p class="rise" style="--d:1.95s">Replay, fork and compare multi-agent runs</p>
+    </div>
+  </div>
+  <img id="logo" data-logo alt="">
+<script src="cards.js"></script>
+<script>
+  // The 320 px logo starts at exactly 2x (640 px, about 60% of the frame height), holds for a second,
+  // then settles at exactly 0.5x above the title. Both rest scales are integer ratios, drawn nearest-neighbour.
+  const logo = document.getElementById("logo");
+  const slot = document.getElementById("slot").getBoundingClientRect();
+  const SIZE = 320;
+  const start = { cx: 960, cy: 540, s: 2 };
+  const end = { cx: slot.left + 80, cy: slot.top + 80, s: 0.5 };
+  const place = ({ cx, cy, s }) => {
+    logo.style.transform = `translate(${Math.round(cx - SIZE / 2 * s)}px, ${Math.round(cy - SIZE / 2 * s)}px) scale(${s})`;
+  };
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const HOLD = 1.0, MOVE = 0.9;
+  const at = (t) => {
+    if (t < HOLD) return start;
+    const k = ease(Math.min((t - HOLD) / MOVE, 1));
+    return { cx: start.cx + (end.cx - start.cx) * k, cy: start.cy + (end.cy - start.cy) * k,
+      s: Math.exp(Math.log(start.s) + (Math.log(end.s) - Math.log(start.s)) * k) };
+  };
+  place(at(0));
+  window.play = () => {
+    document.body.classList.add("play");
+    const t0 = performance.now();
+    let landed = false;
+    const frame = (now) => {
+      const t = (now - t0) / 1000;
+      place(at(t));
+      if (t >= HOLD + MOVE && !landed) { landed = true; cue("hit"); }
+      if (t < HOLD + MOVE + 0.1) requestAnimationFrame(frame);
+    };
+    cue("riser-start");
+    requestAnimationFrame(frame);
+    return 4.0;
+  };
+</script>
+</body>
+</html>

@@ -155,7 +155,7 @@ function renderReport(root, job, host, definitions) {
   if (job.error) root.append(el("p", "mast-error", job.error));
   if (active.has(job.status)) return root.append(progressRow(job));
   if (!job.analysis) return root.append(el("p", "muted", "No assessment was produced."));
-  const output = job.analysis.output;
+  const output = job.analysis.output.report;
   root.append(outcomeStrip(output));
   if (output.summary) root.append(el("p", "mast-summary", output.summary));
   root.append(failureModes(output.labels, job, host, definitions), el("p", "muted mast-note", "LLM assessment, not human reviewed."));

@@ -4,7 +4,7 @@ import json
 import pytest
 
 from examples.observability.caspian.branch_plugin import NumericHistory, NumericSource, factory, run
-from swarm_lens import Fact, Framework
+from swarm_lens import Fact, Framework, PluginService
 from swarm_lens.adapters.sqlite import SQLiteHistory
 from swarm_lens.observability import ObservabilityPlugin
 from swarm_lens.observability.caspian import Caspian, CaspianConfig, ChannelEvent, Turn
@@ -13,10 +13,10 @@ from swarm_lens.observability.caspian import Caspian, CaspianConfig, ChannelEven
 def test_nested_branch_example_and_persisted_provenance(tmp_path):
     output = run(tmp_path)
     parent, child = output['parent_analysis'], output['nested_branch_analysis']
-    assert parent['output']['turns'] == child['output']['turns']
+    assert parent['output']['report']['turns'] == child['output']['report']['turns']
     assert parent['input_digest'] != child['input_digest']
-    assert parent['output']['method']['config'] == asdict(CaspianConfig())
-    assert parent['output']['adapter']['version'] == '1'
+    assert parent['output']['report']['method']['config'] == asdict(CaspianConfig())
+    assert parent['output']['report']['adapter']['version'] == '1'
     json.dumps(output, allow_nan=False)
     store = SQLiteHistory(tmp_path / 'history.sqlite')
     assert store.analyses(child['branch_id'], child['cursor'])[0]['output'] == child['output']
@@ -24,17 +24,18 @@ def test_nested_branch_example_and_persisted_provenance(tmp_path):
 
 def test_cursor_isolation_fresh_estimator_and_future_parent_exclusion(tmp_path):
     plugin = ObservabilityPlugin('caspian', Caspian.version, factory, NumericHistory())
-    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'), plugins=(plugin,))
+    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'))
+    plugins = PluginService(framework, (plugin,))
     parent = framework.create_run('test')
     framework.ingest(parent.id, NumericSource())
     child = framework.fork(parent.id, 10, 'historical')
-    first = framework.analyze(plugin.id, parent.id, 10)
-    framework.analyze(plugin.id, parent.id, 16)
-    second = framework.analyze(plugin.id, child.id, 10)
-    third = framework.analyze(plugin.id, parent.id, 10)
+    first = plugins.analyze(plugin.id, parent.id, 1, 10)
+    plugins.analyze(plugin.id, parent.id, 1, 16)
+    second = plugins.analyze(plugin.id, child.id, 1, 10)
+    third = plugins.analyze(plugin.id, parent.id, 1, 10)
     assert first['output'] == second['output'] == third['output']
-    assert len(first['output']['turns']) == 6
-    assert first['output']['turns'][-1]['evidence']['sample_counts'][0][1][0] == 6
+    assert len(first['output']['report']['turns']) == 6
+    assert first['output']['report']['turns'][-1]['evidence']['sample_counts'][0][1][0] == 6
 
 
 def test_another_method_uses_same_extension_without_caspian_assumptions(tmp_path):
@@ -43,11 +44,12 @@ def test_another_method_uses_same_extension_without_caspian_assumptions(tmp_path
         def describe(self): return {'meaning': 'test method'}
         def update(self, observation): return {'count': len(observation.events)}
     plugin = ObservabilityPlugin('count', '1', lambda config: Count(), NumericHistory())
-    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'), plugins=(plugin,))
+    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'))
+    plugins = PluginService(framework, (plugin,))
     branch = framework.create_run('count')
     framework.ingest(branch.id, NumericSource())
-    result = framework.analyze(plugin.id, branch.id, 16)
-    assert result['output']['turns'] == [{'count': 12}] * 12
+    result = plugins.analyze(plugin.id, branch.id, 1, 16)
+    assert result['output']['report']['turns'] == [{'count': 12}] * 12
 
 
 @pytest.mark.parametrize('kwargs', [{'epsilon': 0}, {'history_alpha': 2}, {'shrinkage': -1},
@@ -87,11 +89,12 @@ def test_end_to_end_synthetic_exposes_startup_alert():
 
 def test_child_observations_change_only_child_analysis(tmp_path):
     plugin = ObservabilityPlugin('caspian', Caspian.version, factory, NumericHistory())
-    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'), plugins=(plugin,))
+    framework = Framework(SQLiteHistory(tmp_path / 'history.sqlite'))
+    plugins = PluginService(framework, (plugin,))
     parent = framework.create_run('suffix')
     framework.ingest(parent.id, NumericSource())
     child = framework.fork(parent.id, 11, 'new observed continuation')  # Seven observed turns.
-    before = framework.analyze(plugin.id, parent.id, 12)
+    before = plugins.analyze(plugin.id, parent.id, 1, 12)
 
     class Continuation:
         def facts(self):
@@ -100,8 +103,8 @@ def test_child_observations_change_only_child_analysis(tmp_path):
                                                'pairs': [pair]}, '2026-01-01T00:00:01+00:00')
 
     framework.ingest(child.id, Continuation())
-    changed = framework.analyze(plugin.id, child.id, 12)
-    after = framework.analyze(plugin.id, parent.id, 12)
+    changed = plugins.analyze(plugin.id, child.id, 1, 12)
+    after = plugins.analyze(plugin.id, parent.id, 1, 12)
     assert before['output'] == after['output']
-    assert changed['output']['turns'][-1]['influence_tensor'] != before['output']['turns'][-1]['influence_tensor']
-    assert changed['output']['turns'][-1]['evidence']['ready_triplets'] == 1
+    assert changed['output']['report']['turns'][-1]['influence_tensor'] != before['output']['report']['turns'][-1]['influence_tensor']
+    assert changed['output']['report']['turns'][-1]['evidence']['ready_triplets'] == 1

@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -18,12 +17,7 @@ class AnalysisRequest(BaseModel):
 
 
 def mast_extension(service):
-    @asynccontextmanager
-    async def lifespan(app):
-        service.jobs.recover_interrupted()
-        yield
-
-    router = APIRouter(prefix="/api/plugins/mast", tags=["MAST"], lifespan=lifespan)
+    router = APIRouter(prefix="/api/plugins/mast", tags=["MAST"])
 
     def manifest():
         return {"version": service.plugin.version, "title": "MAST trace analysis", "modes": ["saved_trace"],

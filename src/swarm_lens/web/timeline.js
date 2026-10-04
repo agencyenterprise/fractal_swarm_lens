@@ -1,7 +1,9 @@
-import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar, tip } from "./ui.js";
+import { el, button, svg, time, color, eventTone, stageOf, speakerName, avatar, tip, formatNumber } from "./ui.js";
+import { NO_FINDINGS, eventSpan, pluginTitle } from "./findings.js";
 import { timelineTime, gapDuration } from "./timeline-time.js";
 
 const LABEL_WIDTH = 150, ROW = 34, RULER = 40, COMMENT_ROW = 18, EDGE = 24, EVENT_SPACE = 22, MAX_PX_PER_SECOND = 400;
+const TRACK_ROW = 30, TRACK_PAD = 5, BAND_ROW = 18, BAND_PAD = 3, BAND_MAX_ROWS = 4, SPAN_GAP = 4, SPAN_TEXT_MIN = 48;
 const STORAGE_KEY = "swarm-lens.timeline.view";
 const VIEW_OPTIONS = [
   ["message", "Messages", true, "Messages agents posted"],
@@ -12,6 +14,8 @@ const VIEW_OPTIONS = [
   ["connections", "Connections", true, "Lines from each message to the messages it read"],
   ["compact", "Compact gaps", true, "Fold idle stretches longer than a minute"],
   ["resolved", "Show resolved", false, "Also mark comment threads that are resolved"],
+  ["tracks", "Metric tracks", true, "Values that analysis plugins computed per event, one row per metric"],
+  ["annotations", "Annotations", true, "Event spans that analysis plugins flagged"],
 ];
 // Which View toggle shows each tone; setup events (`state`) have no lane marker.
 const TOGGLE_FOR_TONE = { message: "message", observation: "observation", intervention: "intervention",
@@ -79,6 +83,47 @@ function lastAtOrBefore(items, value, key) {
     else high = middle;
   }
   return low - 1;
+}
+
+// Sparkline coordinates for [seq, value] points: x from `xOf(seq)`, y scaled to the row with the
+// highest value on top; a constant series sits in the middle.
+export function sparkline(points, xOf, height = TRACK_ROW, pad = TRACK_PAD) {
+  const values = points.map(([, value]) => value);
+  const low = Math.min(...values), span = Math.max(...values) - low;
+  return points.map(([seq, value]) => [xOf(seq), span ? pad + (1 - (value - low) / span) * (height - 2 * pad) : height / 2]);
+}
+
+// One track per series, grouped by plugin and metric, agent tracks in lane order.
+function metricTracks(series, agents) {
+  const order = Object.keys(agents);
+  const rank = (track) => (track.agent_id === null ? -1 : order.indexOf(track.agent_id));
+  return series
+    .map((track) => ({ ...track, points: track.points.filter(([, value]) => Number.isFinite(value)).sort((a, b) => a[0] - b[0]) }))
+    .filter((track) => track.points.length)
+    .sort((a, b) => a.plugin.localeCompare(b.plugin) || a.name.localeCompare(b.name) || rank(a) - rank(b));
+}
+
+const agentName = (agentId, agents) => agents[agentId]?.name || agentId;
+
+// The agent (which tells rows of one metric apart) and metric part of a track's name.
+const trackMetric = (track, agents) => (track.agent_id === null ? track.name : `${agentName(track.agent_id, agents)} · ${track.name}`);
+
+export const trackLabel = (track, agents, titles) => `${pluginTitle(titles, track.plugin)} · ${trackMetric(track, agents)}`;
+
+// Greedy interval packing: each span (sorted by `from`) takes the first row it does not overlap.
+// Spans that fit in none of `maxRows` rows are returned as `hidden`.
+export function packSpans(spans, maxRows, gap = SPAN_GAP) {
+  const ends = [], placed = [], hidden = [];
+  for (const span of [...spans].sort((a, b) => a.from - b.from || b.to - a.to)) {
+    let row = ends.findIndex((end) => end + gap <= span.from);
+    if (row < 0 && ends.length < maxRows) row = ends.length;
+    if (row < 0) hidden.push(span);
+    else {
+      ends[row] = span.to;
+      placed.push({ ...span, row });
+    }
+  }
+  return { placed, hidden, rows: ends.length };
 }
 
 // Transport, cursor position, time and stage; shared by every view that moves the cursor.
@@ -172,7 +217,11 @@ export class EventTimeline {
     this.lanes = [];
     this.threads = [];
     this.notes = [];
+    this.findings = NO_FINDINGS;
+    this.tracks = [];
+    this.marks = [];
     this.rulerHeight = RULER;
+    this.bandHeight = 0;
     this.agents = {};
     this.branch = null;
     this.cursor = 0;
@@ -229,12 +278,16 @@ export class EventTimeline {
     this.handle = el("div", "tl-handle");
     this.handle.setAttribute("aria-hidden", "true");
     this.ruler.append(el("div", "tl-corner"), this.rulerTrack, this.handle);
+    this.annotationBand = el("div", "tl-lane tl-annotation-band");
     this.laneLayer = el("div", "tl-lanes");
+    this.trackLayer = el("div", "tl-tracks");
+    this.annotationLayer = el("div", "tl-annotations");
     this.linkLayer = svg("svg", { class: "tl-links", "aria-hidden": "true" });
     this.markerLayer = el("div", "tl-markers");
     this.forkLine = el("div", "tl-fork-line");
     this.playhead = el("div", "tl-playhead");
-    this.scene.append(this.bandLayer, this.ruler, this.laneLayer, this.linkLayer, this.markerLayer, this.forkLine, this.playhead);
+    this.scene.append(this.bandLayer, this.ruler, this.annotationBand, this.laneLayer, this.trackLayer, this.annotationLayer, this.linkLayer,
+      this.markerLayer, this.forkLine, this.playhead);
     this.viewport.append(this.scene);
 
     this.viewport.addEventListener("scroll", () => {
@@ -260,6 +313,13 @@ export class EventTimeline {
     this.markerLayer.addEventListener("pointerout", (event) => {
       if (!event.relatedTarget?.closest?.(".tl-marker")) this.hideTooltip();
     });
+    this.annotationLayer.addEventListener("click", (event) => this.onAnnotationClick(event));
+    this.annotationLayer.addEventListener("pointerover", (event) => this.onAnnotationHover(event));
+    this.annotationLayer.addEventListener("pointerout", (event) => {
+      if (!event.relatedTarget?.closest?.(".tl-annotation")) this.hideTooltip();
+    });
+    this.trackLayer.addEventListener("pointermove", (event) => this.onTrackHover(event));
+    this.trackLayer.addEventListener("pointerleave", () => this.hideTooltip());
     return this.viewport;
   }
 
@@ -275,6 +335,7 @@ export class EventTimeline {
     this.menu.hidden = true;
     this.menu.setAttribute("role", "group");
     this.menu.setAttribute("aria-label", "Timeline view");
+    this.optionRows = {};
     for (const [key, label, , hint] of VIEW_OPTIONS) {
       const row = tip(el("label", "tl-check"), hint);
       const input = el("input");
@@ -282,8 +343,7 @@ export class EventTimeline {
       input.checked = this.view[key];
       input.addEventListener("change", () => this.setOption(key, input.checked));
       row.append(input, el("span", "", label));
-      if (key === "connections") this.connectionsOption = row;
-      if (key === "resolved") this.resolvedOption = row;
+      this.optionRows[key] = row;
       this.menu.append(row);
     }
     const zoom = el("div", "tl-zoom");
@@ -319,7 +379,7 @@ export class EventTimeline {
     this.view[key] = on;
     saveView(this.view);
     if (key === "connections") return this.drawLinks();
-    if (key === "resolved") return this.layout();
+    if (["resolved", "tracks", "annotations"].includes(key)) return this.layout();
     if (key === "compact") {
       this.scaleMode = "auto";
       this.prepare();
@@ -350,7 +410,15 @@ export class EventTimeline {
   // Comment threads ({ event_id, resolved, author, text }) drawn as notes above the lanes.
   setComments(threads) {
     this.threads = threads;
-    this.resolvedOption.hidden = !threads.some((thread) => thread.resolved);
+    this.optionRows.resolved.hidden = !threads.some((thread) => thread.resolved);
+    this.layout();
+  }
+
+  // Plugin findings: `series` become metric tracks under the lanes, `annotations` span markers.
+  setFindings(findings) {
+    this.findings = findings;
+    this.optionRows.tracks.hidden = !findings.series.length;
+    this.optionRows.annotations.hidden = !findings.annotations.length;
     this.layout();
   }
 
@@ -390,7 +458,7 @@ export class EventTimeline {
     const shown = this.ordered.filter((event) => this.isShown(event));
     // One channel receives every message, so its lane and the links into it carry no information.
     const routed = this.channels.length > 1;
-    this.connectionsOption.hidden = !routed;
+    this.optionRows.connections.hidden = !routed;
     this.lanes = [
       ...(routed ? this.channels.map((channel) => ({ ...channel, kind: "channel" })) : []),
       ...Object.values(this.agents).map((agent) => ({ ...agent, kind: "agent" })),
@@ -412,8 +480,19 @@ export class EventTimeline {
     return LABEL_WIDTH + EDGE + ((at - this.start) / 60000) * this.scale;
   }
 
+  // The x of the event at `position`, or of the last event before it.
+  positionX(position) {
+    const index = lastAtOrBefore(this.ordered, position, (event) => event.position);
+    return index < 0 ? LABEL_WIDTH + EDGE : this.x(this.ordered[index]);
+  }
+
+  eventAtPosition(position) {
+    const event = this.ordered[lastAtOrBefore(this.ordered, position, (row) => row.position)];
+    return event?.position === position ? event : null;
+  }
+
   laneY(laneId) {
-    return this.rulerHeight + this.laneIndex.get(laneId) * ROW + ROW / 2;
+    return this.rulerHeight + this.bandHeight + this.laneIndex.get(laneId) * ROW + ROW / 2;
   }
 
   durationMinutes() {
@@ -443,9 +522,14 @@ export class EventTimeline {
     else if (this.scaleMode === "auto") this.scale = this.autoScale();
     this.width = Math.max(this.measuredWidth, Math.round(LABEL_WIDTH + this.durationMinutes() * this.scale + EDGE * 2));
     this.notes = this.commentNotes();
+    this.tracks = this.view.tracks ? metricTracks(this.findings.series, this.agents) : [];
+    this.marks = this.view.annotations ? this.findings.annotations : [];
     this.rulerHeight = RULER + (this.notes.length ? COMMENT_ROW : 0);
     this.root.style.setProperty("--tl-ruler-h", `${this.rulerHeight}px`);
-    this.height = this.rulerHeight + this.lanes.length * ROW;
+    this.band = packSpans(this.marks.flatMap((mark, index) => this.laneIndex.has(mark.agent_id) ? []
+      : [{ index, ...this.spanX(mark) }]), BAND_MAX_ROWS);
+    this.bandHeight = this.band.rows ? this.band.rows * BAND_ROW + 2 * BAND_PAD : 0;
+    this.height = this.rulerHeight + this.bandHeight + this.lanes.length * ROW + this.tracks.length * TRACK_ROW;
     this.scene.style.width = `${this.width}px`;
     this.scene.style.height = `${this.height}px`;
     this.linkLayer.setAttribute("width", this.width);
@@ -454,6 +538,9 @@ export class EventTimeline {
     this.offsets = this.markerOffsets();
     this.ticks = this.timeTicks();
     this.buildLanes();
+    this.buildTracks();
+    this.buildAnnotationBand();
+    this.placeAnnotations();
     this.placeFork();
     this.placePlayhead();
     this.draw();
@@ -494,6 +581,71 @@ export class EventTimeline {
     }));
   }
 
+  buildTracks() {
+    this.trackLayer.replaceChildren(...this.tracks.map((track, index) => {
+      const row = el("div", "tl-lane tl-track");
+      row.dataset.index = index;
+      row.style.setProperty("--c", track.agent_id === null ? "var(--accent)" : color(track.agent_id, this.agents));
+      const plot = svg("svg", { class: "tl-sparkline", width: this.width, height: TRACK_ROW, "aria-hidden": "true" });
+      track.coords = sparkline(track.points, (seq) => this.positionX(seq));
+      track.dot = svg("circle", { class: "tl-sparkline-dot", r: 3, visibility: "hidden" });
+      plot.append(svg("polyline", { class: "tl-sparkline-line", points: track.coords.map(([x, y]) => `${x},${y}`).join(" ") }), track.dot);
+      const label = tip(el("div", "tl-label tl-track-label"), trackLabel(track, this.agents, this.findings.titles));
+      label.append(el("span", "tl-track-plugin", pluginTitle(this.findings.titles, track.plugin)),
+        el("span", "tl-lane-name", trackMetric(track, this.agents)));
+      row.append(plot, label);
+      return row;
+    }));
+  }
+
+  // A span's x extent, widened so a single-event span stays visible and clickable.
+  spanX(mark) {
+    const from = this.positionX(mark.seq_from), to = this.positionX(mark.seq_to);
+    return { from: from - 5, to: to + 5 };
+  }
+
+  // The band above the lanes holds spans without an agent lane, packed into rows.
+  buildAnnotationBand() {
+    const { hidden } = this.band;
+    this.annotationBand.hidden = !this.bandHeight;
+    this.annotationBand.style.height = `${this.bandHeight}px`;
+    const label = el("div", "tl-label");
+    label.append(el("span", "tl-lane-name", "Annotations"));
+    if (hidden.length) label.append(el("span", "tl-band-more", `+${hidden.length} more`));
+    const titles = hidden.map(({ index }) => this.marks[index].label);
+    tip(label, hidden.length ? `Not shown for lack of room:\n${titles.slice(0, 12).join("\n")}${titles.length > 12 ? "\n…" : ""}`
+      : "Event spans that analysis plugins flagged without a single agent");
+    this.annotationBand.replaceChildren(label);
+  }
+
+  // Band spans sit in their packed row; agent spans are a bar along the bottom edge of the agent's lane.
+  placeAnnotations() {
+    const node = (index, { from, to }) => {
+      const mark = this.marks[index];
+      const button = el("button", "tl-annotation");
+      button.type = "button";
+      button.dataset.index = index;
+      button.style.left = `${from}px`;
+      button.style.width = `${to - from}px`;
+      button.setAttribute("aria-label", `${mark.label}, ${pluginTitle(this.findings.titles, mark.plugin)}, ${eventSpan(mark)}`);
+      return button;
+    };
+    const band = this.band.placed.map((span) => {
+      const button = node(span.index, span);
+      button.style.top = `${this.rulerHeight + BAND_PAD + span.row * BAND_ROW}px`;
+      if (span.to - span.from >= SPAN_TEXT_MIN) button.textContent = this.marks[span.index].label;
+      return button;
+    });
+    const lanes = this.marks.flatMap((mark, index) => {
+      if (!this.laneIndex.has(mark.agent_id)) return [];
+      const button = node(index, this.spanX(mark));
+      button.classList.add("in-lane");
+      button.style.top = `${this.laneY(mark.agent_id) + ROW / 2 - 8}px`;
+      return [button];
+    });
+    this.annotationLayer.replaceChildren(...band, ...lanes);
+  }
+
   laneLabel(lane) {
     const name = el("span", "tl-lane-name", lane.name);
     if (lane.kind === "agent") {
@@ -521,8 +673,7 @@ export class EventTimeline {
   }
 
   cursorX() {
-    const index = lastAtOrBefore(this.ordered, this.cursor, (event) => event.position);
-    return index < 0 ? LABEL_WIDTH + EDGE : this.x(this.ordered[index]);
+    return this.positionX(this.cursor);
   }
 
   placePlayhead() {
@@ -795,7 +946,7 @@ export class EventTimeline {
   }
 
   isEmptyLaneTarget(target) {
-    return !target.closest(".tl-marker, .tl-label, .tl-ruler");
+    return !target.closest(".tl-marker, .tl-label, .tl-ruler, .tl-annotation");
   }
 
   onLaneClick(event) {
@@ -919,6 +1070,51 @@ export class EventTimeline {
     this.showTooltip(node, parts);
   }
 
+  annotationAt(target) {
+    const node = target.closest(".tl-annotation");
+    return node && { node, mark: this.marks[Number(node.dataset.index)] };
+  }
+
+  onAnnotationClick(pointer) {
+    const hit = this.annotationAt(pointer.target);
+    if (!hit) return;
+    const event = this.eventAtPosition(hit.mark.seq_from);
+    if (!event) return this.handlers.onSeek(hit.mark.seq_from);
+    this.select(event.id);
+    this.handlers.onSelect(event);
+  }
+
+  onAnnotationHover(pointer) {
+    const hit = this.annotationAt(pointer.target);
+    if (!hit) return;
+    const { mark } = hit;
+    const head = el("div", "tl-tip-head");
+    head.append(el("strong", "", mark.label));
+    if (mark.agent_id) head.append(el("span", "", this.agents[mark.agent_id]?.name || mark.agent_id));
+    const source = [pluginTitle(this.findings.titles, mark.plugin), mark.score === null || mark.score === undefined ? "" : `score ${formatNumber(mark.score)}`];
+    this.showTooltip(hit.node, [head, el("div", "tl-tip-stage", source.filter(Boolean).join(" · ")),
+      el("div", "tl-tip-preview", eventSpan(mark))]);
+  }
+
+  // Shows the point nearest the pointer on a metric track.
+  onTrackHover(pointer) {
+    const row = pointer.target.closest(".tl-track");
+    const track = row && this.tracks[Number(row.dataset.index)];
+    if (!track || pointer.target.closest(".tl-label")) return this.hideTooltip();
+    const x = pointer.clientX - this.viewport.getBoundingClientRect().left + this.viewport.scrollLeft;
+    const index = Math.max(0, lastAtOrBefore(track.coords, x, ([value]) => value));
+    const next = Math.min(track.coords.length - 1, index + 1);
+    const nearest = Math.abs(track.coords[next][0] - x) < Math.abs(track.coords[index][0] - x) ? next : index;
+    const [seq, value] = track.points[nearest];
+    for (const other of this.tracks) other.dot?.setAttribute("visibility", "hidden");
+    track.dot.setAttribute("cx", track.coords[nearest][0]);
+    track.dot.setAttribute("cy", track.coords[nearest][1]);
+    track.dot.setAttribute("visibility", "visible");
+    const head = el("div", "tl-tip-head");
+    head.append(el("strong", "", trackLabel(track, this.agents, this.findings.titles)));
+    this.showTooltip(track.dot, [head, el("div", "tl-tip-stage", `Event ${seq} · ${formatNumber(value)}`)]);
+  }
+
   showTooltip(node, parts) {
     this.tooltipAnchor = node;
     this.tooltip.replaceChildren(...parts);
@@ -933,6 +1129,7 @@ export class EventTimeline {
 
   hideTooltip() {
     this.tooltip.hidden = true;
+    for (const track of this.tracks) track.dot?.setAttribute("visibility", "hidden");
   }
 }
 
@@ -942,7 +1139,7 @@ export const lanesVisualization = {
   title: "Lanes",
   about: {
     question: "When did each agent act?",
-    read: "One row per agent. Each dot is one event at the time it happened; faded dots come after the cursor. Orange flags are changes made on a fork, and a dashed line marks where this branch forked.",
+    read: "One row per agent. Each dot is one event at the time it happened; faded dots come after the cursor. Orange flags are changes made on a fork, and a dashed line marks where this branch forked. Plugin analyses add metric tracks under the lanes and span markers for what they flagged.",
     method: "Recorded timestamps. Gaps longer than a minute are folded (View → Compact gaps).",
   },
   mount(root, actions, toolbar) {
@@ -950,12 +1147,13 @@ export const lanesVisualization = {
       onContext: actions.contextMenu, onAgent: actions.selectAgent, onPlay: actions.togglePlayback }, { toolbar });
     let shown = {};
     return {
-      update({ events, branch, cursor, selectedId, comments }) {
+      update({ events, branch, cursor, selectedId, comments, findings }) {
         if (events !== shown.events || branch !== shown.branch) timeline.setData(events, branch);
         if (comments !== shown.comments) timeline.setComments(comments.threads);
+        if (findings !== shown.findings) timeline.setFindings(findings);
         timeline.setCursor(cursor, cursor !== shown.cursor);
         timeline.select(selectedId);
-        shown = { events, branch, cursor, comments };
+        shown = { events, branch, cursor, comments, findings };
       },
       stepTarget: (delta) => timeline.stepTarget(delta)?.position,
       destroy: () => timeline.destroy(),

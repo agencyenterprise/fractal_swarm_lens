@@ -1,0 +1,15 @@
+/* Plugin analyses and interventions (params-form.js, plugin-dialogs.js, the Analyze menu). */
+
+.params-form, .plugin-dialog { display: flex; flex-direction: column; gap: 12px; }
+.pf-field { display: flex; flex-direction: column; gap: 6px; }
+#dialog-content .pf-field > label { margin-bottom: 0; }
+#dialog-content label.pf-check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; font-weight: 400; cursor: pointer; }
+.pf-help { font-size: 12px; }
+.pf-range { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pf-range > div { display: flex; flex-direction: column; gap: 6px; }
+#dialog-content .pf-range label { margin-bottom: 0; }
+
+.analyze-active {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}

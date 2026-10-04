@@ -14,6 +14,8 @@ import { Picker } from "./components.js?v=1";
 import { WorkspaceViews, workspaceURL, readWorkspaceRoute } from "./workspace.js";
 import { LiveView } from "./live.js";
 import { Comments, exportRun, importRun } from "./comments.js";
+import { PluginClient, NO_FINDINGS, ACTIVE_JOB } from "./findings.js";
+import { analysisDialog, interventionDialog, jobDialog, JOB_STATUS } from "./plugin-dialogs.js";
 
 const view = {
   workspace: null,
@@ -25,6 +27,7 @@ const view = {
   selection: { type: "overview" },
   agentFilter: null,
   playing: false,
+  findings: NO_FINDINGS,
 };
 const details = new Map();
 const timelines = new Map();
@@ -78,8 +81,17 @@ const liveView = new LiveView({
   selection: () => view.branch && { branchId: view.branch.id, cursor: view.cursor, head: view.branch.head,
     parentId: view.branch.parent_id, branchName: view.branch.name, runName: view.run.name },
   seek: (cursor) => seek(cursor),
-  forked: async (id) => { await refreshWorkspace(); await loadBranch(id); },
+  forked: (id) => openCreatedBranch(id),
   update: applyLiveEvents,
+});
+const plugins = new PluginClient({
+  jobChanged: () => { renderAnalyzeButton(); refreshMenu($("#analyze-button")); },
+  jobFinished: (job) => {
+    const outcome = job.status === "failed" ? `failed: ${job.error}` : JOB_STATUS[job.status].toLowerCase();
+    toast(`${plugins.title(job.plugin_id)} analysis ${outcome}`);
+    if (job.branch_id === view.branch?.id) loadFindings().catch(failure);
+  },
+  report: failure,
 });
 
 // Data access
@@ -103,6 +115,15 @@ function loadTimeline(branchId) {
     timelines.set(branchId, request);
   }
   return timelines.get(branchId);
+}
+
+// Findings arrive after the branch opens; a later branch switch discards a slower response.
+async function loadFindings() {
+  const branchId = view.branch.id;
+  const findings = await plugins.load(branchId);
+  if (branchId !== view.branch?.id) return;
+  view.findings = findings;
+  renderExplorer();
 }
 
 async function refreshWorkspace() {
@@ -253,10 +274,23 @@ function openMenu(items, { anchor, point }) {
 
 function toggleMenu(anchor, items) {
   if (!$("#menu").hidden && $("#menu").anchor === anchor) closeMenu();
-  else openMenu(items(), { anchor });
+  else {
+    openMenu(items(), { anchor });
+    $("#menu").items = items;
+  }
+}
+
+// Rebuilds an open menu in place, e.g. when a job it lists changes status.
+function refreshMenu(anchor) {
+  const menu = $("#menu");
+  if (menu.hidden || menu.anchor !== anchor) return;
+  const focused = [...menu.children].indexOf(document.activeElement);
+  openMenu(menu.items(), { anchor });
+  menu.children[focused]?.focus();
 }
 $("#branch-switch").onclick = (event) => toggleMenu(event.currentTarget, branchMenuItems);
 $("#more-button").onclick = (event) => toggleMenu(event.currentTarget, moreMenuItems);
+$("#analyze-button").onclick = (event) => toggleMenu(event.currentTarget, analyzeMenuItems);
 
 async function openContextMenu(event, position, point) {
   stopPlayback();
@@ -273,6 +307,9 @@ async function openContextMenu(event, position, point) {
         tip: (agent.active ? forkTips.remove : forkTips.restore)(agent.name), onClick: () => removeAgent(agent) },
     ] : []),
     { label: "Fork with new goal…", tip: forkTips.goal, onClick: editGoal },
+    ...plugins.withCapability("intervention").map((plugin) => ({
+      label: `Fork with ${plugin.title}…`, tip: plugin.description, onClick: () => forkWithPlugin(plugin, event ?? eventAtCursor()),
+    })),
     "---",
     { label: "Comment", hint: "C", tip: "Start a comment thread on this event", onClick: () => startComment(event ?? eventAtCursor()).catch(failure) },
   ], { point });
@@ -294,11 +331,17 @@ async function loadBranch(id, cursor) {
   view.run = view.workspace.runs.find((run) => run.id === view.branch.run_id);
   view.selection = { type: "overview" };
   view.agentFilter = null;
+  view.findings = NO_FINDINGS;
   const threads = comments.load(view.branch.id);
   runPicker.value = view.run.id;
   renderAppBar();
   await seek(cursor ?? view.branch.head);
   threads.then(renderExplorer, failure);
+  if (analyzers().length) {
+    loadFindings().catch(failure);
+    plugins.loadJobs(view.branch.id).catch(failure);
+  }
+  renderAnalyzeButton();
   liveView.connect(view.branch, view.run.metadata.source_type === "live" && cursor === undefined);
 }
 
@@ -329,7 +372,7 @@ async function seek(cursor, { moveSelection = false } = {}) {
 function renderExplorer() {
   const selectedId = view.selection.type === "event" ? view.selection.event.id : null;
   visualizations.update({ events: view.events, branch: view.branch, state: view.state, cursor: view.cursor,
-    selectedId, agents: view.state.agents, comments: comments.index });
+    selectedId, agents: view.state.agents, comments: comments.index, findings: view.findings });
   transcript.render({ events: view.events, agents: view.state.agents, cursor: view.cursor, selectedId,
     agentId: view.agentFilter, comments: comments.index });
   renderSelection().catch(failure);
@@ -344,7 +387,8 @@ async function renderSelection() {
     selection = { ...selection, detail };
   }
   renderInspector($("#inspector"), selection, { state: view.state, events: view.events, run: view.run, branch: view.branch,
-    cursor: view.cursor, comments, actions: inspectorActions });
+    cursor: view.cursor, comments, findings: view.findings, interventions: plugins.withCapability("intervention"),
+    actions: inspectorActions });
   comments.restoreFocus($("#inspector"));
 }
 
@@ -445,9 +489,13 @@ function openBranch(title, fields = [], change, effect = "") {
     source: { branchId: view.branch.id, branchName: view.branch.name, cursor: view.cursor, at: event?.at,
       label: forkPointLabel(event), defaultName: `Experiment ${runBranches().length}`,
       effect: `New branch after event ${formatNumber(view.cursor)}.${effect ? ` ${effect}` : ""}` },
-    title, fields, change, live: liveView,
-    created: async (id) => { await refreshWorkspace(); await loadBranch(id); },
+    title, fields, change, live: liveView, created: openCreatedBranch,
   });
+}
+
+async function openCreatedBranch(id) {
+  await refreshWorkspace();
+  await loadBranch(id);
 }
 
 const forkDialog = () => openBranch("Fork here");
@@ -563,13 +611,53 @@ async function openImportedRun() {
   toast("Run imported");
 }
 
-async function runActivityAnalysis() {
-  try {
-    stopPlayback();
-    const record = await post(`/branches/${view.branch.id}/analyses`, { plugin_id: "activity", cursor: view.cursor });
-    view.selection = { type: "analysis", record };
-    renderSelection().catch(failure);
-  } catch (error) { failure(error); }
+// Plugin analyses and interventions
+
+const analyzers = () => plugins.withCapability("analyzer", "streaming");
+
+function renderAnalyzeButton() {
+  const trigger = $("#analyze-button");
+  trigger.hidden = !view.branch || !analyzers().length;
+  if (trigger.hidden) return;
+  const active = plugins.jobsFor(view.branch.id).filter((job) => ACTIVE_JOB.has(job.status)).length;
+  trigger.querySelector(".analyze-active").hidden = !active;
+  tip(trigger, active ? `${active} analysis job${active === 1 ? "" : "s"} running on this branch` : "Run an analysis plugin on this branch");
+}
+
+function analyzeMenuItems() {
+  const jobs = plugins.jobsFor(view.branch.id).slice(0, 8);
+  return [
+    { heading: "Analyze this branch" },
+    ...analyzers().map((plugin) => ({ label: `${plugin.title}…`, tip: plugin.description, onClick: () => analyze(plugin) })),
+    ...(jobs.length ? ["---", { heading: "Recent analyses" }, ...jobs.map((job) => ({
+      label: `${plugins.title(job.plugin_id)} · ${formatNumber(job.start)}–${formatNumber(job.end)}`,
+      hint: `${JOB_STATUS[job.status]}${ACTIVE_JOB.has(job.status) ? "…" : ""}`,
+      tip: job.error || `Started ${time(job.created_at)} UTC`,
+      onClick: () => jobDialog(job, plugins.title(job.plugin_id)),
+    }))] : []),
+  ];
+}
+
+function analyze(plugin) {
+  stopPlayback();
+  const branchId = view.branch.id;
+  analysisDialog(plugin, { branchName: view.branch.name, cursor: view.cursor, head: view.branch.head },
+    async ({ start, end, params }) => {
+      await plugins.startAnalysis(branchId, { plugin_id: plugin.id, start, end, params });
+      toast(`${plugin.title} analysis queued`);
+    });
+}
+
+function forkWithPlugin(plugin, event) {
+  if (!event) return toast("Select an event to fork from.");
+  stopPlayback();
+  liveView.pause();
+  interventionDialog(plugin, { branchName: view.branch.name, position: event.position },
+    async ({ name, params }) => {
+      const branch = await plugins.intervene(view.branch.id, plugin.id, { at: event.position, name, params });
+      await openCreatedBranch(branch.id);
+      toast("Branch created");
+    });
 }
 
 async function saveCheckpoint() {
@@ -580,7 +668,7 @@ async function saveCheckpoint() {
 }
 
 const inspectorActions = { fork: forkDialog, editAgent, removeAgent, addAgent, editGoal, selectAgent, clearSelection,
-  readMemory, readArtifact, readTask, selectEvent, comment: (event) => startComment(event).catch(failure) };
+  readMemory, readArtifact, readTask, selectEvent, forkWithPlugin, comment: (event) => startComment(event).catch(failure) };
 
 $("#fork-button").onclick = forkDialog;
 
@@ -698,9 +786,6 @@ async function openTimelineAt(branchId, cursor, eventId) {
 async function installPlugins() {
   installCompare(pluginHost({ title: "Compare" }), { favoriteRuns });
   await installWebPlugins(view.workspace.capabilities.web_plugins, { hostFor: pluginHost, report: failure });
-  if (view.workspace.capabilities.plugins.some((plugin) => plugin.id === "activity")) {
-    menuActions.push({ plugin: "Activity", label: "Activity summary", onClick: runActivityAnalysis });
-  }
 }
 
 function showEmptyWorkspace() {
@@ -718,7 +803,8 @@ async function openRoute(route) {
 
 async function boot() {
   const route = readWorkspaceRoute();
-  await refreshWorkspace();
+  // A broken plugin listing leaves the explorer usable, without plugin actions.
+  await Promise.all([refreshWorkspace(), plugins.loadPlugins().catch(failure)]);
   liveView.enable(view.workspace.capabilities.live?.enabled);
   // Views that plugins register must exist before the route can reopen one of them.
   await installPlugins();

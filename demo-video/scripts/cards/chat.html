@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Team chat</title>
+<link rel="stylesheet" href="cards.css">
+<style>
+  /* A generic team-chat window (no product branding): the user sends the exported run to a channel. */
+  .app { position: absolute; inset: 60px 90px; display: grid; grid-template-columns: 300px 1fr; border-radius: 16px;
+    overflow: hidden; box-shadow: 0 30px 70px rgba(20,30,25,.16), 0 2px 6px rgba(0,0,0,.05); background: #fff; }
+  .side { background: #2b2f36; color: #c9ccd2; padding: 22px 0; font-size: 22px; }
+  .team { color: #fff; font-weight: 750; font-size: 25px; padding: 0 24px 22px; border-bottom: 1px solid #3a3f47; }
+  .group { padding: 20px 24px 6px; font-size: 18px; color: #8c919a; font-weight: 600; }
+  .ch { padding: 7px 24px; }
+  .ch.on { background: #3d7bd9; color: #fff; font-weight: 650; }
+  .dm { padding: 7px 24px; display: flex; align-items: center; gap: 10px; }
+  .dm i { width: 10px; height: 10px; border-radius: 50%; background: #3fb26b; }
+  .main { display: grid; grid-template-rows: 70px 1fr auto; min-height: 0; }
+  .head { display: flex; align-items: center; padding: 0 28px; border-bottom: 1px solid #e7e7e4; font-size: 25px; font-weight: 750; }
+  .head span { color: #8a8a85; font-weight: 500; font-size: 19px; margin-left: 16px; }
+  .msgs { padding: 22px 28px; display: flex; flex-direction: column; justify-content: flex-end; gap: 22px; overflow: hidden; }
+  .msg { display: grid; grid-template-columns: 52px 1fr; gap: 14px; font-size: 22px; line-height: 1.4; }
+  .av { width: 52px; height: 52px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 22px; }
+  .who { font-weight: 750; } .when { color: #8a8a85; font-size: 17px; margin-left: 10px; font-weight: 400; }
+  .file { margin-top: 10px; display: inline-flex; align-items: center; gap: 16px; border: 1px solid #e1e1de; border-radius: 12px;
+    padding: 14px 20px 14px 14px; background: #fafaf9; max-width: 900px; }
+  .file .ico { width: 50px; height: 58px; border-radius: 8px; background: #3d7bd9; color: #fff; font: 700 15px ui-monospace, Menlo, monospace;
+    display: grid; place-items: center; }
+  .file b { display: block; font-size: 20px; font-weight: 650; }
+  .file small { color: #8a8a85; font-size: 17px; }
+  .composer { margin: 0 28px 26px; border: 1.5px solid #cfd0cc; border-radius: 14px; padding: 14px 18px; min-height: 64px; font-size: 22px;
+    background: #fff; transition: border-color .2s, box-shadow .2s; }
+  .composer.drop { border-color: #3d7bd9; box-shadow: 0 0 0 4px rgba(61,123,217,.18); }
+  .composer .placeholder { color: #9a9a95; }
+  .composer .file { margin: 0 0 12px; }
+  .caret { display: inline-block; width: 2px; height: 26px; background: #1b1b1a; vertical-align: -5px; }
+  .drag { position: absolute; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
+    background: rgba(255,255,255,.96); box-shadow: 0 14px 30px rgba(0,0,0,.2); font-size: 19px; font-weight: 600; opacity: 0;
+    transform: rotate(-3deg); pointer-events: none; }
+  .drag .ico { width: 34px; height: 40px; border-radius: 6px; background: #3d7bd9; color: #fff; font: 700 11px ui-monospace, Menlo, monospace;
+    display: grid; place-items: center; }
+  .cursor { position: absolute; z-index: 6; width: 26px; height: 26px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+</style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="team">AI Lab</div>
+      <div class="group">Channels</div>
+      <div class="ch"># general</div>
+      <div class="ch"># papers</div>
+      <div class="ch on"># swarm-research</div>
+      <div class="ch"># evals</div>
+      <div class="group">Direct messages</div>
+      <div class="dm"><i></i>Sam</div>
+      <div class="dm"><i></i>Priya</div>
+    </aside>
+    <section class="main">
+      <div class="head"># swarm-research <span>Multi-agent experiments</span></div>
+      <div class="msgs" id="msgs">
+        <div class="msg"><div class="av" style="background:#8e63c9">S</div>
+          <div><span class="who">Sam</span><span class="when">10:38</span><div>Rerunning the ACIArena medicine split with the attack condition tonight.</div></div></div>
+        <div class="msg"><div class="av" style="background:#d4823b">P</div>
+          <div><span class="who">Priya</span><span class="when">10:40</span><div>Can someone check how Debater 0 pulls the others in medicine-004?</div></div></div>
+      </div>
+      <div class="composer" id="composer"><span class="placeholder" id="placeholder">Message #swarm-research</span></div>
+    </section>
+  </div>
+  <div class="drag" id="drag"><span class="ico">JSON</span><span id="dragName"></span></div>
+  <svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M4 2.5l15 10.2-6.6 1.3 3.9 7.4-2.9 1.5-3.9-7.5L4 20.2z"
+    fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+<script src="cards.js"></script>
+<script>
+  // play({ name, bytes }) receives the file that the comment shot really exported from the app.
+  const MESSAGE = "These are all the moments I flagged where the agent influences the group.";
+  const $ = (id) => document.getElementById(id);
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const sizeLabel = (bytes) => (bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} KB`);
+  const fileCard = ({ name, bytes }) => {
+    const card = document.createElement("div");
+    card.className = "file";
+    card.innerHTML = `<span class="ico">JSON</span><span><b></b><small></small></span>`;
+    card.querySelector("b").textContent = name;
+    card.querySelector("small").textContent = `${sizeLabel(bytes)} · Swarm Lens run bundle`;
+    return card;
+  };
+  function moveTo(elements, from, to, ms) {
+    return new Promise((resolve) => {
+      const t0 = performance.now();
+      const step = (now) => {
+        const k = ease(Math.min((now - t0) / ms, 1));
+        const x = from[0] + (to[0] - from[0]) * k, y = from[1] + (to[1] - from[1]) * k;
+        for (const [el, dx, dy] of elements) el.style.transform = `translate(${x + dx}px, ${y + dy}px)${el.id === "drag" ? " rotate(-3deg)" : ""}`;
+        if (k < 1) requestAnimationFrame(step); else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  async function run(file) {
+    const cursor = $("cursor"), drag = $("drag"), composer = $("composer");
+    $("dragName").textContent = file.name;
+    const target = composer.getBoundingClientRect();
+    const start = [1780, 1000], drop = [target.left + 260, target.top + 30];
+    cursor.style.transform = `translate(${start[0]}px, ${start[1]}px)`;
+    drag.style.left = "0px"; drag.style.top = "0px";
+    drag.style.opacity = 1;
+    cue("click");
+    setTimeout(() => composer.classList.add("drop"), 500);
+    await moveTo([[cursor, 0, 0], [drag, 18, 18]], start, drop, 900);
+    cue("release");
+    drag.style.opacity = 0;
+    composer.classList.remove("drop");
+    $("placeholder").remove();
+    composer.append(fileCard(file));
+    cue("pop");
+    const line = document.createElement("div");
+    composer.append(line);
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    await wait(250);
+    for (const ch of MESSAGE) { line.textContent += ch; line.append(caret); if (ch !== " ") cue("key"); await wait(24); }
+    caret.remove();
+    await wait(250);
+    cue("enter");
+    composer.replaceChildren(Object.assign(document.createElement("span"), { className: "placeholder", textContent: "Message #swarm-research" }));
+    const msg = document.createElement("div");
+    msg.className = "msg";
+    msg.innerHTML = `<div class="av" style="background:#1f9e7a">A</div><div><span class="who">Alex</span><span class="when">10:44</span><div></div></div>`;
+    msg.querySelector(".msg > div:last-child > div").textContent = MESSAGE;
+    msg.lastElementChild.append(fileCard(file));
+    $("msgs").append(msg);
+    cue("pop");
+  }
+  window.play = (file) => {
+    document.body.classList.add("play");
+    wait(150).then(() => run(file));
+    return 4.8;
+  };
+</script>
+</body>
+</html>

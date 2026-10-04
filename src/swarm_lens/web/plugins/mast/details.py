@@ -8,7 +8,7 @@ from swarm_lens.observability.mast.trace import decode_trace
 
 def present_trait_details(service, job_id, code):
     job = service.jobs.get(job_id)
-    output = job.get("analysis", {}).get("output", {})
+    output = job.get("analysis", {}).get("output", {}).get("report") or {}
     label = next((item for item in output.get("labels", []) if item["code"] == code), None)
     if label is None:
         raise DomainError("This report has no saved judgment for that trait")

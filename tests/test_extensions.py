@@ -1,49 +1,8 @@
 import ast
 import json
 from pathlib import Path
-import subprocess
 
-import pytest
-
-from swarm_lens import Framework
 from swarm_lens.adapters.git import GitVersions
-from swarm_lens.plugins import ActivityPlugin
-
-
-def test_plugin_reads_branch_cursor_and_persists_provenance(framework, branch):
-    framework.plugins["activity"] = ActivityPlugin()
-    record = framework.analyze("activity", branch.id, 4)
-    assert record["output"]["messages"] == 1
-    assert record["output"]["memory_items"] == 0
-    assert len(record["input_digest"]) == 64
-    assert framework.store.analyses(branch.id, 4)[0] == record
-
-
-def test_plugin_registry_rejects_duplicates_and_records_the_requested_config(framework, branch):
-    class Greedy:
-        id, version = "greedy", "1"
-        def run(self, context, config):
-            config["injected"] = True
-            return {}
-    with pytest.raises(ValueError, match="Duplicate plugin ID"):
-        Framework(framework.store, plugins=(Greedy(), Greedy()))
-    framework.plugins["greedy"] = Greedy()
-    record = framework.analyze("greedy", branch.id, 4, {"threshold": 2})
-    assert record["config"] == {"threshold": 2}
-    assert framework.store.analyses(branch.id, 4)[0]["config"] == {"threshold": 2}
-
-
-def test_plugin_can_fork_and_intervene_without_changing_parent(framework, branch):
-    class PromptPlugin:
-        id, version = "prompt", "1"
-        def run(self, context, config):
-            child = context.fork("plugin branch")
-            context.intervene(child.id, "agent.updated", {"id": "a", "system_prompt": config["prompt"]}, context.cursor)
-            return {"branch_id": child.id}
-    framework.plugins["prompt"] = PromptPlugin()
-    result = framework.analyze("prompt", branch.id, 4, {"prompt": "hello"})
-    assert framework.state(result["output"]["branch_id"]).agents["a"].system_prompt == "hello"
-    assert framework.state(branch.id).agents["a"].system_prompt is None
 
 
 def test_git_fork_uses_historical_base_and_does_not_rewind_head(framework, branch, tmp_path):

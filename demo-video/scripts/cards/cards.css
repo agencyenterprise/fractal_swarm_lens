@@ -1,0 +1,47 @@
+/* Shared look for the title, chapter, concept and end cards: the app's light theme, plain text. */
+:root {
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --ink: #1b1b1a;
+  --muted: #6b6b68;
+  --faint: #e6e6e2;
+  --accent: #0f7b68;
+  --accent-soft: #e3f1ed;
+  --warn: #c2410c;
+  --warn-soft: #fbeee6;
+  --d0: #1f9e7a;
+  --d1: #4a78c8;
+  --d2: #8e63c9;
+  --d3: #d4823b;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.center { position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* Every animated element waits for body.play so the recorder starts on a still frame. */
+.rise { opacity: 0; transform: translateY(18px); }
+body.play .rise { animation: rise .8s cubic-bezier(.2,.7,.2,1) forwards; animation-delay: var(--d, 0s); }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+
+.window {
+  background: var(--surface); border: 1px solid var(--faint); border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(20,30,25,.10), 0 2px 6px rgba(0,0,0,.04);
+  overflow: hidden;
+}
+.window-bar {
+  height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px;
+  border-bottom: 1px solid var(--faint); color: var(--muted); font-size: 20px;
+}
+.window-bar i { width: 13px; height: 13px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 650; color: var(--ink); }
+.brand img { width: 34px; height: 34px; border-radius: 8px; image-rendering: pixelated; }
+img[data-logo] { image-rendering: pixelated; }

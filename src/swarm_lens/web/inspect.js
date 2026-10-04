@@ -1,6 +1,7 @@
 import { el, button, avatar, color, eventTone, speakerName, stageOf, time, formatNumber, failure, tip, recordedUsage } from "./ui.js";
 import { forkTips } from "./branch.js";
 import { renderMarkdownInto } from "./markdown.js";
+import { findingsForEvent, eventSpan, pluginTitle } from "./findings.js";
 import { interventionLabel } from "./transcript.js";
 
 const LONG_TASK = 400;
@@ -10,7 +11,6 @@ export function renderInspector(root, selection, ctx) {
     overview: overviewView,
     agent: agentView,
     event: eventView,
-    analysis: analysisView,
   }[selection.type];
   const content = el("div", "ins");
   view(content, selection, ctx);
@@ -23,7 +23,7 @@ export function renderInspector(root, selection, ctx) {
 
 // Re-renders of the same selection (cursor steps, live updates) keep the reader's scroll position.
 function selectionKey(selection) {
-  return [selection.type, selection.agentId, selection.event?.id, selection.record?.cursor].join(":");
+  return [selection.type, selection.agentId, selection.event?.id].join(":");
 }
 
 function section(title, ...children) {
@@ -126,7 +126,7 @@ function eventAgentId(event, data) {
     || (event.kind.startsWith("agent.") ? data.id : null) || event.agent_id;
 }
 
-function eventView(root, { event, detail }, { state, events, comments, actions }) {
+function eventView(root, { event, detail }, { state, events, comments, findings, interventions, actions }) {
   const data = detail?.data || {};
   const agentId = eventAgentId(event, data);
   const agent = state.agents[agentId];
@@ -145,10 +145,13 @@ function eventView(root, { event, detail }, { state, events, comments, actions }
     agent && tipped(forkTips.prompt(agent.name), "Fork with new prompt…", () => actions.editAgent(agent), "ghost"),
     agent && removeButton(agent, actions, "ghost"),
     tipped(forkTips.goal, "Fork with new goal…", actions.editGoal, "ghost"),
+    ...interventions.map((plugin) => tipped(plugin.description, `Fork with ${plugin.title}…`, () => actions.forkWithPlugin(plugin, event), "ghost")),
     tipped("Start a comment thread on this event (C)", "Comment", () => actions.comment(event), "ghost"),
   ));
   const threads = comments.eventSection(event);
   if (threads) root.append(threads);
+  const found = findingsSection(findingsForEvent(findings, event), findings.titles, state);
+  if (found) root.append(found);
   root.append(eventBody(event, data));
   const meta = eventMeta(event, data, agent);
   if (meta) root.append(meta);
@@ -274,28 +277,30 @@ function memoryList(memories, actions) {
   return list;
 }
 
-function analysisView(root, { record }, { state, actions }) {
-  const output = record.output;
-  const head = el("header", "ins-head");
-  const who = el("div", "ins-who");
-  who.append(el("span", "ins-name", "Activity"), el("span", "ins-stamp muted", `${record.plugin_id} v${record.plugin_version} · #${record.cursor}`));
-  head.append(who, closeButton(actions));
-  root.append(head, stats([
-    ["Messages", output.messages],
-    ["Tool calls", output.tool_calls],
-    ["Memory slots", output.memory_items],
-    ["Active agents", output.active_agents],
-    ["Tool errors", output.tool_errors],
-  ]));
-  const entries = Object.entries(output.messages_by_agent).sort((a, b) => b[1] - a[1]);
-  const max = Math.max(1, ...entries.map(([, count]) => count));
-  const list = el("div", "ins-agents");
-  for (const [id, count] of entries) {
-    const row = el("div", "ins-agent");
-    const name = state.agents[id]?.name || id;
-    row.append(avatar(state.agents[id] || { name }), el("span", "ins-agent-name", name), bar(count / max, color(id, state.agents)), el("span", "ins-agent-count mono", formatNumber(count)));
-    list.append(row);
+// Plugin findings at the selected event; the section is left out when there are none.
+function findingsSection({ annotations, metrics }, titles, state) {
+  if (!annotations.length && !metrics.length) return null;
+  const node = section("Findings");
+  if (annotations.length) {
+    const list = el("div", "ins-findings");
+    for (const annotation of annotations) {
+      const item = el("div", "ins-finding");
+      if (annotation.agent_id) item.style.setProperty("--c", color(annotation.agent_id, state.agents));
+      const source = [pluginTitle(titles, annotation.plugin), eventSpan(annotation).toLowerCase(),
+        annotation.score === null || annotation.score === undefined ? "" : `score ${formatNumber(annotation.score)}`,
+        annotation.agent_id && (state.agents[annotation.agent_id]?.name || annotation.agent_id)];
+      item.append(el("span", "ins-finding-label", annotation.label), el("span", "ins-finding-source muted", source.filter(Boolean).join(" · ")));
+      list.append(item);
+    }
+    node.append(list);
   }
-  root.append(section("Participation", list));
-  if (output.interpretation) root.append(el("p", "ins-note muted", output.interpretation));
+  if (metrics.length) {
+    const list = el("dl", "ins-metrics");
+    for (const metric of metrics) {
+      const agent = metric.agent_id === null ? "" : ` (${state.agents[metric.agent_id]?.name || metric.agent_id})`;
+      list.append(el("dt", "", `${pluginTitle(titles, metric.plugin)} · ${metric.name}${agent}`), el("dd", "mono", formatNumber(metric.value)));
+    }
+    node.append(list);
+  }
+  return node;
 }
