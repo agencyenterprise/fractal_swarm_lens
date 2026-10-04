@@ -32,27 +32,9 @@ Inputs use timezone-aware ISO timestamps. Emit creation facts before facts that 
 
 The AI Village example has stable event IDs derived from source revision and row identity and deliberately imports into a fresh database. It is a concrete application choice, not a generic deduplication service.
 
-## A plugin that intervenes
+## Plugins
 
-```python
-class PromptExperiment:
-    id, version = "prompt-experiment", "1"
-
-    def run(self, context, config):
-        agent = context.state.agents[config["agent_id"]]
-        child = context.fork(config["name"])
-        context.intervene(child.id, "agent.updated", {
-            "id": agent.id, "system_prompt": config["prompt"],
-        }, expected_head=context.cursor)
-        return {"branch_id": child.id}
-
-framework.plugins["prompt-experiment"] = PromptExperiment()
-result = framework.analyze("prompt-experiment", recorded.id, 4, {
-    "agent_id": "researcher", "name": "Probe branch", "prompt": "Check assumptions first.",
-})
-```
-
-Plugins can inspect `context.state`, `context.history()`, and `context.branches()`. They are trusted application code running in the host process. Give a plugin model/artifact services through its constructor when needed. Choose your own analysis trigger; the example UI exposes a manual Activity analysis action.
+Analyses and interventions are plugins. A plugin reads a branch through a read-only view and returns metrics, annotations, a report, or the facts for a new fork. The application validates and stores them, and the explorer shows them without plugin-specific frontend code. See [writing a plugin](plugins.md) for the contract, registration, the HTTP API and testing.
 
 ## Runtime and presentation
 
@@ -117,14 +99,14 @@ export function install(host) {
 }
 ```
 
-Pass the extension to `create_app(framework, artifacts, extensions=(notes_extension(store),))` in your own composition root. With the bundled explorer, register a factory instead: it receives `PluginServices(framework, artifacts, data)` and returns the extension.
+Pass the extension to `create_app(framework, artifacts, extensions=(notes_extension(store),))` in your own composition root. With the bundled explorer, register a factory instead: it receives `PluginServices(framework, artifacts, data, plugins)` and returns the extension, or a list that also holds [method plugins](plugins.md).
 
 ```sh
-swarm-lens --data data --plugin my_package.notes:create   # repeatable; MAST is always included
+swarm-lens --data data --plugin my_package.notes:create   # repeatable; bundled and installed plugins are always included
 ``` MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
 
 ## Observe a history with a method
 
-Use `ObservabilityPlugin(method_id, version, factory, adapter)` from `swarm_lens.observability`. The factory receives analysis configuration and returns a fresh method. The application adapter consumes the selected `Event` history and yields method-specific observations. Its `id`, `version`, and `describe()` document mapping/encoding provenance. Standard `Framework.analyze` then persists the resolved method/adapter metadata, output, and branch history digest.
+Use `ObservabilityPlugin(method_id, version, factory, adapter)` from `swarm_lens.observability`. The factory receives analysis configuration and returns a fresh method. The application adapter consumes the selected `Event` history and yields method-specific observations. Its `id`, `version`, and `describe()` document mapping/encoding provenance. It is an `Analyzer`: `PluginService.analyze` persists the resolved method/adapter metadata and per-turn results as the record's `output.report`, with the branch history digest.
 
 The [CASPIAN branch example](../examples/observability/caspian/branch_plugin.py) runs a complete SQLite application, historical analysis, intervention, and nested fork without credentials. Follow the [method input contract](observability/caspian/README.md) to supply genuine downstream observations; a branch edit itself does not execute the runtime or generate model-internal evidence.
