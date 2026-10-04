@@ -3,11 +3,11 @@ import { renderMarkdownInto } from "./markdown.js";
 import { lanesVisualization } from "./timeline.js";
 import { influenceVisualization } from "./graph.js";
 import { builtinVisualizations } from "./viz/index.js";
-import { VisualizationHost, registerVisualization, playbackInterval } from "./visualizations.js";
+import { VisualizationHost, registerVisualization, unregisterVisualization, playbackInterval } from "./visualizations.js";
 import { Transcript } from "./transcript.js";
 import { renderInspector } from "./inspect.js";
 import { installCompare } from "./compare.js";
-import { installMast } from "./mast.js";
+import { installWebPlugins } from "./plugin-host.js";
 import { field, openDialog } from "./dialog.js";
 import { branchDialog, forkTips } from "./branch.js";
 import { Picker } from "./components.js?v=1";
@@ -641,61 +641,64 @@ document.addEventListener("keydown", (event) => {
 
 // Startup
 
-function pluginHost(manifest) {
+// One host API for built-in workspace views (Compare) and web plugins. `owner` titles the
+// plugin's menu group. Navigation methods return promises; callers report their own failures.
+// `dispose()` removes everything the owner registered, so a plugin that fails to install leaves nothing.
+function pluginHost(owner) {
+  const views = [], visualizationIds = [], actions = [];
   return {
-    selection: () => view.branch ? { branchId: view.branch.id, cursor: view.cursor, name: view.run.name,
-      branchName: view.branch.name } : null,
-    registerView: (config) => workspaceViews.register(config),
-    openView: openWorkspaceView,
-    openReport: async (job) => {
-      if (view.branch?.id !== job.branch_id) await loadBranch(job.branch_id, job.cursor);
-      openWorkspaceView("mast", { report: job.id });
+    context: () => ({ workspace: view.workspace, run: view.run, branch: view.branch, cursor: view.cursor }),
+    registerView: (config) => {
+      const panel = workspaceViews.register(config);
+      views.push(config.id);
+      return panel;
     },
+    openView: openWorkspaceView,
     setViewParams: (id, params) => {
       if (workspaceViews.current !== id) return;
       workspaceViews.entries.get(id).params = params;
       saveRoute();
     },
-    showSnapshot: (branchId, cursor) => openTimelineAt(branchId, cursor),
-    showEvidenceEvent: async (branchId, cursor, eventId) => {
-      await openTimelineAt(branchId, cursor);
-      const event = view.events.find((item) => item.id === eventId);
-      if (!event) throw new Error("This evidence event is not in the selected history.");
-      await selectEvent(event);
+    openTimeline: openTimelineAt,
+    openBranchView: async (branchId, cursor, id, params) => {
+      if (view.branch?.id !== branchId) await loadBranch(branchId, cursor);
+      else await seek(cursor);
+      openWorkspaceView(id, params);
     },
-    addAction: (action) => menuActions.push({ ...action, plugin: manifest.title }),
-    registerVisualization,
+    loadTimeline,
+    loadDetail,
+    addAction: (action) => {
+      const entry = { ...action, plugin: owner.title };
+      menuActions.push(entry);
+      actions.push(entry);
+    },
+    registerVisualization: (config) => {
+      registerVisualization(config);
+      visualizationIds.push(config.id);
+    },
+    dispose: () => {
+      views.forEach((id) => workspaceViews.unregister(id));
+      visualizationIds.forEach(unregisterVisualization);
+      menuActions.splice(0, menuActions.length, ...menuActions.filter((action) => !actions.includes(action)));
+    },
   };
 }
 
-async function openTimelineAt(branchId, cursor) {
+// Opens the timeline at `cursor`, selecting `eventId` when given.
+async function openTimelineAt(branchId, cursor, eventId) {
   if (branchId !== view.branch?.id) await loadBranch(branchId, cursor);
   else await seek(cursor);
   openWorkspaceView("timeline");
+  if (eventId === undefined) return;
+  const event = view.events.find((item) => item.id === eventId);
+  if (!event) throw new Error("This event is not in the selected history.");
+  await selectEvent(event);
 }
 
-let pluginsInstalled = false;
-function installPlugins() {
-  if (pluginsInstalled) return;
-  pluginsInstalled = true;
-  const renderers = { mast: installMast };
-  installCompare({
-    registerView: (config) => workspaceViews.register(config),
-    context: () => ({ workspace: view.workspace, run: view.run, branch: view.branch, cursor: view.cursor }),
-    loadTimeline,
-    loadDetail,
-    openTimeline: (branchId, cursor) => openTimelineAt(branchId, cursor).catch(failure),
-    setViewParams: (params) => {
-      if (workspaceViews.current !== "compare") return;
-      workspaceViews.entries.get("compare").params = params;
-      saveRoute();
-    },
-    favoriteRuns,
-  });
-  for (const manifest of view.workspace.capabilities.web_plugins || []) {
-    renderers[manifest.ui?.renderer]?.(manifest, pluginHost(manifest));
-  }
-  if (view.workspace.capabilities.plugins?.some((plugin) => plugin.id === "activity")) {
+async function installPlugins() {
+  installCompare(pluginHost({ title: "Compare" }), { favoriteRuns });
+  await installWebPlugins(view.workspace.capabilities.web_plugins, { hostFor: pluginHost, report: failure });
+  if (view.workspace.capabilities.plugins.some((plugin) => plugin.id === "activity")) {
     menuActions.push({ plugin: "Activity", label: "Activity summary", onClick: runActivityAnalysis });
   }
 }
@@ -705,15 +708,21 @@ function showEmptyWorkspace() {
   $("#fork-button").disabled = true;
 }
 
+async function openRoute(route) {
+  if (!view.workspace.runs.length) return showEmptyWorkspace();
+  $("#fork-button").disabled = false;
+  const branchId = route.branchId || rootBranch(view.workspace.runs[0].id).id;
+  await loadBranch(branchId, route.cursor);
+  if (route.view !== "timeline") openWorkspaceView(route.view, route.params, { replace: true });
+}
+
 async function boot() {
   const route = readWorkspaceRoute();
   await refreshWorkspace();
   liveView.enable(view.workspace.capabilities.live?.enabled);
-  installPlugins();
-  if (!view.workspace.runs.length) return showEmptyWorkspace();
-  const branchId = route.branchId || rootBranch(view.workspace.runs[0].id).id;
-  await loadBranch(branchId, route.cursor);
-  if (route.view !== "timeline") openWorkspaceView(route.view, route.params, { replace: true });
+  // Views that plugins register must exist before the route can reopen one of them.
+  await installPlugins();
+  await openRoute(route);
 }
 boot().catch(failure);
 
@@ -725,6 +734,6 @@ setInterval(async () => {
     const workspace = await api("/workspace");
     if (workspace.runs.every((run) => known.has(run.id))) return;
     await refreshWorkspace();
-    if (!view.branch) await boot();
+    if (!view.branch) await openRoute(readWorkspaceRoute());
   } catch { /* The live pill reports disconnection. */ }
 }, 5000);

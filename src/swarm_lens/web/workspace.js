@@ -38,6 +38,15 @@ export class WorkspaceViews {
     return panel;
   }
 
+  unregister(id) {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    if (this.current === id) this.reset();
+    entry.tab.remove();
+    entry.panel.remove();
+    this.entries.delete(id);
+  }
+
   show(id, params = {}) {
     const transition = ++this.transition;
     const next = this.entries.get(id);

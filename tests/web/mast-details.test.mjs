@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { mastTraitDetails, modeDefinitions } from '../../src/swarm_lens/web/mast-details.js';
+import { mastTraitDetails, modeDefinitions } from '../../src/swarm_lens/web/plugins/mast/static/details.js';
 // The formatter loads lazily in the app; warm the module cache so renders settle within one tick here.
 await import('../../src/swarm_lens/web/message-format.js');
 
@@ -18,8 +18,7 @@ function setup(t, fetchDetail) {
     return fetchDetail();
   };
   const row = mastTraitDetails(label, job, {
-    showSnapshot: async (...args) => navigation.push(['snapshot', ...args]),
-    showEvidenceEvent: async (...args) => navigation.push(['event', ...args]),
+    openTimeline: async (...args) => navigation.push(args),
   });
   document.body.append(row);
   t.after(() => dom.window.close());
@@ -56,7 +55,7 @@ test('disclosure loads once, renders recorded text safely, and opens exact branc
   assert.equal(row.querySelector('.context').hidden, true);
   row.querySelector('.supporting .mast-event-link').click();
   await settle();
-  assert.deepEqual(navigation, [['event', 'child', 5, 'e5']]);
+  assert.deepEqual(navigation, [['child', 5, 'e5']]);
   row.open = false;
   await settle();
   row.open = true;

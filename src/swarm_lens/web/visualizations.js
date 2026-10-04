@@ -23,6 +23,11 @@ export function registerVisualization(config) {
   for (const host of hosts) host.add(config);
 }
 
+export function unregisterVisualization(id) {
+  registry.delete(id);
+  for (const host of hosts) host.remove(id);
+}
+
 function readStored(key) {
   try { return localStorage.getItem(key); } catch { return null; /* Storage unavailable; defaults apply. */ }
 }
@@ -143,6 +148,19 @@ export class VisualizationHost {
     root.hidden = true;
     this.body.append(root);
     this.views.set(config.id, { config, tab, root, tools: el("div", "viz-view-tools"), instance: null });
+  }
+
+  remove(id) {
+    const view = this.views.get(id);
+    if (!view) return;
+    this.unmount(view);
+    view.tab.remove();
+    view.root.remove();
+    this.views.delete(id);
+    if (this.active !== id) return;
+    this.active = null;
+    const fallback = this.views.keys().next().value;
+    if (fallback) this.show(fallback);
   }
 
   show(id, { remember = false } = {}) {

@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from swarm_lens.observability.mast.method import assets
-from .extensions import WebExtension
-from .mast_details import present_trait_details
+from swarm_lens.web.extensions import WebExtension
+from .details import present_trait_details
 
 
 class AnalysisRequest(BaseModel):
@@ -25,14 +26,13 @@ def mast_extension(service):
     router = APIRouter(prefix="/api/plugins/mast", tags=["MAST"], lifespan=lifespan)
 
     def manifest():
-        return {"id": "mast", "version": service.plugin.version, "title": "MAST trace analysis",
-                "modes": ["saved_trace"], "api_prefix": "/api/plugins/mast", "ui": {"renderer": "mast"},
+        return {"version": service.plugin.version, "title": "MAST trace analysis", "modes": ["saved_trace"],
                 "judge": service.plugin.judge.describe(), "upstream_revision": assets()["revision"],
                 "max_trace_characters": service.plugin.max_trace_characters}
 
     @router.get("/capabilities")
     def capabilities():
-        return manifest()
+        return extension.describe()
 
     @router.get("/taxonomy")
     def taxonomy():
@@ -61,4 +61,5 @@ def mast_extension(service):
     def trait_details(job_id: str, code: str):
         return present_trait_details(service, job_id, code)
 
-    return WebExtension("mast", router, manifest)
+    extension = WebExtension("mast", router, manifest, assets=Path(__file__).parent / "static")
+    return extension

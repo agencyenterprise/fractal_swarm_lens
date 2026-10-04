@@ -1,7 +1,10 @@
 {
-  "name": "swarm-lens-ui",
+  "name": "swarm-lens",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/swarm_lens/web/*"
+  },
   "scripts": {
     "build": "npm run build:components && npm run build:message-format && npm run build:styles",
     "build:message-format": "esbuild frontend/message-format.js --bundle --format=esm --target=es2022 --minify --outfile=src/swarm_lens/web/message-format.js",

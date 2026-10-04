@@ -1,7 +1,7 @@
-import { $, el, button, api, post, toast, failure, formatNumber, tip } from "./ui.js";
-import { field, openDialog } from "./dialog.js";
-import { mastTraitDetails, modeDefinitions } from "./mast-details.js";
-import { workspaceURL } from "./workspace.js";
+import { $, el, button, api, post, toast, failure, formatNumber, tip } from "swarm-lens/ui.js";
+import { field, openDialog } from "swarm-lens/dialog.js";
+import { mastTraitDetails, modeDefinitions } from "./details.js";
+import { workspaceURL } from "swarm-lens/workspace.js";
 
 const prefix = "/plugins/mast";
 const active = new Set(["queued", "running"]);
@@ -86,7 +86,7 @@ function reportHeader(job, host) {
   title.append(heading, aboutMast(), el("p", "muted", `events 1–${job.cursor} · ${job.judge.model} · ${longDate(job.created_at)}`));
   const actions = el("div", "mast-report-actions");
   actions.append(
-    tip(button("View snapshot", () => host.showSnapshot(job.branch_id, job.cursor).catch(failure), "ghost"),
+    tip(button("View snapshot", () => host.openTimeline(job.branch_id, job.cursor).catch(failure), "ghost"),
       `Open the timeline at event ${job.cursor}, the last event analyzed`),
     tip(button("Copy link", () => copyLink(job), "ghost"), "Copy a link that reopens this report"),
     tip(button("Download JSON", () => downloadResult(job), "ghost"), "The full result with judge response and provenance"));
@@ -215,6 +215,11 @@ function sizeCheckText(preview) {
   return `Fits · ${formatNumber(preview.estimated_input_tokens)} of ${formatNumber(preview.input_token_limit)} tokens`;
 }
 
+function selectedSnapshot(host) {
+  const { branch, cursor } = host.context();
+  return branch ? { branchId: branch.id, cursor } : null;
+}
+
 function analyzeDialog(manifest, selection, host) {
   if (!selection) return toast("Select a run to analyze");
   let completeness = "unknown";
@@ -233,7 +238,8 @@ function analyzeDialog(manifest, selection, host) {
   openDialog("Analyze with MAST", root, { kicker: "", confirm: "Analyze", pending: "Starting…",
     submit: async () => {
       if (!ready) throw new Error("Wait for the size check to finish.");
-      await host.openReport(await post(`${prefix}/analyses`, body()));
+      const job = await post(`${prefix}/analyses`, body());
+      await host.openBranchView(job.branch_id, job.cursor, "mast", { report: job.id });
     },
   });
   const isCurrent = (ticket) => ticket === generation && root.isConnected && $("#dialog").open;
@@ -271,11 +277,11 @@ function installReportView(manifest, host) {
   const root = host.registerView({ id: "mast", title: "Reports", tip: "MAST failure-mode reports for this branch", onShow: show, onHide: stop });
   root.classList.add("mast-view");
   const analyzeButton = (label, className) =>
-    button(label, () => analyzeDialog(manifest, host.selection(), host), className);
+    button(label, () => analyzeDialog(manifest, selectedSnapshot(host), host), className);
 
   async function show(params = {}) {
     const ticket = ++generation;
-    const selection = host.selection();
+    const selection = selectedSnapshot(host);
     if (!selection) return root.replaceChildren(emptyState("Select a run to see its reports."));
     const sidebar = el("nav", "mast-list");
     sidebar.setAttribute("aria-label", "Saved reports");
@@ -329,8 +335,8 @@ function installReportView(manifest, host) {
   }
 }
 
-export function installMast(manifest, host) {
+export function install(host, manifest) {
   installReportView(manifest, host);
   host.addAction({ id: "mast-analyze", label: "Analyze with MAST…",
-    onClick: () => analyzeDialog(manifest, host.selection(), host) });
+    onClick: () => analyzeDialog(manifest, selectedSnapshot(host), host) });
 }

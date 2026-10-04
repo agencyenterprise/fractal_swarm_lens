@@ -1,5 +1,5 @@
-import { el, button, api, failure, tip } from "./ui.js";
-import { renderMarkdownInto, cancelRender } from "./markdown.js";
+import { el, button, api, failure, tip } from "swarm-lens/ui.js";
+import { renderMarkdownInto, cancelRender } from "swarm-lens/markdown.js";
 
 const firstSentence = (text) => {
   const line = text.trim().split("\n")[0];
@@ -52,7 +52,7 @@ export function mastTraitDetails(label, job, host, definition) {
         const section = el("section", "mast-occurrence");
         section.append(el("h5", "", `Occurrence ${index + 1} · events ${occurrence.start_position}–${occurrence.end_position}`),
           el("p", "mast-trait-text", occurrence.explanation),
-          tip(button("View span end on timeline →", () => host.showSnapshot(job.branch_id, occurrence.end_position).catch(failure), "ghost"),
+          tip(button("View span end on timeline →", () => host.openTimeline(job.branch_id, occurrence.end_position).catch(failure), "ghost"),
             `Open the timeline at event ${occurrence.end_position}`));
         const supportingCount = occurrence.events.filter(event => event.role === "supporting").length;
         const counterCount = occurrence.events.filter(event => event.role === "counterevidence").length;
@@ -103,7 +103,7 @@ export function mastTraitDetails(label, job, host, definition) {
           original.setAttribute("aria-pressed", "false");
           tip(original, "Switch between formatted and exact recorded text");
           tools.append(timestamp, original,
-            button("View event on timeline →", () => host.showEvidenceEvent(job.branch_id, event.position, event.event_id).catch(failure), "ghost mast-event-link"));
+            button("View event on timeline →", () => host.openTimeline(job.branch_id, event.position, event.event_id).catch(failure), "ghost mast-event-link"));
           // Marked only after success, so reopening a message retries a failed render.
           let rendered = false;
           async function renderContent() {
@@ -147,7 +147,7 @@ export function mastTraitDetails(label, job, host, definition) {
         body.append(context);
       }
       body.append(button(`View analyzed snapshot · events 1–${job.cursor} →`,
-        () => host.showSnapshot(job.branch_id, job.cursor).catch(failure), "ghost"));
+        () => host.openTimeline(job.branch_id, job.cursor).catch(failure), "ghost"));
       loaded = true;
     } catch (error) {
       body.replaceChildren(el("p", "mast-error", error.message), button("Retry", load));

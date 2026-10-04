@@ -10,7 +10,7 @@ from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.method import assets, make_prompt, parse_response
 from swarm_lens.observability.mast.service import MastJobs, MastService
 from swarm_lens.web.api import create_app
-from swarm_lens.web.mast import mast_extension
+from swarm_lens.web.plugins.mast import mast_extension
 
 
 def assessment(*, named=False):
@@ -83,6 +83,7 @@ def test_api_discovery_import_and_analysis_persist_after_restart(service):
     with TestClient(app(service)) as client:
         manifest = client.get("/api/workspace").json()["capabilities"]["web_plugins"][0]
         assert manifest["id"] == "mast" and manifest["modes"] == ["saved_trace"]
+        assert "export function install" in client.get(manifest["ui"]["module"]).text
         assert client.get("/api/plugins/mast/taxonomy").json()["revision"] == assets()["revision"]
         trace = client.post("/api/traces", json={"name": "Saved conversation", "text": "A: Done.\nA: Done."})
         assert trace.status_code == 201

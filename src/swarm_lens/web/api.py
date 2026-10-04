@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from swarm_lens import Framework
 from swarm_lens.core.models import Conflict, DomainError
+from .extensions import WebExtension
 from .live import BranchIntervention
 
 
@@ -104,6 +105,20 @@ def event_summary(event):
             "channel_name": d.get("name") if family == "channel" else None}
 
 
+def include_extensions(app: FastAPI, extensions: tuple[WebExtension, ...]) -> None:
+    existing = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
+    for extension in extensions:
+        for route in extension.router.routes:
+            if not route.path.startswith(f"{extension.api_prefix}/"):
+                raise ValueError(f"Plugin {extension.id} routes must start with {extension.api_prefix}/")
+            for method in getattr(route, "methods", ()):
+                key = (route.path, method)
+                if key in existing:
+                    raise ValueError(f"Duplicate plugin route: {method} {route.path}")
+                existing.add(key)
+        app.include_router(extension.router)
+
+
 def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None) -> FastAPI:
     extensions = tuple(extensions)
     if len({extension.id for extension in extensions}) != len(extensions):
@@ -147,7 +162,7 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
                 "branches": [asdict(branch) for run in runs for branch in framework.store.branches(run.id)],
                 "capabilities": {**framework.capabilities(),
                                  "live": {"enabled": live is not None, "runtimes": list(live.runtimes) if live else []},
-                                 "web_plugins": [extension.manifest() for extension in extensions]}}
+                                 "web_plugins": [extension.describe() for extension in extensions]}}
 
     @app.post("/api/traces", status_code=201)
     def import_trace(request: TraceRequest):
@@ -253,22 +268,16 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
         except (ValueError, FileNotFoundError) as exc:
             raise DomainError("Unknown artifact") from exc
 
-    existing = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
-    for extension in extensions:
-        for route in extension.router.routes:
-            if not route.path.startswith(f"/api/plugins/{extension.id}/"):
-                raise ValueError("Plugin routes must use their own API namespace")
-            for method in getattr(route, "methods", ()):
-                key = (route.path, method)
-                if key in existing:
-                    raise ValueError("Duplicate plugin route")
-                existing.add(key)
-        app.include_router(extension.router)
+    include_extensions(app, extensions)
 
     if live:
         from .live import live_router
         app.include_router(live_router(live, event_summary))
 
+    # Plugin mounts come first: the broader /assets mount would otherwise answer their paths.
+    for extension in extensions:
+        if extension.assets is not None:
+            app.mount(extension.assets_url, StaticFiles(directory=extension.assets), name=f"plugin-{extension.id}")
     web = Path(__file__).parent
     app.mount("/assets", StaticFiles(directory=web), name="assets")
 

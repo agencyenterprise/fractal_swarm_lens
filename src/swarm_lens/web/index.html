@@ -4,10 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Swarm Lens</title>
+    <!-- Plugin modules import shared helpers as "swarm-lens/ui.js"; the map makes them the app's own instances. -->
+    <script type="importmap">{ "imports": { "swarm-lens/": "/assets/" } }</script>
     <link rel="icon" href="/assets/logos/swarm-lens.ico?v=2" sizes="any" />
     <script src="/assets/theme.js?v=1"></script>
     <link rel="stylesheet" href="/assets/tailwind.css?v=6" />
-    <link rel="modulepreload" href="/assets/app.js?v=17" />
+    <link rel="modulepreload" href="/assets/app.js?v=18" />
   </head>
   <body>
     <header class="appbar">
@@ -74,6 +76,6 @@
     </dialog>
     <div id="menu" class="menu" role="menu" hidden></div>
     <div id="toast" role="status" hidden></div>
-    <script type="module" src="/assets/app.js?v=17"></script>
+    <script type="module" src="/assets/app.js?v=18"></script>
   </body>
 </html>

@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import subprocess
 
+import pytest
+
+from swarm_lens import Framework
 from swarm_lens.adapters.git import GitVersions
 from swarm_lens.plugins import ActivityPlugin
 
@@ -14,6 +17,20 @@ def test_plugin_reads_branch_cursor_and_persists_provenance(framework, branch):
     assert record["output"]["memory_items"] == 0
     assert len(record["input_digest"]) == 64
     assert framework.store.analyses(branch.id, 4)[0] == record
+
+
+def test_plugin_registry_rejects_duplicates_and_records_the_requested_config(framework, branch):
+    class Greedy:
+        id, version = "greedy", "1"
+        def run(self, context, config):
+            config["injected"] = True
+            return {}
+    with pytest.raises(ValueError, match="Duplicate plugin ID"):
+        Framework(framework.store, plugins=(Greedy(), Greedy()))
+    framework.plugins["greedy"] = Greedy()
+    record = framework.analyze("greedy", branch.id, 4, {"threshold": 2})
+    assert record["config"] == {"threshold": 2}
+    assert framework.store.analyses(branch.id, 4)[0]["config"] == {"threshold": 2}
 
 
 def test_plugin_can_fork_and_intervene_without_changing_parent(framework, branch):

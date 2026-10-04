@@ -28,6 +28,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 swarm_lens = ["web/*.html", "web/*.css", "web/*.js", "web/viz/*.js", "web/*.txt", "web/logos/*", "adapters/*.sql"]
 "swarm_lens.observability.mast" = ["assets.json"]
+"swarm_lens.web.plugins.mast" = ["static/*.js"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

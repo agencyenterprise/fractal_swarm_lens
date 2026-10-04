@@ -4,8 +4,8 @@ import { Picker } from "./components.js?v=1";
 
 const CHUNK = 60;
 
-export function installCompare(host) {
-  const view = new CompareView(host);
+export function installCompare(host, { favoriteRuns }) {
+  const view = new CompareView(host, favoriteRuns);
   view.panel = host.registerView({ id: "compare", title: "Compare", tip: "Two branches side by side, from where they split", onShow: (params) => view.show(params) });
   view.panel.classList.add("cmp");
   return view;
@@ -134,8 +134,9 @@ function diffBadges(diff) {
 }
 
 class CompareView {
-  constructor(host) {
+  constructor(host, favoriteRuns) {
     this.host = host;
+    this.favoriteRuns = favoriteRuns;
     this.renderKey = null;
     this.generation = 0;
     this.pending = new WeakMap();
@@ -148,7 +149,7 @@ class CompareView {
   picker(label) {
     // Stars belong to runs; every branch of a starred run shows the star.
     const runId = (branchId) => branchById(this.workspace, branchId)?.run_id;
-    const favorites = { has: (id) => this.host.favoriteRuns.has(runId(id)), toggle: (id) => this.host.favoriteRuns.toggle(runId(id)) };
+    const favorites = { has: (id) => this.favoriteRuns.has(runId(id)), toggle: (id) => this.favoriteRuns.toggle(runId(id)) };
     return new Picker({ label, heading: "Branches", compact: true, hideLabel: true, placeholder: "Choose a branch", favorites });
   }
 
@@ -178,7 +179,7 @@ class CompareView {
 
   async render(left, right) {
     const key = [left.id, left.head, right.id, right.head].join("|");
-    this.host.setViewParams({ left: left.id, right: right.id });
+    this.host.setViewParams("compare", { left: left.id, right: right.id });
     if (key === this.renderKey) return;
     this.renderKey = key;
     const generation = ++this.generation;
@@ -333,7 +334,7 @@ class CompareView {
   }
 
   positionButton(side, event) {
-    const open = button(`#${event.position}`, () => this.host.openTimeline(side.branch.id, event.position), "ghost cmp-position");
+    const open = button(`#${event.position}`, () => this.host.openTimeline(side.branch.id, event.position).catch(failure), "ghost cmp-position");
     open.setAttribute("aria-label", `Open event ${event.position} in Timeline`);
     tip(open, `Open event ${event.position} in Timeline`);
     return open;
