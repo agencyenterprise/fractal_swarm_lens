@@ -51,7 +51,10 @@ test('out-of-order timestamps do not reorder timeline event cursors', () => {
   assert.equal(timelineTime([]).gaps.length, 0);
 });
 
-function setup() {
+const injection = event(10, 15*3600 + 31, {kind: 'observation.recorded', label: 'instruction_injection',
+  intervention: true, stage_label: 'Instruction injection installed'});
+
+function setup(events = history) {
   const dom = new JSDOM(readFileSync(new URL('../../src/swarm_lens/web/index.html', import.meta.url), 'utf8'));
   for (const key of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Event'])
     globalThis[key] = key === 'window' ? dom.window : dom.window[key];
@@ -61,53 +64,95 @@ function setup() {
   };
   globalThis.ResizeObserver = class { observe() {} };
   globalThis.requestAnimationFrame = callback => { callback(); return 1; };
-  const viewport = document.querySelector('#timeline-viewport');
+  const calls = { seek: [], select: [], context: [] };
+  const root = document.querySelector('#timeline');
+  const timeline = new EventTimeline(root, {
+    onSeek: p => calls.seek.push(p), onSelect: e => calls.select.push(e.id),
+    onContext: (e, p) => calls.context.push([e?.id ?? null, p]), onAgent() {}, onPlay() {} });
+  const viewport = root.querySelector('.tl-viewport');
   Object.defineProperty(viewport, 'clientWidth', { value: 1100 });
-  viewport.getBoundingClientRect = () => ({ left: 0, width: 1100 });
-  const seeks = [], points = [];
-  const timeline = new EventTimeline({ onSeek: p => seeks.push(p), onPoint: p => points.push(p), onAgent() {}, onEvent() {} });
-  timeline.setData(history, branch);
+  viewport.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1100 });
+  timeline.setData(events, branch);
   timeline.setCursor(9, true);
-  return { timeline, viewport, seeks, points };
+  return { root, timeline, viewport, calls };
 }
 
-test('a short fork shows parent and continuation together, with an explicit UTC gap', () => {
-  const { timeline, viewport, seeks, points } = setup();
+const marker = (root, position) => root.querySelector(`.tl-marker[data-position="${position}"]`);
+
+test('a short fork shows parent and continuation together, with the fork line and collapsed gap', () => {
+  const { root, timeline, viewport } = setup();
   assert.equal(viewport.scrollLeft, 0);
-  assert.ok(document.querySelector('[data-position="5"]'));
-  assert.ok(document.querySelector('[data-position="7"]'));
+  assert.ok(marker(root, 5) && marker(root, 7));
   assert.ok(timeline.x(history[6]) - timeline.x(history[4]) < 80);
-  assert.match(document.querySelector('.time-gap-label').title, /08:45:30.*23:45:00/s);
-  assert.match(document.querySelector('[data-position="7"]').title, /23:45:00 UTC/);
-  assert.equal(document.querySelector('.fork-marker').style.left, `${timeline.x(history[4])}px`);
-  timeline.seekAt(timeline.x(history[6])+1, {x:0, y:0});
-  timeline.seekAt(timeline.x(history[7])+1);
-  assert.deepEqual(points, [7]);
-  assert.deepEqual(seeks, [8]);
+  assert.match(root.querySelector('.tl-gap-label').title, /08:45:30.*23:45:00/s);
+  assert.equal(root.querySelector('.tl-fork-line').style.left, `${timeline.x(history[4])}px`);
+  assert.ok(root.querySelector('.tl-fork-flag'));
+  assert.equal(root.querySelector('.tl-playhead').style.left, `${timeline.x(history[8])}px`);
+  assert.equal(root.querySelector('.tl-position').textContent, '9 / 9');
+});
+
+test('clicks, steps, and keys seek to the nearest shown event', () => {
+  const { root, timeline, calls } = setup();
+  const lane = root.querySelector('.tl-lane:not(.is-channel)');
+  lane.dispatchEvent(new window.MouseEvent('click', { bubbles: true, clientX: timeline.x(history[6]) + 1 }));
+  lane.dispatchEvent(new window.MouseEvent('click', { bubbles: true, clientX: 20 }));
+  timeline.setCursor(5);
+  timeline.step(1);
+  timeline.step(-1);
+  root.querySelector('.tl-viewport').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+  assert.deepEqual(calls.seek, [7, 6, 4, 9]);
+  marker(root, 4).dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  marker(root, 4).click();
+  assert.deepEqual(calls.context, [['e4', 4]]);
+  assert.deepEqual(calls.select, ['e4']);
+  assert.ok(marker(root, 4).classList.contains('is-selected'));
+  assert.ok(marker(root, 7).classList.contains('is-future'));
+});
+
+test('the injection event is a flagged risk marker', () => {
+  const { root } = setup([...history, injection]);
+  const node = marker(root, 10);
+  assert.equal(node.dataset.tone, 'risk');
+  assert.equal(node.querySelector('.tl-flag').textContent, 'Instruction injection installed');
+});
+
+test('only markers inside the horizontal viewport are rendered, and nodes are reused', () => {
+  const many = [history[0], history[1],
+    ...Array.from({ length: 3000 }, (_, index) => event(index + 3, index * 2))];
+  const { root, timeline, viewport } = setup(many);
+  timeline.fit();
+  timeline.zoomBy(400);
+  const rendered = root.querySelectorAll('.tl-marker');
+  assert.ok(rendered.length > 0 && rendered.length < 200, `${rendered.length} markers in the DOM`);
+  const before = new Set(rendered);
+  viewport.scrollLeft += 600;
+  viewport.dispatchEvent(new window.Event('scroll'));
+  const after = [...root.querySelectorAll('.tl-marker')];
+  assert.ok(after.length < 200);
+  assert.ok(after.filter(node => !before.has(node)).length <= 2, 'scrolled-in markers reuse pooled nodes');
+  assert.notEqual(after[0].dataset.position, rendered[0].dataset.position);
 });
 
 test('turning gap compression off and on preserves the cursor and original clock span', () => {
-  const { timeline } = setup();
-  const compact = document.querySelector('#timeline-compact');
+  const { root, timeline } = setup();
+  const compact = [...root.querySelectorAll('.tl-check')].find(row => row.textContent === 'Compact gaps').firstChild;
   compact.checked = false;
-  compact.onchange();
+  compact.dispatchEvent(new window.Event('change'));
   assert.equal(timeline.cursor, 9);
-  assert.equal(document.querySelector('.time-gap-label'), null);
-  assert.equal(timeline.end-timeline.start, (15*3600+30)*1000);
+  assert.equal(root.querySelector('.tl-gap-label'), null);
+  assert.equal(timeline.end - timeline.start, (15*3600 + 30)*1000);
   compact.checked = true;
-  compact.onchange();
-  assert.equal(timeline.end-timeline.start, 65000);
+  compact.dispatchEvent(new window.Event('change'));
+  assert.equal(timeline.end - timeline.start, 65000);
   assert.equal(timeline.cursor, 9);
   timeline.fit();
-  assert.ok(document.querySelector('[data-position="3"]'));
-  assert.ok(document.querySelector('[data-position="9"]'));
+  assert.ok(marker(root, 3) && marker(root, 9));
 });
 
 test('changing branches discards old horizontal scroll without breaking report view restoration', () => {
   const { viewport } = setup();
   const frames = [];
   globalThis.requestAnimationFrame = callback => frames.push(callback);
-  viewport.scrollTo = (left, top) => { viewport.scrollLeft = left; viewport.scrollTop = top; };
   const views = new WorkspaceViews(() => {});
   views.register({id: 'timeline', title: 'Timeline', panel: document.querySelector('#workspace-timeline')});
   views.register({id: 'report', title: 'Report'});

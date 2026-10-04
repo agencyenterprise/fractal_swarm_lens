@@ -1,0 +1,171 @@
+/* Event timeline (timeline.js). Layout constants mirror LABEL_WIDTH, ROW and RULER in the module. */
+
+.tl {
+  --tl-label-w: 150px;
+  --tl-ruler-h: 40px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.tl-header {
+  display: flex; flex: none; align-items: center; gap: 12px;
+  height: 40px; padding: 0 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-transport { display: flex; gap: 2px; }
+.tl-transport button { width: 28px; height: 28px; color: var(--text-2); }
+.tl-transport svg { width: 16px; height: 16px; }
+.tl-position { color: var(--text); font-variant-numeric: tabular-nums; }
+.tl-time { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tl-stage { min-width: 0; overflow: hidden; color: var(--text-3); text-overflow: ellipsis; white-space: nowrap; }
+.tl-spacer { flex: 1; }
+.tl-view-button { height: 28px; }
+.tl-view-button[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+
+.tl-check {
+  display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 10px;
+  border-radius: var(--radius-sm); color: var(--text); cursor: pointer;
+}
+.tl-check:hover { background: var(--surface-2); }
+.tl-zoom { display: flex; gap: 4px; padding: 4px 6px 2px; }
+.tl-menu .tl-zoom button {
+  flex: 1; justify-content: center; height: 28px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.tl-menu .tl-zoom button:hover { background: var(--surface-2); }
+
+.tl-viewport { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.tl-viewport:focus-visible { outline-offset: -2px; }
+.tl-scene { position: relative; min-height: 100%; }
+
+/* Ruler: stage bands on top, time ticks below, playhead handle on the bottom edge. */
+.tl-ruler {
+  position: sticky; top: 0; z-index: 5;
+  height: var(--tl-ruler-h);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  cursor: col-resize;
+  user-select: none;
+}
+.tl-corner {
+  position: sticky; left: 0; z-index: 3;
+  width: var(--tl-label-w); height: 100%;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  cursor: default;
+}
+.tl-ruler-track { position: absolute; inset: 0; }
+.tl-stage-label {
+  position: absolute; top: 0; bottom: 0;
+  padding: 3px 4px 0;
+  overflow: hidden; color: var(--text-2); font-size: 11px; line-height: 16px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.tl-stage-label.is-alt { background: color-mix(in srgb, var(--surface-2) 75%, transparent); }
+.tl-tick, .tl-gap-label {
+  position: absolute; bottom: 8px; transform: translateX(-50%);
+  color: var(--text-3); font: 11px/12px var(--mono); white-space: nowrap;
+}
+.tl-gap-label { padding: 0 4px; border-radius: 3px; background: var(--surface-3); color: var(--text-2); }
+.tl-fork-flag {
+  position: absolute; top: 3px; z-index: 1;
+  padding: 0 6px; border: 1px dashed var(--border-strong); border-radius: 4px;
+  background: var(--surface); color: var(--text-2); font-size: 11px; line-height: 14px; white-space: nowrap;
+}
+.tl-handle {
+  position: absolute; bottom: 0; z-index: 2;
+  width: 12px; height: 8px; margin-left: -6px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  cursor: grab;
+}
+
+.tl-bands { position: absolute; inset: 0; }
+.tl-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--surface-2) 75%, transparent); }
+.tl-gap {
+  position: absolute; top: 0; bottom: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--border-strong) 55%, transparent) 4px 5px);
+}
+
+.tl-lanes { position: relative; }
+.tl-lane { display: flex; height: 34px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.tl-label {
+  position: sticky; left: 0; z-index: 4;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  width: var(--tl-label-w); height: 100%; padding: 0 10px;
+  border: 0; border-right: 1px solid var(--border); border-radius: 0;
+  background: var(--surface); color: var(--text); font-weight: 500;
+}
+button.tl-label:hover { background: var(--surface-2); border-color: var(--border); }
+.tl-lane:not(.is-agent) .tl-label { color: var(--text-2); font-weight: 400; }
+.tl-lane-name { min-width: 0; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-avatar { box-shadow: inset 0 0 0 1.5px var(--c, transparent); }
+
+.tl-links { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.tl-link { fill: none; stroke-width: 1; opacity: .2; }
+.tl-link.is-selected { stroke-width: 1.75; opacity: .85; }
+.tl-link-end { opacity: .45; }
+
+.tl-fork-line { position: absolute; top: 0; bottom: 0; z-index: 1; border-left: 1.5px dashed var(--text-3); pointer-events: none; }
+.tl-playhead {
+  position: absolute; top: var(--tl-ruler-h); bottom: 0; z-index: 3;
+  width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none;
+}
+
+/* Markers: the button is the hit area; .tl-shape carries the tone. */
+.tl-markers { position: absolute; top: 0; left: 0; z-index: 2; }
+.tl-marker {
+  position: absolute;
+  width: 14px; height: 20px; margin: -10px 0 0 -7px; padding: 0;
+  border: 0; border-radius: 4px; background: transparent;
+}
+.tl-marker:hover { background: transparent; }
+.tl-marker:is([data-tone="risk"], [data-tone="intervention"], [data-tone="resume"]) { z-index: 1; }
+.tl-marker.is-future { opacity: .3; }
+.tl-marker.is-future:is([data-tone="risk"], [data-tone="intervention"]) { opacity: .5; }
+.tl-shape {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--c); box-shadow: 0 0 0 2px var(--surface);
+  transition: scale .1s;
+}
+.tl-marker:hover .tl-shape, .tl-marker:focus-visible .tl-shape { scale: 1.3; }
+.tl-marker.is-selected .tl-shape { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent); }
+
+[data-tone="risk"] .tl-shape { width: 11px; height: 11px; border-radius: 2px; background: var(--danger); rotate: 45deg; }
+[data-tone="intervention"] .tl-shape { width: 10px; height: 10px; border-radius: 3px; background: var(--warn); }
+[data-tone="tool"] .tl-shape { width: 8px; height: 8px; border-radius: 2px; background: var(--surface); border: 1.5px solid var(--text-2); }
+[data-tone="memory"] .tl-shape { width: 8px; height: 8px; background: var(--surface); border: 1.5px solid var(--text-3); }
+[data-tone="observation"] .tl-shape { width: 8px; height: 8px; border-radius: 1px; background: var(--surface); border: 1.5px solid var(--text-3); rotate: 45deg; }
+[data-tone="trace"] .tl-shape { width: 2px; height: 12px; border-radius: 1px; background: var(--text-3); box-shadow: none; opacity: .55; }
+[data-tone="resume"] .tl-shape { width: 9px; height: 10px; border-radius: 0; background: var(--text-2); clip-path: polygon(0 0, 100% 50%, 0 100%); box-shadow: none; }
+
+.tl-flag {
+  position: absolute; top: 50%; left: calc(100% + 3px); transform: translateY(-50%);
+  max-width: 220px; padding: 1px 6px; overflow: hidden;
+  border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 15px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.tl-flag:empty { display: none; }
+[data-tone="risk"] .tl-flag { background: var(--danger-soft); color: var(--danger); }
+[data-tone="intervention"] .tl-flag { background: var(--warn-soft); color: var(--warn); }
+[data-tone="resume"] .tl-flag { background: var(--surface-2); color: var(--text-2); }
+
+.tl-tooltip {
+  position: absolute; z-index: 20;
+  width: max-content; max-width: 340px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-lg);
+  font-size: 12px; line-height: 1.45; pointer-events: none;
+}
+.tl-tip-head { display: flex; align-items: baseline; gap: 8px; }
+.tl-tip-head .mono { color: var(--text-3); font-size: 11px; }
+.tl-tip-stage { color: var(--text-3); }
+.tl-tip-preview {
+  display: -webkit-box; margin-top: 4px; overflow: hidden; color: var(--text-2);
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere;
+}

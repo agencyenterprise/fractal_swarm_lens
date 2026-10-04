@@ -28,9 +28,9 @@ python -m examples.ai_village.app --source data/source --data data
 
 Open http://127.0.0.1:8765. The server binds to loopback by default. In an environment that already has FastAPI and Uvicorn, `PYTHONPATH=src python3 -m swarm_lens.cli --data data --port 8765` also works.
 
-The timeline is the primary view. Each agent has a lane and provider logo. Message bubbles, tool actions, memory writes, and interventions have distinct markers. Connections show broadcasts into real channels. Scrub the playhead or bottom slider, zoom in and out, and toggle event types. Drag the bottom divider to resize the timeline; Expand shows more lanes. Height persists in this browser. Messages, Tools, Memory, and All events sit directly beneath the timeline with their search filter. The swarm graph and inspector share a separate side panel; the graph and panel width also resize.
+The explorer has three views. **Timeline** shows one lane per agent and channel, grouped into stages such as debate rounds. Risk events (an installed injection or malicious agent) carry a red flag, user changes an orange one, and a fork line marks where the current branch left its parent. Drag the playhead or the ruler, or use the arrow keys, to move through history; **View** chooses which event types appear. Below the timeline, the transcript renders each message as Markdown; events after the cursor stay visible but dimmed. The inspector on the right shows the selected event, agent, or run overview. **Compare** reads two branches side by side, final outcome first, with the first difference marked; paired runs such as "Without injection" and "With injection" compare directly. **Reports** holds saved MAST analyses.
 
-Click or right-click an event for its context menu. Create a branch there, change its agent's prompt, remove or restore an agent, add an agent, or change the shared goal. A change to recorded history or a past cursor creates a branch. A change at an experiment branch's head appends to that branch. Compare branches and save Git checkpoints from the toolbar. Keyboard users can focus an event and use Enter or Shift+F10; the timeline divider accepts Up/Down and the playhead accepts Left/Right.
+Select an event, then **Fork here** (or press `F`) to create a branch at that point. The inspector and the right-click menu also offer changing an agent's prompt, removing or restoring an agent, adding an agent, and changing the shared goal. A change to recorded history or a past cursor creates a branch. A change at an experiment branch's head appends to that branch. The branch menu in the top bar switches branches; the `⋯` menu holds analysis, import, and Git checkpoints. Splitter sizes and view filters persist in this browser.
 
 The local demo's `Timeline demo · coordination prompt` branch was created through the UI at event 5,996 to verify this flow. The recorded walkthrough also creates `Demo · verify before acting` at event 3,008. Each has one prompt intervention. The Recorded branch retains all 6,048 events. These local branches are not committed to the source repository.
 
@@ -70,7 +70,7 @@ The [paper coverage map](docs/observability/caspian/coverage.md) records equatio
 
 ## Frontend development
 
-The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Shared controls and dialogs are styled in `frontend/styles.css`; the specialized timeline geometry remains in `src/swarm_lens/web/style.css`.
+The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Styles live in `frontend/css/`: `base.css` holds the design tokens (light and dark), shared controls, and the page shell; each feature module has its own file. Agent messages render through a small Markdown subset (`markdown.js`) that builds DOM nodes and never parses recorded text as HTML.
 
 ```sh
 npm ci

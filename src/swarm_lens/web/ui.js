@@ -13,18 +13,8 @@ export const date = (value) =>
         timeZone: "UTC",
       })
     : "—";
-export const colors = [
-  "#19967d",
-  "#6287bd",
-  "#9276bd",
-  "#ce9560",
-  "#619698",
-  "#a4778e",
-  "#79945f",
-  "#687caa",
-  "#b5964f",
-  "#65838e",
-];
+// Agent hues, readable on light and dark surfaces.
+export const colors = ["#2f9e83", "#5b84c4", "#9a74c9", "#d0874f", "#4f9aa3", "#c26d8f", "#7f9a4f", "#6f7fd1", "#b8913b", "#6b8794"];
 export function color(id, agents) {
   return colors[
     Math.max(0, Object.keys(agents || {}).indexOf(id)) % colors.length
@@ -73,7 +63,7 @@ export function toast(message, duration = 4500) {
 }
 export function failure(error) {
   if (error.name === "AbortError") return;
-  $("#footer-status").textContent = error.message;
+  console.error(error);
   toast(error.message);
 }
 export function svg(tag, attrs = {}, text) {
@@ -94,4 +84,38 @@ export function logoFor(agent) {
   if (name.includes("gpt") || name.includes("openai"))
     return "/assets/logos/openai.svg";
   return null;
+}
+
+const RISK_LABEL = /injection|malicious|attack/i;
+
+// One visual category per event; every module colors and filters by it.
+export function eventTone(event) {
+  // Benchmark sources record the injected attack as an intervention; risk outranks it.
+  if (event.kind === "observation.recorded" && RISK_LABEL.test(event.label)) return "risk";
+  if (event.intervention) return "intervention";
+  const family = event.kind.split(".")[0];
+  if (["message", "tool", "memory"].includes(family)) return family;
+  if (family === "observation") return event.label === "model_input" ? "trace" : "observation";
+  return "state";
+}
+
+// Stage labels look like "Debate round 6 · model input"; the part before " · " groups events.
+export function stageOf(event) {
+  return event.stage_label ? event.stage_label.split(" · ")[0] : null;
+}
+
+export function speakerName(event, agents) {
+  return agents?.[event.agent_id]?.name || (event.kind === "message.created" ? "Human" : "System");
+}
+
+export function avatar(agent, className = "avatar") {
+  const node = el("span", className);
+  const logo = logoFor(agent);
+  if (logo) {
+    const image = el("img");
+    image.src = logo;
+    image.alt = "";
+    node.append(image);
+  } else node.textContent = (agent?.name || "?").slice(0, 1).toUpperCase();
+  return node;
 }

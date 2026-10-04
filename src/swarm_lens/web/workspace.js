@@ -44,7 +44,7 @@ export class WorkspaceViews {
     if (!next) throw new Error(`Workspace view is unavailable: ${id}`);
     const previous = this.entries.get(this.current);
     if (previous) {
-      previous.scroll = $("main").scrollTop;
+      previous.scroll = $("#workspace-views").scrollTop;
       previous.scrollNodes = [...previous.panel.querySelectorAll("[data-view-scroll]")]
         .map((node) => ({ node, left: node.scrollLeft, top: node.scrollTop }));
       previous.onHide?.();
@@ -60,7 +60,7 @@ export class WorkspaceViews {
     Promise.resolve(next.onShow?.(params)).catch(failure);
     requestAnimationFrame(() => {
       if (this.current !== id || this.transition !== transition) return;
-      $("main").scrollTop = next.scroll;
+      $("#workspace-views").scrollTop = next.scroll;
       for (const { node, left, top } of next.scrollNodes || []) node.scrollTo(left, top);
     });
   }
@@ -79,18 +79,21 @@ export class WorkspaceViews {
   get params() { return this.entries.get(this.current)?.params || {}; }
 }
 
-export function workspaceURL({ branchId, cursor, view = "timeline", report }) {
+const RESERVED = new Set(["branch", "cursor", "view"]);
+
+// View-specific params (a report id, compared branches) ride along in the hash.
+export function workspaceURL({ branchId, cursor, view = "timeline", ...params }) {
   const url = new URL(location.href);
-  const params = new URLSearchParams({ branch: branchId, cursor: String(cursor), view });
-  if (report) params.set("report", report);
-  url.hash = params.toString();
+  const hash = new URLSearchParams({ branch: branchId, cursor: String(cursor), view });
+  for (const [key, value] of Object.entries(params)) if (value && !RESERVED.has(key)) hash.set(key, value);
+  url.hash = hash.toString();
   return url.href;
 }
 
 export function readWorkspaceRoute() {
-  const params = new URLSearchParams(location.hash.slice(1));
-  const cursor = params.get("cursor");
-  return { branchId: params.get("branch"), view: params.get("view") || "timeline",
-    cursor: cursor !== null && /^\d+$/.test(cursor) && Number.isSafeInteger(Number(cursor)) ? Number(cursor) : undefined,
-    report: params.get("report") || undefined };
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const cursor = hash.get("cursor");
+  const params = Object.fromEntries([...hash].filter(([key]) => !RESERVED.has(key)));
+  return { branchId: hash.get("branch"), view: hash.get("view") || "timeline", params,
+    cursor: cursor !== null && /^\d+$/.test(cursor) && Number.isSafeInteger(Number(cursor)) ? Number(cursor) : undefined };
 }

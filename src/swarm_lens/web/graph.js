@@ -1,158 +1,63 @@
-import { $, color, svg, formatNumber, logoFor } from "./ui.js";
+import { svg, color, formatNumber } from "./ui.js";
 
-export function renderGraph(state, selected, onSelect) {
-  const graph = $("#graph"),
-    width = Math.max(graph.clientWidth, 280),
-    height = Math.max(graph.clientHeight, 180);
-  graph.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  graph.replaceChildren();
-  const agents = Object.values(state.agents),
-    channels = Object.values(state.channels);
-  if (!agents.length) {
-    graph.append(
-      svg(
-        "text",
-        {
-          x: width / 2,
-          y: height / 2,
-          "text-anchor": "middle",
-          fill: "#8195a3",
-          "font-size": 12,
-        },
-        "Advance the timeline to reveal the swarm.",
-      ),
-    );
-    return;
-  }
-  const compact = width < 440,
-    cols = Math.ceil(agents.length / 2),
-    positions = new Map();
-  agents.forEach((agent, index) =>
-    positions.set(agent.id, {
-      x: compact
-        ? width * (index < cols ? 0.2 : 0.8)
-        : (width * ((index % cols) + 0.5)) / cols,
-      y: compact
-        ? 20 + ((height - 50) * (index % cols)) / Math.max(1, cols - 1)
-        : index < cols
-          ? height * 0.17
-          : height * 0.73,
-    }),
-  );
-  const channelPositions = new Map(
-    channels.map((channel, index) => [
-      channel.id,
-      {
-        x: (width * (index + 0.5)) / Math.max(1, channels.length),
-        y: height * 0.48,
-      },
-    ]),
-  );
+const WIDTH = 360;
+const ROW = 26;
+const PAD = 12;
+
+function rowY(index) {
+  return PAD + ROW * index + ROW / 2;
+}
+
+// Agents on the left, channels on the right, one curve per agent-channel membership.
+export function topologyGraph(state, onSelect) {
+  const agents = Object.values(state.agents);
+  const channels = Object.values(state.channels);
+  const height = PAD * 2 + ROW * Math.max(agents.length, channels.length);
+  const root = svg("svg", { class: "ins-graph", viewBox: `0 0 ${WIDTH} ${height}`, role: "img", "aria-label": "Agent and channel topology" });
+  const agentY = new Map(agents.map((agent, index) => [agent.id, rowY(index)]));
+  const channelY = new Map(channels.map((channel, index) => [channel.id, rowY(index)]));
+  const maxCount = Math.max(1, ...state.edges.map((edge) => edge.count));
   for (const edge of state.edges) {
-    const from = positions.get(edge.agent_id),
-      to = channelPositions.get(edge.channel_id);
-    if (!from || !to) continue;
-    graph.append(
-      svg("path", {
-        d: `M ${from.x} ${from.y} C ${from.x} ${to.y}, ${to.x} ${from.y}, ${to.x} ${to.y}`,
-        class: "graph-link",
-        opacity: selected && selected !== edge.agent_id ? 0.18 : 0.65,
-        "stroke-width": Math.min(3, 0.6 + Math.log1p(edge.count) / 3),
-      }),
-    );
+    const from = agentY.get(edge.agent_id);
+    const to = channelY.get(edge.channel_id);
+    if (from === undefined || to === undefined) continue;
+    root.append(svg("path", {
+      class: "ins-graph-link",
+      d: `M 150 ${from} C 190 ${from}, 190 ${to}, 230 ${to}`,
+      "stroke-width": 1 + (2 * edge.count) / maxCount,
+    }));
   }
-  for (const channel of channels) {
-    const point = channelPositions.get(channel.id),
-      group = svg("g", { class: "graph-channel" });
-    group.append(
-      svg("rect", {
-        x: point.x - (compact ? 34 : 57),
-        y: point.y - 15,
-        width: compact ? 68 : 114,
-        height: 30,
-        rx: 6,
-      }),
-      svg(
-        "text",
-        { x: point.x, y: point.y + 4, "text-anchor": "middle" },
-        "# " + channel.name,
-      ),
+  agents.forEach((agent) => root.append(agentNode(agent, agentY.get(agent.id), state, onSelect)));
+  channels.forEach((channel) => {
+    const y = channelY.get(channel.id);
+    root.append(
+      svg("circle", { class: "ins-graph-channel-dot", cx: 236, cy: y, r: 3 }),
+      svg("text", { class: "ins-graph-channel", x: 246, y: y + 4 }, `#${channel.name}`),
     );
-    graph.append(group);
-  }
-  for (const agent of agents) {
-    const point = positions.get(agent.id),
-      group = svg("g", {
-        class: `graph-agent ${agent.active ? "" : "inactive"} ${selected === agent.id ? "selected" : ""}`,
-        role: "button",
-        tabindex: "0",
-        "aria-label": `Inspect ${agent.name}`,
-      });
-    const ink = color(agent.id, state.agents),
-      label =
-        width < 540
-          ? agent.name.replace("Claude ", "").replace("Gemini ", "G. ")
-          : agent.name;
-    group.append(
-      svg(
-        "title",
-        {},
-        `${agent.name} · ${formatNumber(state.activity[agent.id] || 0)} messages`,
-      ),
-      svg("circle", {
-        cx: point.x,
-        cy: point.y,
-        r: compact ? 12 : 16,
-        fill: "#fff",
-        stroke: "#d7e4e7",
-      }),
-      svg("circle", { cx: point.x, cy: point.y, r: 5, fill: ink }),
-      svg(
-        "text",
-        {
-          x: point.x,
-          y: point.y + (compact ? 23 : 32),
-          "text-anchor": "middle",
-          "font-size": width < 540 ? 9 : 11,
-          style: compact ? "font-size:8px" : "",
-        },
-        label,
-      ),
-      ...(compact
-        ? []
-        : [
-            svg(
-              "text",
-              {
-                x: point.x,
-                y: point.y + 46,
-                "text-anchor": "middle",
-                class: "agent-count",
-              },
-              agent.active
-                ? `${formatNumber(state.activity[agent.id] || 0)} messages`
-                : "Removed",
-            ),
-          ]),
-    );
-    const logo = logoFor(agent);
-    if (logo)
-      group.append(
-        svg("image", {
-          href: logo,
-          x: point.x - 9,
-          y: point.y - 9,
-          width: 18,
-          height: 18,
-        }),
-      );
-    group.addEventListener("click", () => onSelect(agent.id));
-    group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onSelect(agent.id);
-      }
-    });
-    graph.append(group);
-  }
+  });
+  return root;
+}
+
+function agentNode(agent, y, state, onSelect) {
+  const group = svg("g", {
+    class: `ins-graph-agent${agent.active ? "" : " inactive"}`,
+    role: "button",
+    tabindex: "0",
+    "aria-label": `Inspect ${agent.name}`,
+  });
+  group.append(
+    svg("title", {}, `${agent.name} · ${formatNumber(state.activity[agent.id] || 0)} messages`),
+    svg("rect", { class: "ins-graph-hit", x: 0, y: y - ROW / 2, width: 150, height: ROW, rx: 6 }),
+    svg("circle", { cx: 14, cy: y, r: 4, fill: color(agent.id, state.agents) }),
+    svg("text", { x: 26, y: y + 4 }, agent.name.length > 18 ? agent.name.slice(0, 17) + "…" : agent.name),
+    svg("circle", { class: "ins-graph-channel-dot", cx: 150, cy: y, r: 2.5 }),
+  );
+  group.addEventListener("click", () => onSelect(agent.id));
+  group.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect(agent.id);
+    }
+  });
+  return group;
 }

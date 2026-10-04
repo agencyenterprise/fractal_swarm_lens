@@ -10,7 +10,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Ele
 dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
 dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
 const { branchDialog } = await import('../../src/swarm_lens/web/branch.js');
-const { field } = await import('../../src/swarm_lens/web/dialog.js?v=4');
+const { field } = await import('../../src/swarm_lens/web/dialog.js');
 const $ = selector => document.querySelector(selector);
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 const source = { branchId: 'parent', branchName: 'Original', cursor: 16, at: '2026-10-03T12:00:00Z', defaultName: 'Experiment' };
@@ -34,6 +34,9 @@ test('save-only branching includes the edit at the visual cursor without running
   const { goal, requests, created, started } = setup(t);
   await settle();
   assert.equal($('#alternate-dialog').disabled, false);
+  assert.equal($('#alternate-dialog').hidden, false);
+  assert.ok($('#alternate-dialog').classList.contains('primary'));
+  assert.ok(!$('#confirm-dialog').classList.contains('primary'));
   assert.equal($('#dialog-content').querySelector('select'), null);
   goal.input.value = 'A changed goal';
   goal.input.dispatchEvent(new Event('input'));
@@ -67,8 +70,10 @@ test('unsupported live positions keep save-only branching available without shif
   const { requests, started } = setup(t, { can_execute: false, reason: 'The registered runtime version does not match.' });
   await settle();
   assert.equal($('#alternate-dialog').disabled, true);
+  assert.equal($('#alternate-dialog').hidden, true);
   assert.equal($('#confirm-dialog').disabled, false);
-  assert.match($('.branch-live-status').textContent, /version does not match/);
+  assert.ok($('#confirm-dialog').classList.contains('primary'));
+  assert.match($('.fork-live').textContent, /version does not match/);
   await $('#dialog-form').onsubmit(new Event('submit', { cancelable: true }));
   assert.equal(requests.at(-1).body.cursor, 16);
   assert.equal(started.length, 0);
@@ -78,8 +83,8 @@ test('a message fork enables live execution and explains task restart at the sam
   const { started } = setup(t, { can_execute: true, remaining_tasks: 3, next_task: 0, resume_mode: 'restart_task' });
   await settle();
   assert.equal($('#alternate-dialog').disabled, false);
-  assert.match($('.branch-live-status').textContent, /new execution of task 1/);
-  assert.match($('.branch-live-status').textContent, /fork stays at event 16/);
+  assert.match($('.fork-live').textContent, /new execution of task 1/);
+  assert.match($('.fork-live').textContent, /fork stays at event 16/);
   await $('#alternate-dialog').onclick();
   assert.equal(started[0][1].cursor, 16);
 });
@@ -91,10 +96,10 @@ test('imported trace preview shows execution order, models and preserved injecti
     injection_agents: ['debater_0'], tool_names: [] });
   await settle();
   assert.equal($('#alternate-dialog').disabled, false);
-  assert.match($('.branch-live-status').textContent, /then Aggregator/);
-  assert.match($('.branch-live-status').textContent, /round 19/);
-  assert.match($('.branch-live-status').textContent, /Preserves the recorded input injection for debater_0/);
-  assert.match($('.branch-live-status').textContent, /6 agent turns/);
+  assert.match($('.fork-live').textContent, /then Aggregator/);
+  assert.match($('.fork-live-line').textContent, /next: Debater 1, round 19/);
+  assert.match($('.fork-live').textContent, /Preserves the recorded input injection for debater_0/);
+  assert.match($('.fork-live').textContent, /6 agent turns/);
   await $('#alternate-dialog').onclick();
   assert.equal(started[0][1].steps, 6);
 });
