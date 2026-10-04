@@ -16,5 +16,7 @@ def create(services: PluginServices) -> WebExtension:
     from swarm_lens.observability.mast.service import MastService, upgrade_job
 
     service = MastService(services.plugins, MastPlugin(OpenAIMastJudge()), services.artifacts)
-    service.jobs.import_records(upgrade_job(job) for job in read_jobs(services.data / "mast.sqlite", "mast_jobs"))
+    service.jobs.import_records(
+        upgrade_job(job, {event.id for event in services.framework.history(job["branch_id"], job["cursor"])})
+        for job in read_jobs(services.data / "mast.sqlite", "mast_jobs"))
     return mast_extension(service)

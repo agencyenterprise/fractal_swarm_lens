@@ -47,10 +47,11 @@ class JobStore:
             raise DomainError(f"Unknown {self.label} job")
         return json.loads(row[0])
 
-    def list(self, branch_id):
+    def list(self, branch_id, limit=50):
         with self.connection() as db:
             return [json.loads(row[0]) for row in db.execute(
-                f"SELECT record FROM {self.table} WHERE branch_id=? ORDER BY created_at DESC LIMIT 50", (branch_id,))]
+                f"SELECT record FROM {self.table} WHERE branch_id=? ORDER BY created_at DESC LIMIT ?",
+                (branch_id, -1 if limit is None else limit))]
 
     def update(self, record):
         with self.connection() as db:

@@ -13,7 +13,7 @@ from swarm_lens.plugins import Annotation, Metric, Report
 
 
 class MyPlugin:
-    id, version = "my-plugin", "1.0.0"         # required; the id uses lowercase letters, digits and hyphens
+    id, version = "my-plugin", "1.0.0"         # required; the id is a lowercase letter, then letters, digits, hyphens
     title = "My plugin"                        # optional; shown in the UI (the default is the id)
     description = "One line for the UI."       # optional
 
@@ -40,7 +40,7 @@ A plugin implements any subset of the three protocols. The registry detects them
 | Protocol | Method | What the app does with the result |
 | --- | --- | --- |
 | `Analyzer` | `analyze(view, start, end, params) -> Iterable[Metric \| Annotation \| Report]` | Runs as a background job over events `start..end` and stores one analysis record. |
-| `StreamingAnalyzer` | `on_events(view, events, params) -> Iterable[Metric \| Annotation]` | For incremental methods. It is not wired into live ingestion yet. A plugin that is only streaming runs on demand: the job feeds events `start..end` in order, in batches of 100. |
+| `StreamingAnalyzer` | `on_events(view, events, params) -> Iterable[Metric \| Annotation]` | For incremental methods. It is not wired into live ingestion yet. A plugin that is only streaming runs on demand: the job feeds events `start..end` in order, in batches of 100, with one view per run. Keep no state on `self`, because one plugin instance serves concurrent jobs on different branches. Recompute what you need from `view.events()`, or write an `Analyzer`. Per-run streaming state is the open question for live wiring. |
 | `Intervention` | `intervene(view, at, params) -> Sequence[Fact]` | Checks the facts through the reducer on a private copy of the state at `at`. Then it forks at `at` and appends them. The parent never changes. |
 
 ### BranchView
@@ -52,10 +52,12 @@ A plugin reads everything through a `BranchView`. The view stops at the analyzed
 | `branch_id`, `head` | The branch, and the last position the view can read |
 | `state_at(seq)` | The state after event `seq` (0 is empty), as a private copy |
 | `events(start=1, end=None, *, kind=None, agent_id=None)` | Events `start..end`, inclusive. `kind` is an exact kind (`"message.created"`) or a family prefix (`"message."`). `agent_id` matches an agent event's own ID, else the sender, the tool caller or the memory owner. |
-| `metrics(*, plugin=None, name=None, agent_id=None)` | Stored metrics that this branch can see (see below) |
-| `annotations(*, plugin=None, start=None, end=None)` | Stored annotations that overlap `start..end` |
+| `metrics(*, plugin=None, name=None, agent_id=None)` | Stored metrics that this branch can see (see below), only from analyses that read no event after the view's `head` |
+| `annotations(*, plugin=None, start=None, end=None)` | Stored annotations under the same rule, overlapping `start..end` |
 
-Editing a returned state or event changes only your copy. Nothing a plugin does to its inputs is ever written back.
+`state_at` and `events` return fresh copies, so editing them changes nothing else, not even the next `events()` call. Stored findings are read once per view, so a long job sees one consistent set. The analyses whose findings a view handed out are recorded in the new record's `analyses_read`.
+
+Plugins are trusted code running in the server process. The view is a contract, not a sandbox: it holds only read functions, and the app applies whatever a plugin returns.
 
 ### Findings
 
@@ -69,14 +71,14 @@ Report(data)
 - An **Annotation** labels the inclusive span `seq_from..seq_to`. `score` is optional, and the UI shows it on hover. `data` is free JSON. `cited_event_ids` are the IDs of the events that support the annotation.
 - A **Report** is your own JSON for a custom view, at most one per analysis. Use it for results that do not fit metrics or annotations, such as summaries, matrices, model metadata or raw responses.
 
-The app sets `plugin` on every finding. Positions must lie inside `start..end`, values and scores must be finite numbers, and `data` must be JSON. A violation fails the job with a clear message, and nothing is saved.
+The app sets `plugin` on every finding. Positions must lie inside `start..end`. Values and scores must be finite numbers. Names, labels and agent IDs must be nonempty strings, and `data` must be JSON. Cited event IDs must belong to events 1..`end` of the branch. A violation fails the job with a clear message, and nothing is saved.
 
 Each analysis is stored as an ordinary analysis record (`cursor` is `end`), with no schema change:
 
 ```json
 {"id": "...", "plugin_id": "my-plugin", "plugin_version": "1.0.0", "branch_id": "...",
- "start": 1, "end": 120, "cursor": 120, "config": {"threshold": 0.5}, "input_digest": "<sha256 of events>",
- "created_at": "...",
+ "start": 1, "end": 120, "cursor": 120, "config": {"threshold": 0.5}, "input_digest": "<sha256 of events 1..end>",
+ "analyses_read": [], "created_at": "...",
  "output": {"format": "swarm-lens.findings/v1", "metrics": [...], "annotations": [...], "report": null}}
 ```
 
@@ -84,7 +86,7 @@ Each analysis is stored as an ordinary analysis record (`cursor` is `end`), with
 
 ### Params
 
-`Params` is a normal pydantic model. The HTTP API exposes `Params.model_json_schema()`, and the UI renders a form from it. The form supports strings, multi-line strings (`Field(json_schema_extra={"format": "textarea"})`), numbers, integers with bounds, booleans, enums (`Literal[...]` or `Enum`), and optional values of those types. Invalid params are rejected with HTTP 400 before a job exists. The record keeps `params.model_dump(mode="json")`.
+`Params` is a normal pydantic model. The HTTP API exposes `Params.model_json_schema()`, and the UI renders a form from it. The form supports strings, multi-line strings (`Field(json_schema_extra={"format": "textarea"})`), numbers, integers with bounds, booleans, enums (`Literal[...]` or `Enum`), and optional values of those types. Invalid params are rejected with HTTP 400 before a job exists. The record keeps the params as requested (`model_dump(mode="json", by_alias=True)`, taken before the plugin runs), so field aliases round-trip.
 
 ## Registering a plugin
 
@@ -126,7 +128,7 @@ A plugin that needs a custom view can still ship a browser module: return a `Web
 | GET | `/api/branches/{id}/annotations?from=&to=&plugin=` | Annotations that overlap the range |
 | POST | `/api/branches/{id}/interventions/{plugin_id}` | `{at, name, params}` → 201 and the new branch |
 
-Jobs are durable SQLite records (`data/jobs.sqlite`, one table per plugin). Each plugin allows at most four pending jobs. If the server restarts, its queued and running jobs are marked interrupted and are never repeated. Provider exception messages never reach the UI. A `DomainError` message is shown as written, so raise one for errors that the user can fix.
+Jobs are durable SQLite records (`data/jobs.sqlite`, one table per plugin). Each plugin allows at most four pending jobs. If the server restarts, its queued and running jobs are marked interrupted and are never repeated. A job's `error` never contains a provider's exception message. An exception's own `detail` attribute (set by the model clients that this application writes) is kept in `error_detail` for diagnosis, so never put secrets in it. A `DomainError` message is shown as written, so raise one for errors that the user can fix.
 
 ## Testing a plugin
 
@@ -151,7 +153,7 @@ def test_my_plugin_marks_the_second_message(framework, branch, tmp_path):
     assert [a["seq_from"] for a in annotations] == [7]
 ```
 
-`TestClient` runs the background job before it returns the response, so the job has finished when you read it. To test without HTTP, call `PluginService(framework, (MyPlugin(),)).analyze("my-plugin", branch.id, 1, 7, {...})`. It returns the stored record.
+`TestClient` runs the background job before it returns the response, so the job has finished when you read it. To test without HTTP, call `PluginService(framework, (MyPlugin(),)).analyze("my-plugin", branch.id, 1, 7, {...})`. It returns the stored record. With a job store, an inline run is also recorded as a completed job, so other plugins' views and the UI see its findings.
 
 ## Porting a plugin from `run(context, config)`
 

@@ -1,6 +1,6 @@
 """What plugins return: findings about a branch's history, and an optional plugin-specific report."""
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import json
 import math
 from typing import Any
@@ -61,25 +61,48 @@ def _json(value: Any, what: str) -> Any:
         raise DomainError(f"{what} must be JSON serializable without NaN or infinity") from exc
 
 
-def encode_output(items: list[Any], plugin: str, start: int, end: int) -> dict[str, Any]:
-    """Validate a plugin's returned items and stamp them with its ID; anything malformed fails the analysis."""
+def _text(value: Any, what: str, *, optional: bool = False) -> str | None:
+    if optional and value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise DomainError(f"{what} must be a nonempty string, got {value!r}")
+    return value
+
+
+def _citations(value: Any, known: set[str]) -> list[str]:
+    if not isinstance(value, tuple | list):
+        raise DomainError(f"Annotation cited_event_ids must be a tuple of event IDs, got {value!r}")
+    unknown = [item for item in value if item not in known]
+    if unknown:
+        raise DomainError(f"Annotation cites events outside the analyzed history: {unknown[:3]}")
+    return list(value)
+
+
+def encode_output(items: list[Any], plugin: str, start: int, end: int, known_event_ids: set[str]) -> dict[str, Any]:
+    """Validate a plugin's returned items and stamp them with its ID; anything malformed fails the analysis.
+
+    `known_event_ids` are the events the plugin could read; annotations may cite only those.
+    """
     metrics, annotations, reports = [], [], []
     for item in items:
         if isinstance(item, Metric):
-            if not item.name.strip():
-                raise DomainError("A metric needs a name")
-            metrics.append({**asdict(item), "seq": _position(item.seq, start, end, "Metric seq"),
-                            "value": _number(item.value, f"Metric {item.name!r}"), "plugin": plugin})
+            name = _text(item.name, "Metric name")
+            metrics.append({"seq": _position(item.seq, start, end, "Metric seq"), "name": name,
+                            "value": _number(item.value, f"Metric {name!r}"),
+                            "agent_id": _text(item.agent_id, "Metric agent_id", optional=True), "plugin": plugin})
         elif isinstance(item, Annotation):
             seq_from = _position(item.seq_from, start, end, "Annotation seq_from")
-            seq_to = _position(item.seq_to, seq_from, end, "Annotation seq_to")
-            if not item.label.strip():
-                raise DomainError("An annotation needs a label")
-            annotations.append({**asdict(item), "seq_from": seq_from, "seq_to": seq_to,
+            if not isinstance(item.data, Mapping):
+                raise DomainError("Annotation data must be a mapping")
+            annotations.append({"seq_from": seq_from, "seq_to": _position(item.seq_to, seq_from, end, "Annotation seq_to"),
+                                "label": _text(item.label, "Annotation label"),
+                                "agent_id": _text(item.agent_id, "Annotation agent_id", optional=True),
                                 "score": None if item.score is None else _number(item.score, "Annotation score"),
                                 "data": _json(dict(item.data), "Annotation data"),
-                                "cited_event_ids": list(item.cited_event_ids), "plugin": plugin})
+                                "cited_event_ids": _citations(item.cited_event_ids, known_event_ids), "plugin": plugin})
         elif isinstance(item, Report):
+            if not isinstance(item.data, Mapping):
+                raise DomainError("A report's data must be a mapping")
             reports.append(_json(dict(item.data), "A report"))
         else:
             raise DomainError(f"Plugin {plugin} returned {type(item).__name__}; expected Metric, Annotation or Report")

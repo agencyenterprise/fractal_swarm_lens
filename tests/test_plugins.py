@@ -168,3 +168,70 @@ def test_streaming_analyzer_runs_on_demand_and_views_read_earlier_findings(frame
     assert labels == ["seen 2", "seen 3", "seen 4", "seen 5", "seen 6"]
     jobs = client.get(f"/api/branches/{branch.id}/analyses").json()["jobs"]
     assert [job["plugin_id"] for job in jobs] == ["echo", "running"]
+
+
+def test_views_never_read_findings_computed_from_later_events(framework, branch, tmp_path):
+    class Seen:
+        id, version = "seen", "1"
+        def analyze(self, view, start, end, params):
+            return [Annotation(start, end, "range")]
+
+    class Reader:
+        id, version = "reader", "1"
+        def analyze(self, view, start, end, params):
+            return [Metric(end, "visible", len(view.annotations(plugin="seen")))]
+
+    plugins = PluginService(framework, (Seen(), Reader()),
+                            jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    early = plugins.analyze("seen", branch.id, 1, 4)
+    plugins.analyze("seen", branch.id, 1, 7)
+    assert plugins.analyze("reader", branch.id, 1, 5)["output"]["metrics"][0]["value"] == 1
+    assert plugins.analyze("reader", branch.id, 1, 5)["analyses_read"] == [early["id"]]
+    assert plugins.analyze("reader", branch.id, 1, 3)["output"]["metrics"][0]["value"] == 0
+
+    child = framework.fork(branch.id, 4, "child")
+    for _ in range(51):
+        plugins.analyze("seen", branch.id, 1, 7)
+    assert [a.seq_to for a in plugins.findings(child.id, "seen")[1]] == [4]
+
+
+def test_successful_runs_record_requested_params_and_stored_history(framework, branch, tmp_path):
+    from pydantic import BaseModel, Field
+
+    class Fiddler:
+        id, version = "fiddler", "1"
+        class Params(BaseModel):
+            window: int = Field(3, alias="window_size")
+        def analyze(self, view, start, end, params):
+            view.events(start, end)[0].data["goal"] = "rewritten"
+            params.window = 99
+            return [Metric(end, "window", params.window)]
+
+    client = client_for(framework, tmp_path, Fiddler())
+    job = run(client, branch.id, "fiddler", 7, {"window_size": 5})
+    assert job["status"] == "completed" and job["analysis"]["config"] == job["config"] == {"window_size": 5}
+    clean = PluginService(framework, (Fiddler(),)).analyze("fiddler", branch.id, 1, 7, {"window_size": 5})
+    assert clean["input_digest"] == job["analysis"]["input_digest"]
+
+
+@pytest.mark.parametrize("finding, error", [
+    (Annotation(4, 4, "x", cited_event_ids=("not-an-event",)), "outside the analyzed history"),
+    (Annotation(4, 4, "x", cited_event_ids="m1"), "tuple of event IDs"),
+    (Metric(4, "x", 1, agent_id={"id": "a"}), "agent_id must be a nonempty string"),
+])
+def test_malformed_findings_fail_the_job(framework, branch, tmp_path, finding, error):
+    class Broken:
+        id, version = "broken", "1"
+        def analyze(self, view, start, end, params):
+            return [finding]
+    job = run(client_for(framework, tmp_path, Broken()), branch.id, "broken", 7)
+    assert job["status"] == "failed" and error in job["error"]
+
+
+def test_web_owned_job_stores_reserve_their_plugin_id(framework, tmp_path):
+    plugins = PluginService(framework, jobs=lambda name, label: JobStore(tmp_path / "jobs.sqlite", name, label))
+    plugins.jobs("mast", "MAST")
+    with pytest.raises(ValueError, match="Duplicate plugin ID: mast"):
+        plugins.register(type("Impostor", (), {"id": "mast", "version": "1", "analyze": lambda *args: []})())
+    with pytest.raises(ValueError, match="lowercase letter"):
+        plugins.register(type("Digits", (), {"id": "2-agents", "version": "1", "analyze": lambda *args: []})())

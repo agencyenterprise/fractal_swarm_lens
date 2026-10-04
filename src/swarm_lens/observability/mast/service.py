@@ -9,15 +9,15 @@ from swarm_lens.core.models import DomainError, new_id, utc_now
 from .method import MastPlugin
 
 
-def upgrade_job(record):
+def upgrade_job(record, event_ids):
     """A job saved before plugin version 0.4.0 in the new shape: its assessment becomes the report, its
-    evidence becomes annotations, and the analyzed range is 1..cursor."""
+    evidence becomes annotations, and the analyzed range is 1..cursor. `event_ids` are the analyzed events."""
     record = {**record, "start": 1, "end": record["cursor"]}
     analysis = record.get("analysis")
     if analysis and "format" not in analysis["output"]:
         items = MastPlugin.results(analysis["output"], 1, record["cursor"])
         record["analysis"] = {**analysis, "start": 1, "end": record["cursor"],
-                              "output": encode_output(items, MastPlugin.id, 1, record["cursor"])}
+                              "output": encode_output(items, MastPlugin.id, 1, record["cursor"], event_ids)}
     return record
 
 
