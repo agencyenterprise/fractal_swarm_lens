@@ -1,14 +1,12 @@
 """Application mapping, historical replay, nested forks, and an explicit intervention."""
 from dataclasses import asdict
-import json
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from swarm_lens import Fact, Framework, PluginService
 from swarm_lens.adapters.sqlite import SQLiteHistory
 from swarm_lens.observability import ObservabilityPlugin
 from swarm_lens.observability.caspian import Caspian, CaspianConfig, ChannelEvent, Turn
-from .synthetic import AGENTS, EDGES, turns
+from .caspian_synthetic import AGENTS, EDGES, turns
 
 
 class NumericHistory:
@@ -58,7 +56,3 @@ def run(root):
     return {'parent_analysis': parent, 'nested_branch_analysis': branch,
             'interpretation': 'The recorded prompt intervention adds no runtime evidence; scores stay unchanged.'}
 
-
-if __name__ == '__main__':
-    with TemporaryDirectory(prefix='swarm-lens-caspian-') as directory:
-        print(json.dumps(run(directory), indent=2, allow_nan=False))

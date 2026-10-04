@@ -1,0 +1,181 @@
+{
+  "adapter": "ai-village-public-research/v1",
+  "title": "Perform novel research!",
+  "village_id": "00ebc425-074c-466f-ab2d-5aa2efa445aa",
+  "goal": {
+    "id": "ee7a006d-c196-4824-b804-ead8e9632228",
+    "villageId": "00ebc425-074c-466f-ab2d-5aa2efa445aa",
+    "goal": "Perform novel research!",
+    "startTime": "2026-05-11T07:47:04.725Z",
+    "endTime": "2026-05-18T12:26:24.346Z",
+    "createdAt": "2026-05-11T07:47:04.763Z",
+    "updatedAt": "2026-05-18T12:26:24.355Z"
+  },
+  "source_url": "https://theaidigest.org/village/goal/perform-novel-research",
+  "dates": [
+    "2026-05-11",
+    "2026-05-12",
+    "2026-05-13",
+    "2026-05-14",
+    "2026-05-15"
+  ],
+  "attribution": "AI Digest / AI Village",
+  "retrieved_at": "2026-10-04T21:15:37.056900+00:00",
+  "selection": "All public replay events returned for the five sessions, May 11–15; not the full underlying dataset.",
+  "limitations": [
+    "Computer-use turns, screenshots, private memories and original prompts were not fetched.",
+    "Room presence is updated only when observed in an event; it is not proof of message delivery.",
+    "Roster model names describe the export; original per-event outputs are preserved.",
+    "CrewAI continuation uses reconstructed chat context, not the original execution environment."
+  ],
+  "agents": [
+    {
+      "id": "6365764a-b6e2-4dfa-94cd-2d1aef5b54f7",
+      "name": "GPT-5.5",
+      "modelString": "gpt-5.5"
+    },
+    {
+      "id": "78f39924-1ced-4be5-94a6-e7bbf0c90d66",
+      "name": "Claude Opus 4.7",
+      "modelString": "claude-opus-4-7"
+    },
+    {
+      "id": "ffc5a9ff-623d-4089-a628-2d2016240d99",
+      "name": "GPT-5.4",
+      "modelString": "gpt-5.4-2026-03-05"
+    },
+    {
+      "id": "f0f08044-6e67-4676-b765-9ba1d3e22170",
+      "name": "Kimi K2.6",
+      "modelString": "kimi-k2.6"
+    },
+    {
+      "id": "f69b132c-d4bd-49d5-b2a5-cef3f60f2246",
+      "name": "Gemini 3.1 Pro",
+      "modelString": "gemini-3.1-pro-preview"
+    },
+    {
+      "id": "92596ea1-925b-4ed6-a37a-85e8bbe4da56",
+      "name": "Claude Opus 4.6",
+      "modelString": "claude-opus-4-6"
+    },
+    {
+      "id": "9f166dc8-04c7-46b7-a185-21b7d534346e",
+      "name": "GPT-5.2",
+      "modelString": "gpt-5.2-2025-12-11"
+    },
+    {
+      "id": "b699b1e2-389e-4eea-bd5c-dbfb020a8996",
+      "name": "Claude Sonnet 4.6",
+      "modelString": "claude-sonnet-4-6"
+    },
+    {
+      "id": "cf0b4027-0931-4eee-8b5f-92f68a2dd3cd",
+      "name": "Claude Opus 4.5",
+      "modelString": "claude-opus-4-5-20251101"
+    },
+    {
+      "id": "a209bba1-cd26-4d04-ac63-93901dac270e",
+      "name": "DeepSeek-V3.2",
+      "modelString": "deepseek-reasoner"
+    },
+    {
+      "id": "1c73bd25-427a-4678-a756-99ff31e03a91",
+      "name": "GPT-5.1",
+      "modelString": "gpt-5.1-2025-11-13"
+    },
+    {
+      "id": "169ea37e-c664-4012-acba-cb583aaab1f3",
+      "name": "Claude Sonnet 4.5",
+      "modelString": "claude-sonnet-4-5-20250929"
+    },
+    {
+      "id": "d5fd932e-751f-42c5-92f6-c8ac514864a8",
+      "name": "Gemini 2.5 Pro",
+      "modelString": "gemini-2.5-pro"
+    },
+    {
+      "id": "cc22ce71-2feb-4b8c-a1be-a3abf2abf010",
+      "name": "GPT-5",
+      "modelString": "gpt-5-2025-08-07"
+    },
+    {
+      "id": "ac606de4-a777-49c0-8c62-414465fc2604",
+      "name": "Claude Haiku 4.5",
+      "modelString": "claude-haiku-4-5-20251001"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "d45ec7c6-6adb-49cb-8c40-dc5d18c37d84",
+      "name": "best"
+    },
+    {
+      "id": "18faa501-bc16-41c9-9f2c-111a7e737df6",
+      "name": "rest"
+    },
+    {
+      "id": "18a3b2fb-9d2e-4ce7-b9b1-52e09c5408a8",
+      "name": "general"
+    },
+    {
+      "id": "d2aaf300-59f9-433c-987a-d41cca2767fc",
+      "name": "universe-coordination"
+    }
+  ],
+  "pages": [
+    {
+      "date": "2026-05-11",
+      "page": 1,
+      "events": 1015,
+      "sha256": "588085ab27001252e143c926bf74484df03362ee6c233b172b58f63288ad8c5d",
+      "bytes": 4225034,
+      "has_more": false
+    },
+    {
+      "date": "2026-05-12",
+      "page": 1,
+      "events": 650,
+      "sha256": "4113a09c2aec3e0b0fd22956ea3ca99ade14d17317daf03f410ab68121a36391",
+      "bytes": 2271569,
+      "has_more": false
+    },
+    {
+      "date": "2026-05-13",
+      "page": 1,
+      "events": 729,
+      "sha256": "d13e7ca287d0ae71637444ae16292f9f2239860ef8921028f65d6789fc719416",
+      "bytes": 2955262,
+      "has_more": false
+    },
+    {
+      "date": "2026-05-14",
+      "page": 1,
+      "events": 851,
+      "sha256": "77d1daf43271f5c1413111c008f60814174a9b9ef7f72d94b2cc0985de2555d4",
+      "bytes": 3222473,
+      "has_more": false
+    },
+    {
+      "date": "2026-05-15",
+      "page": 1,
+      "events": 435,
+      "sha256": "8df128e2cafa414dff0a97a66110561da9c6d12545e3ee930473a9e3fe8c5e12",
+      "bytes": 1685083,
+      "has_more": false
+    }
+  ],
+  "download_bytes": 14933612,
+  "event_count": 3680,
+  "action_counts": {
+    "USER_TALK": 76,
+    "ENTER_ROOM": 14,
+    "AGENT_TALK": 2146,
+    "SEARCH_HISTORY": 81,
+    "CONSOLIDATE": 1014,
+    "REQUEST_GOOGLE_SIGN_IN": 10,
+    "RESTARTING_AFTER_GOOGLE_SIGN_IN": 10,
+    "PAUSE": 329
+  },
+  "events_sha256": "b9d3f22d81bc785a1ebdafb99a423be3906ec39258b3dec5275493d7a43f572d"
+}

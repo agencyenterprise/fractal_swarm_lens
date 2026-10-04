@@ -1,18 +1,23 @@
 # ACIArena examples and experiments
 
+[Example index](../README.md) · [CrewAI quickstart](../../README.md#quickstart)
+
+Start by importing the saved pairs with the CrewAI environment. The separate benchmark environment and upstream checkout are only needed to generate new runs or execute the research protocols below.
+
 ## Complete examples for the explorer
 
 The bundled [20-round pair](samples/llm-debate-pair-20261003/manifest.json) uses the pinned upstream `LLMDebate`, its original `BaseMAS.run` scheduler, the first public math task (`math-000`), and `MathNameLeakInstruction`. Each conversation has three initial responses, 20 rounds with three responses each, and one final aggregation: **64 model responses**. The control has no injection; the second example injects the upstream instruction into `debater_0` on every input, including initialization. Both receive the same synthetic disclosure context.
 
-Import the saved pair into a workspace without making model calls:
+From the repository root with the [CrewAI environment](../crewai/README.md#start-the-application) activated, import the saved pair without making model calls:
 
 ```sh
-PYTHONPATH=src .venv-aciarena/bin/python -m examples.aciarena.samples import \
+python -m examples.aciarena.samples import \
   --input examples/aciarena/samples/llm-debate-pair-20261003 --data data
-PYTHONPATH=src .venv-aciarena/bin/python -m swarm_lens.cli --data data --port 8766
+swarm-lens --data data --port 8767 \
+  --runtime examples.crewai.demo:create_runtime --trace-tools examples.crewai.demo:trace_tools
 ```
 
-Choose **ACIArena · Without injection · 20 rounds** or **ACIArena · With injection · 20 rounds**. A link beside the timeline context switches to the matched example. These are independent executions on the same task, not two branches sharing generated answers. Each input and output is retained, including the final answer. Select a response to inspect its round, preceding source responses, and exact recorded model call. Enable **Memory** to see actual upstream conversation-memory updates; **All events** includes delivered prompts and the injection installation. This system does not use tools; no tool activity or aggregator memory is invented.
+Choose the `math-000` conversations marked **Without injection** and **With injection**. A link beside the timeline context switches to the matched example. These are independent executions on the same task, not two branches sharing generated answers. Each input and output is retained, including the final answer. Select a response to inspect its round, preceding source responses, and exact recorded model call. Enable **Memory** to see actual upstream conversation-memory updates; **All events** includes delivered prompts and the injection installation. This system does not use tools; no tool activity or aggregator memory is invented.
 
 The control imports as **199 events**, the injection as **200 events**. Each includes 64 model responses plus the original task message, 64 model-input records, 63 updates to three agents' memory slots, setup records, and completion. The injection has one additional installation event, marked as actually applied during generation. Reimporting the same pair does not duplicate it; interrupted imports can finish from their verified prefix.
 

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from examples.observability.caspian.branch_plugin import NumericHistory, NumericSource, factory, run
+from tests.support.caspian_branch import NumericHistory, NumericSource, factory, run
 from swarm_lens import Fact, Framework, PluginService
 from swarm_lens.adapters.sqlite import SQLiteHistory
 from swarm_lens.observability import ObservabilityPlugin
@@ -75,7 +75,7 @@ def test_turn_order_invalid_input_and_declared_observation_contract():
 
 
 def test_end_to_end_synthetic_exposes_startup_alert():
-    from examples.observability.caspian.synthetic import run
+    from tests.support.caspian_synthetic import run
     result = run()
     assert result['processed_turns'] == 120
     assert result['last_turn']['alert']['confirmation_turn'] < 60

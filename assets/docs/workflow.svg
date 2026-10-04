@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="186" viewBox="0 0 1120 186" role="img" aria-labelledby="title desc">
+  <title id="title">Capture, inspect, branch, analyze</title>
+  <desc id="desc">Swarm Lens workflow. Python 3.12 recommended, CrewAI 1.15.23, FastAPI and SQLite.</desc>
+  <rect width="1120" height="186" rx="18" fill="#0d1725"/>
+  <path d="M0 45H1120M0 91H1120M0 137H1120M80 0V186M360 0V186M640 0V186M920 0V186" stroke="#1c2b3e" opacity=".6"/>
+  <g font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif">
+    <g fill="#eaf3f6" font-size="23" font-weight="700">
+      <text x="35" y="66">Capture</text><text x="317" y="66">Inspect</text><text x="596" y="66">Branch</text><text x="870" y="66">Analyze</text>
+    </g>
+    <g fill="#91a7bc" font-size="14">
+      <text x="35" y="94">Live crews + saved recordings</text><text x="317" y="94">Messages, tools, and memory</text><text x="596" y="94">Change a goal. Run from here.</text><text x="870" y="94">MAST + evidence reports</text>
+    </g>
+    <g fill="none" stroke="#49c6ad" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M259 63h25m-7-7 7 7-7 7M540 63h25m-7-7 7 7-7 7M818 63h25m-7-7 7 7-7 7"/>
+    </g>
+    <path d="M35 121H1085" stroke="#283a4e"/>
+    <g font-size="12" font-weight="600" letter-spacing=".7">
+      <text x="35" y="154" fill="#69d6bf">CREWAI 1.15.23</text>
+      <text x="219" y="154" fill="#b1c5d7">PYTHON 3.12 RECOMMENDED</text>
+      <text x="472" y="154" fill="#b1c5d7">FASTAPI + WEBSOCKETS</text>
+      <text x="719" y="154" fill="#b1c5d7">SQLITE HISTORY</text>
+      <text x="928" y="154" fill="#69d6bf">RUN LOCALLY</text>
+    </g>
+  </g>
+</svg>

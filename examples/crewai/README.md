@@ -1,4 +1,8 @@
-# CrewAI live collection and branch execution
+# CrewAI examples and integration
+
+[Repository quickstart](../../README.md#quickstart) · [Example index](../README.md) · [MAST analysis](../../docs/observability/mast/README.md)
+
+Run these commands from the repository root. This guide uses one `data` workspace and port **8767** throughout. Install once, reuse the environment, and try the offline crew before making real model calls.
 
 Supported and compatibility-tested: **CrewAI 1.15.23**, Python 3.12. The optional adapter uses CrewAI's supported [LLM/tool hooks](https://docs.crewai.com/en/learn/llm-hooks) and [memory events](https://docs.crewai.com/en/concepts/event-listener). The dependency lock is `requirements.lock` in this directory.
 
@@ -14,8 +18,9 @@ export OTEL_SDK_DISABLED=true
 export CREWAI_TELEMETRY_DISABLED=true
 export CREWAI_TRACING_ENABLED=false
 export CREWAI_STORAGE_DIR="$PWD/data/crewai-storage"
-swarm-lens --data data/mast-integration --port 8766 \
-  --runtime examples.crewai.demo:create_runtime
+swarm-lens --data data --port 8767 \
+  --runtime examples.crewai.demo:create_runtime \
+  --trace-tools examples.crewai.demo:trace_tools
 ```
 
 `--runtime MODULE:FACTORY` imports trusted local application code at startup. Repeat it to register more runtimes. The HTTP API never imports a module supplied by a browser or dataset. Starting without a runtime still supports live capture, saved playback, and MAST analysis.
@@ -25,8 +30,8 @@ Load a conversation, select an event on the timeline, and choose **Fork at curso
 To capture your first example, in a second terminal activate the same environment and run:
 
 ```sh
-python -m examples.crewai.demo                 # real GPT-5.5 calls; OPENAI_API_KEY from .env
-python -m examples.crewai.demo --offline       # real CrewAI loop with a deterministic compatibility fixture
+python -m examples.crewai.demo --url http://127.0.0.1:8767           # real GPT-5.5 calls
+python -m examples.crewai.demo --offline --url http://127.0.0.1:8767 # no model calls
 ```
 
 The example has three agents and three tasks: calculate 19 + 23 using a Python tool, verify, and report. The second command is explicitly an offline fixture, not an LLM experiment. Captures appear automatically in the conversation picker. **Follow live** advances with incoming events; turning it off retains the selected historical cursor while collection continues. **Replay** only advances through existing history.
@@ -41,7 +46,7 @@ runtime = CrewAIRuntime("my-crew", make_crew, revision="my-app-git-commit")
 inputs = {"topic": "Your task"}
 crew = make_crew(inputs)
 with observe(crew, inputs=inputs, runtime=runtime,
-             url="http://127.0.0.1:8766", name="My task") as capture:
+             url="http://127.0.0.1:8767", name="My task") as capture:
     result = crew.kickoff(inputs=inputs)
 print(capture.branch_id)
 ```
@@ -83,11 +88,50 @@ This is a **new execution reconstructed in CrewAI**, not an exact replay of the 
 Recorded tool names need explicit, trusted executable mappings. Unknown tools block live preflight before branch creation; saved results are never treated as new tool executions. Supply a factory with `--trace-tools MODULE:FACTORY` returning `{recorded_name: callable_returning_fresh_crewai_tool}`. For the local arithmetic tool:
 
 ```sh
-PYTHONPATH=src .venv-crewai/bin/python -m swarm_lens.cli --data data --port 8766 \
+python -m swarm_lens.cli --data data --port 8767 \
   --runtime examples.crewai.demo:create_runtime --trace-tools examples.crewai.demo:trace_tools
 ```
 
 Application code can register `TraceCrewAIRuntime(framework, tools=tool_factories)` in `LiveService` directly. Tool code is never loaded from traces, URLs, model output or browser-submitted module names.
+
+## AI Village: Perform novel research!
+
+The bundled example contains the public replay of [AI Village's “Perform novel research!” goal](https://theaidigest.org/village/goal/perform-novel-research): five sessions, **May 11–15, 2026**, with **15 agents, 2,222 chat messages and 3,680 source events**. Attribution: AI Digest / AI Village. The compressed recording is about 4.5 MB; only these sessions and their roster were retrieved, without downloading the full dataset.
+
+Import it into the same data directory used by your server:
+
+```sh
+python -m examples.crewai.ai_village_research import --data data
+```
+
+Reload the conversation picker and select **AI Village · Perform novel research! · May 11–15**. Importing again reuses the recording. The manifest and original source events are in `examples/crewai/samples/ai-village-novel-research-20260511/`; checksums and source event IDs preserve provenance. Chat messages retain their native timestamps, speakers and rooms. Public activity such as session plans becomes an observation, not an invented memory or tool execution. Additional setup and room-membership events mean the SwarmLens event count is larger than the source count.
+
+To prepare a child for CrewAI continuation, use the branch `id` printed by the import command:
+
+```sh
+python -m examples.crewai.ai_village_research prepare \
+  --data data --branch YOUR_RECORDED_BRANCH_ID --model gpt-5.5
+```
+
+Optionally add `--cursor <event-number>` to fork earlier in the recording. This creates **CrewAI continuation · gpt-5.5** and explicitly changes each known agent's model on that child. The original recording and its model metadata remain intact. Neither command calls an LLM. In the UI, select the child and choose **Fork at cursor → Create branch and run live** to generate a new continuation. The CLI's standard trace runtime runs one round over active agents using their saved room connections; it requires CrewAI and `OPENAI_API_KEY`.
+
+This is a continuation from recorded public chat. Original computer-use sessions, screenshots, private memories, system prompts and executable tools were not fetched or reconstructed. Observed room presence does not prove historical message delivery. The example does not reproduce the original village execution or extend its research with the original agents' computers.
+
+To refresh only the five public sessions into a new directory:
+
+```sh
+python -m examples.crewai.ai_village_research fetch \
+  --output /tmp/ai-village-research-refresh
+```
+
+Offline validation (including a real CrewAI loop with a deterministic model fixture):
+
+```sh
+PYTHONPATH=src PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 OTEL_SDK_DISABLED=true \
+CREWAI_TELEMETRY_DISABLED=true CREWAI_TRACING_ENABLED=false \
+  .venv-crewai/bin/python -m pytest -p no:capture -q tests/integrations/test_ai_village_research.py
+```
+
 
 ## Delivery and recovery
 
@@ -96,7 +140,7 @@ Every collector batch is written to a local JSONL outbox before HTTP delivery. N
 ```python
 from swarm_lens.live.client import LiveClient
 recovered = LiveClient.recover("data/capture-outbox/<capture-id>.jsonl",
-                              "http://127.0.0.1:8766")
+                              "http://127.0.0.1:8767")
 assert not recovered.offline
 ```
 

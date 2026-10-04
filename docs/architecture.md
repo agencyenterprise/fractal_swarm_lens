@@ -48,7 +48,7 @@ The current explorer loads one selected branch's event summaries and compact sta
 
 ## Implementation priorities
 
-Updated on 2026-10-03. Live collection and deployment remain planned. MAST saved-trace analysis, plugin API composition, UI discovery, and raw trace import are implemented; see the [MAST integration](observability/mast/README.md). Keep the existing dependency-free domain/application boundary and extend the outer adapters and presentation layer.
+Updated on 2026-10-04. CrewAI live collection and continuation, saved-trace workflows, plugin API/UI discovery, comments, run bundles, storage v2, and chunked MAST analysis are implemented. Docker packaging and built-in authentication remain outstanding; see the [MAST integration](observability/mast/README.md). Keep the existing dependency-free domain/application boundary and extend the outer adapters and presentation layer.
 
 ### Product modes and first milestone
 

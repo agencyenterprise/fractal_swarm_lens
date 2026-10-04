@@ -1,5 +1,4 @@
 """Self-contained numeric trace; no model calls, embeddings or attack ground truth."""
-import json
 
 import numpy as np
 
@@ -33,6 +32,3 @@ def run():
             'interpretation': 'Synthetic dependence shift at turn 60. Default literal rules alert at warmup (turn 8), before that shift: an implementation limitation, not evidence of an attack.',
             'last_turn': results[-1]}
 
-
-if __name__ == '__main__':
-    print(json.dumps(run(), indent=2, allow_nan=False))

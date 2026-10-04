@@ -15,7 +15,7 @@ Implementation paths below are relative to `src/swarm_lens/observability/caspian
 | Paper component | Implementation | Verification / status |
 | --- | --- | --- |
 | Section 4.1 agent set, four channels, structural graph | `inputs.py`, `config.py`, `topology.py:topology` | `test_integration.py:test_turn_order_invalid_input_and_declared_observation_contract`; mask tests in `test_estimator.py` |
-| Appendix C/Table 8; Eq. (15), normalized directed events, broadcast expansion | `ChannelEvent`, `Turn`; application `HistoryAdapter` | `examples/observability/caspian/branch_plugin.py`; `test_integration.py`; verified source/target pairing and encoders must be supplied, not inferred |
+| Appendix C/Table 8; Eq. (15), normalized directed events, broadcast expansion | `ChannelEvent`, `Turn`; application `HistoryAdapter` | `tests/support/caspian_branch.py`; `test_integration.py`; verified source/target pairing and encoders must be supplied, not inferred |
 | Eqs. (16)-(17), triplet grouping and within-turn means | `estimator.py:InfluenceEstimator.update` | `test_triplet_averaging_target_history_event_weighting_and_no_leakage`, `test_event_order_independence_masking_and_return_isolation` |
 | Eq. (18), target-specific EMA, zero initialization, scoring before history update | `InfluenceEstimator.update` | Same hand-computed history test, including two incoming sources and event-weighted means |
 | Eq. (1), Eq. (19), LI-CTE | `EdgeEstimate`, `gaussian_cmi` | Analytic correlated Gaussian, conditionally independent common-history case, multivariate determinant reference |
@@ -45,7 +45,7 @@ Implementation paths below are relative to `src/swarm_lens/observability/caspian
 | Appendix B latency/complexity | Dense NumPy implementation, exact rank storage, explicit path budget | No hardware/overhead parity claimed; actual complexity differs, explained below |
 | Appendix E benchmark scenarios, labels, metrics, bootstrap | No benchmark executor or fabricated labels | Missing author traces/encoders/scalar-score formula prevent exact replication; not a missing online algorithm stage |
 | Swarm Lens history/branch/plugin architecture | `observability/plugin.py`, application example | `test_integration.py`: historical cursor, parent future exclusion, nested fork, restart persistence, second method protocol |
-| AI Village applicability | `examples/ai_village/caspian.py` | `test_village.py`: no guessed pairs or payload leakage; schema audit only |
+| AI Village applicability | [Current mapping](../../ai-village.md) | Old schema-audit CLI retired; public room activity still does not establish directed exposure or CASPIAN ground truth |
 
 Rule-level persistence tests inject controlled `Signals` to exercise the state machine independently. They do **not** claim that those combinations occur in the literal normalized pipeline. End-to-end tests use actual covariance/SVD computation separately.
 
@@ -79,7 +79,7 @@ Section 4.3.2 says discard on WATCH loss; Algorithm 1 instead checks majority WA
 
 ### Startup and nearly zero gap
 
-Initial spectral values are not specified. We establish the first turn as a baseline, produce zero influence before `min_samples`, and do not add a second undocumented detection warmup. A rise out of estimator warmup can trigger an alert on independent samples; the runnable default synthetic example exhibits this at turn 8. Tiny gaps imply very long adaptive windows (100 million turns at zero gap with epsilon=1e-8). No silent window cap is applied. Applications must budget memory or explicitly choose a different, separately documented method variant.
+Initial spectral values are not specified. We establish the first turn as a baseline, produce zero influence before `min_samples`, and do not add a second undocumented detection warmup. A rise out of estimator warmup can trigger an alert on independent samples; the retained default synthetic regression fixture exhibits this at turn 8. Tiny gaps imply very long adaptive windows (100 million turns at zero gap with epsilon=1e-8). No silent window cap is applied. Applications must budget memory or explicitly choose a different, separately documented method variant.
 
 ### Paths, ties, timing and topology
 

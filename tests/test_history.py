@@ -14,7 +14,7 @@ from swarm_lens.adapters import texts
 from swarm_lens.adapters.sqlite import SQLiteHistory, encode
 from swarm_lens.core.models import Conflict, State
 from swarm_lens.core.reducer import apply
-from conftest import AT, Facts
+from tests.conftest import AT, Facts
 
 LEGACY_WORKSPACE = Path(__file__).parent / "fixtures" / "legacy_v1_history.sql"
 

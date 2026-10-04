@@ -30,7 +30,7 @@ commit = framework.checkpoint(experiment.id)
 
 Inputs use timezone-aware ISO timestamps. Emit creation facts before facts that reference those identities. Use globally unique event IDs if supplying them explicitly; omitted IDs are generated. Domain entity IDs can recur across runs. Application-specific source identifiers belong in provenance. The same memory ID denotes revisions of one slot; use different IDs for independent memories.
 
-The AI Village example has stable event IDs derived from source revision and row identity and deliberately imports into a fresh database. It is a concrete application choice, not a generic deduplication service.
+The maintained AI Village research example derives stable event IDs from native source identities and records a source checksum. Reimporting the same bundle reuses its matching recording. These are explicit application choices, not generic dataset interpretation.
 
 ## Plugins
 
@@ -64,7 +64,7 @@ A plugin is a `WebExtension(id, router, manifest, assets=None)` from `swarm_lens
 | `openTimeline(branchId, cursor, eventId?)` | Opens the timeline at a cursor, selecting the event if given |
 | `loadTimeline(branchId)`, `loadDetail(branchId, event)` | Cached event summaries and full event records |
 | `addAction({ label, tip, onClick })` | Adds an entry under the plugin's title in the `⋯` menu |
-| `registerVisualization(config)` | Adds a view above the transcript; see the README's frontend section |
+| `registerVisualization(config)` | Adds a view above the transcript; see the README's development section |
 
 Shared browser helpers are imported by a stable name that the page maps to the explorer's own modules: `swarm-lens/ui.js` (elements, `api`, `post`, toasts, tooltips), `swarm-lens/dialog.js`, `swarm-lens/markdown.js` and `swarm-lens/workspace.js`. Node tests resolve the same names through `package.json` exports. Call your own routes with `api("/plugins/{id}/...")`.
 
@@ -103,10 +103,12 @@ Pass the extension to `create_app(framework, artifacts, extensions=(notes_extens
 
 ```sh
 swarm-lens --data data --plugin my_package.notes:create   # repeatable; bundled and installed plugins are always included
-``` MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
+```
+
+MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
 
 ## Observe a history with a method
 
 Use `ObservabilityPlugin(method_id, version, factory, adapter)` from `swarm_lens.observability`. The factory receives analysis configuration and returns a fresh method. The application adapter consumes the selected `Event` history and yields method-specific observations. Its `id`, `version`, and `describe()` document mapping/encoding provenance. It is an `Analyzer`: `PluginService.analyze` persists the resolved method/adapter metadata and per-turn results as the record's `output.report`, with the branch history digest.
 
-The [CASPIAN branch example](../examples/observability/caspian/branch_plugin.py) runs a complete SQLite application, historical analysis, intervention, and nested fork without credentials. Follow the [method input contract](observability/caspian/README.md) to supply genuine downstream observations; a branch edit itself does not execute the runtime or generate model-internal evidence.
+The [CASPIAN branch regression fixture](../tests/support/caspian_branch.py) runs a complete SQLite application, historical analysis, intervention, and nested fork without credentials. Follow the [method input contract](observability/caspian/README.md) to supply genuine downstream observations; a branch edit itself does not execute the runtime or generate model-internal evidence.

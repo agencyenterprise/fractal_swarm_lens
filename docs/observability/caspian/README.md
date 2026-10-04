@@ -4,7 +4,7 @@ This is an independent, executable reconstruction of the method specified in [CA
 
 It implements the full specified pipeline: channel-event aggregation, past-only target history, streaming Gaussian-copula conditional dependence, channel influence tensors, topology normalization, spectral signals, instant/adaptive persistence decisions, and interval-based role/spine attribution. It is **not an exact reproduction of the authors' unreleased implementation or published accuracy/latency results**. The paper omits essential estimator/encoding parameters and contains contradictory or degenerate rules. Those are exposed rather than silently repaired. Read [coverage and ambiguities](coverage.md) before interpreting alerts.
 
-## Install and run
+## Install and verify
 
 From the repository root, Python 3.11+:
 
@@ -12,20 +12,16 @@ From the repository root, Python 3.11+:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[caspian,dev]'
-python -m examples.observability.caspian.synthetic
-python -m examples.observability.caspian.attribution
-python -m examples.observability.caspian.branch_plugin
-python -m examples.ai_village.caspian
-python -m pytest -q
+python -m pytest tests/observability/caspian -q
 ```
 
-Without an editable install, prefix example commands with `PYTHONPATH=src` from the repository root. The supplied Conda runtime requires:
+The retired standalone demo CLIs are no longer onboarding examples. Numeric branch/estimator fixtures remain under `tests/support/`. Without an editable install, use `PYTHONPATH=src` from the repository root. The supplied Conda runtime requires:
 
 ```sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python3 -m pytest -p no:capture -q
 ```
 
-NumPy is the only method runtime dependency. The core remains dependency-free. No model SDK, remote service, credentials, or GPU is required for these examples.
+NumPy is the only method runtime dependency. The core remains dependency-free. No model SDK, remote service, credentials, or GPU is required for these tests.
 
 ## Input contract
 
@@ -91,16 +87,15 @@ Online ranks use the inclusive prefix empirical midrank `(number_less + (number_
 
 `update(Turn)` returns a JSON-compatible dictionary containing turn number, influence tensor `[source][target][channel]`, raw and normalized matrices, sample counts/readiness, masked-event count, all spectral signals, candidate onset/deadline, an optional latched first alert, and `new_alert` (true only on the confirmation turn). An alert includes classification, onset/confirmation turns, attribution status, role rankings/scores, and spines/channel scores. Results own their numeric arrays converted to lists. `has_detected` becomes true on the first alert; `finished` stays false because measurement ends with the input stream. Later updates continue estimator histories, sample counts, tensors and spectral signals, while preserving the original detection and attribution. No repeated-alert or recovery policy is inferred. Returned alerts are independent copies. This continuous-measurement behavior is versioned as CASPIAN 0.2.0; prior results remain historical 0.1.0 analyses.
 
-`ObservabilityPlugin` supplies the standard integration without modifying `core/` or `application/`. The [branch example](../../../examples/observability/caspian/branch_plugin.py) records application observations as `observation.recorded`, analyzes a historical prefix, forks, records a prompt intervention, makes a nested fork, and verifies equivalent observation histories give identical scores. Each analysis reconstructs a fresh monitor, so parent future events and another branch's estimator history cannot leak into the selected branch.
+`ObservabilityPlugin` supplies the standard integration without modifying `core/` or `application/`. The [branch regression fixture](../../../tests/support/caspian_branch.py) records application observations as `observation.recorded`, analyzes a historical prefix, forks, records a prompt intervention, makes a nested fork, and verifies equivalent observation histories give identical scores. Each analysis reconstructs a fresh monitor, so parent future events and another branch's estimator history cannot leak into the selected branch.
 
 The library does not automatically infer observations from standard framework entities. A recorded prompt edit cannot supply new target behavior. A runtime must execute a continuation and emit the required evidence before scores can change for that intervention. For a long-lived online runtime, call `update` once per completed observed turn and persist your observations; deterministic replay provides restart semantics.
 
-## Examples and observed limitations
+## Regression fixtures and observed limitations
 
-- `synthetic`: seeded independent numeric pairs change to strongly dependent pairs at turn 60, across all four channels on a chain. **Default rules alert at turn 8, when estimates leave warmup, before the intended shift.** This is a regression/limitation demonstration, not a successful attack-detection benchmark. We do not hide the startup alert with an undocumented extra gate.
-- `attribution`: two hand-specified influence tensors isolate and explain role/spine calculations. This explicitly bypasses estimation and detection.
-- `branch_plugin`: credentials-free SQLite integration with historical and nested branch semantics. Its temporary database is automatically removed.
-- `examples.ai_village.caspian`: a readiness audit, optionally `--source /path/to/existing/data/source`. It reads only the selected export, emits schema/counts, and does not copy payloads, access credentials, or modify the original data. Room/sender/timestamps do not establish recipient reads; memory snapshots lack reader lineage; local tool actions lack downstream cross-agent use. Full CASPIAN input is unavailable from the current application mapping, so no scores are fabricated.
+The [synthetic fixture](../../../tests/support/caspian_synthetic.py) changes seeded independent numeric pairs to strongly dependent pairs at turn 60. **Default rules alert at turn 8, when estimates leave warmup, before the intended shift.** This remains an explicit limitation covered by regression tests, not a successful detection benchmark. The [branch fixture](../../../tests/support/caspian_branch.py) tests historical and nested-branch isolation against real SQLite storage. Direct attribution calculations are covered in `tests/observability/caspian/test_topology.py`.
+
+The old AI Village schema-audit CLI was retired with its gated downloader. The [current public-recording mapping](../../ai-village.md) still does not establish verified recipient exposure, cross-agent tool use, or private-memory lineage. No CASPIAN pairs or cascade labels are inferred from those missing records.
 
 The literal weak-link criterion is automatically satisfied on a nonempty topology because one-edge paths are allowed. Phase shift is nearly implied by positive gap contraction. Degree normalization makes the leading singular value approximately 1, so WATCH's strict leading-value growth can be driven by epsilon and floating-point effects. Channel degree normalization similarly makes entropy mostly reflect the number of active channels. These are concrete mathematical limitations of the published specification; see derivations in [coverage.md](coverage.md).
 
@@ -119,11 +114,11 @@ The optional outer adapter `swarm_lens.adapters.openai_embeddings.OpenAITextEnco
 ```sh
 python -m pip install -e '.[caspian,embeddings,dev]'
 # For a new checkout: copy .env.example to .env and populate OPENAI_API_KEY.
-# The current local checkout already has the user-provided .env; preserve it.
-python -m examples.observability.caspian.text_embeddings
+# Preserve an existing local .env. No model calls are made by the tests.
+python -m pytest tests/observability/caspian/test_embeddings.py -q
 ```
 
-The example makes a real API request with two illustrative texts and prints only encoder metadata and readiness. It does not run ACIArena or validate attack detection. Unit tests mock the API and never load local credentials.
+Applications can call `OpenAITextEncoder.from_env().encode(texts)` when real embeddings are required. That makes a provider request. Unit tests mock the API and never load local credentials; the old two-text API smoke CLI was removed.
 
 `OpenAITextEncoder.from_env()` loads the explicitly named `.env` (default: current directory), preserving existing process environment variables. `CASPIAN_EMBEDDING_MODEL` must be `text-embedding-3-small`. `CASPIAN_EMBEDDING_DIMENSIONS` defaults to **16**, requested through the API's `dimensions` parameter to keep the streaming covariance compact. This is a configurable experimental choice, not a paper setting or a claim of statistical adequacy. Larger embeddings require more data and more expensive covariance calculations; changing dimensions creates a different feature schema and requires a fresh monitor.
 

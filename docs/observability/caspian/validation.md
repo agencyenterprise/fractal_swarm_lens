@@ -1,4 +1,4 @@
-# Validation record
+# Historical validation record
 
 This records local checks for the paper reconstruction, not a benchmark reproduction.
 
@@ -12,14 +12,12 @@ This records local checks for the paper reconstruction, not a benchmark reproduc
 
 ## Executed examples
 
-All commands run from the independent repository root with `PYTHONPATH=src`:
+The original validation included numeric synthetic, direct-attribution, nested-branch, and Village schema-audit CLIs. Those standalone examples were retired in the CrewAI documentation cleanup. The observations below describe that historical validation, not the current test-suite count.
+
+Current regression coverage is maintained under `tests/observability/caspian/`, with shared numeric helpers under `tests/support/`:
 
 ```sh
-python3 -m examples.observability.caspian.synthetic
-python3 -m examples.observability.caspian.attribution
-python3 -m examples.observability.caspian.branch_plugin
-python3 -m examples.ai_village.caspian
-python3 -m examples.ai_village.caspian --source /path/to/existing/village/data/source
+python -m pytest tests/observability/caspian -q
 ```
 
 The synthetic run alerts at turn 8 (estimator warmup), before the specified dependence change at turn 60. Its JSON explicitly labels that limitation. Attribution completes and reports all three roles, rankings, paths, and dominant channel scores. The direct-attribution example exercises interval maxima independently of LI-CTE. The branch example confirms six observed turns produce identical outputs across the historical parent and nested child, while the recorded intervention changes the history digest. A separate test adds a genuinely different observed child suffix and verifies only its analysis changes.
