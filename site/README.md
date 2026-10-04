@@ -1,6 +1,6 @@
 # Public website and wiki
 
-The site is standalone HTML/CSS/JS. It reuses the explorer's colors, typographic approach, and logo. The supplied 78-second demo is stored in `assets/demo.mp4` (H.264/AAC, about 20 MB); the original is unchanged. `demo-poster.jpg` is an extracted frame. No analytics, external fonts, CDN scripts, or framework build is required.
+The site is standalone HTML/CSS/JS. It reuses the explorer's colors, typographic approach, and logo. The demo (2:44, H.264/AAC, about 27 MB) is stored in `assets/demo.mp4`. It is byte-identical to `demo-video/swarm-lens-demo.mp4`, which `demo-video/` builds; keep the two identical so Git stores the video once, and replace both together. `demo-poster.jpg` is a frame from it. No analytics, external fonts, CDN scripts, or framework build is required.
 
 Preview: `python3 -m http.server 8771 --bind 127.0.0.1 --directory site`.
 
