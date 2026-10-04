@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live collection and branching — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a aria-current="page" href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a  href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Live collection and branching</h1>
+<h2>Three different operations</h2>
+<ul>
+<li><strong>Playback</strong> advances through saved history. It makes no model call.</li>
+<li><strong>Live collection</strong> records a running agent application and streams new events to the explorer.</li>
+<li><strong>Branch execution</strong> creates new model/tool activity from a saved prefix using a compatible runtime.</li>
+</ul>
+<h2>Run the pinned CrewAI example</h2>
+<p>The integration is compatibility-tested with CrewAI 1.15.23 and Python 3.12. From the repository root:</p>
+<pre><code class="language-sh">python3.12 -m venv .venv-crewai
+source .venv-crewai/bin/activate
+python -m pip install -r examples/crewai/requirements.lock
+python -m pip install --no-deps -e .
+export OTEL_SDK_DISABLED=true
+export CREWAI_TELEMETRY_DISABLED=true
+export CREWAI_TRACING_ENABLED=false
+export CREWAI_STORAGE_DIR=&quot;$PWD/data/crewai-storage&quot;
+swarm-lens --data data --port 8765 \
+  --runtime examples.crewai.demo:create_runtime \
+  --trace-tools examples.crewai.demo:trace_tools
+</code></pre>
+<p>In another terminal with the same environment:</p>
+<pre><code class="language-sh">python -m examples.crewai.demo --offline --url http://127.0.0.1:8765
+</code></pre>
+<p>This runs the real CrewAI loop with deterministic fixture responses. Omit <code>--offline</code> for model execution after configuring <code>OPENAI_API_KEY</code>; that incurs usage.</p>
+<h2>Instrument an existing crew</h2>
+<p>Wrap kickoff with <code>swarm_lens.integrations.crewai.observe</code>, passing the crew, inputs, and a registered runtime. The application owns the factory, tool implementations, and revision. Follow the complete <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/crewai/README.md">integration example</a>, including observer configuration and unsupported-state restrictions.</p>
+<h2>Continue a saved conversation</h2>
+<p>Select an event, choose a fork action, review the runtime preview, and select <strong>Create and run</strong>. A goal or prompt change belongs to the new branch. The parent and its later events remain intact.</p>
+<p>For a native capture, the adapter can resume at task boundaries or restart the active task with recorded context. Imported traces are reconstructed in CrewAI. ACIArena LLMDebate uses its debater/aggregator ordering; other imported traces use an explicit round-robin policy. This is not restoration of the original framework's hidden process state.</p>
+<p>Tool implementations must be registered explicitly. Saved tool results are not new executions. Forking does not roll back external files or services, and a restarted task may call tools again. The preview explains availability and the next actor before execution.</p>
+<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Live-collection-and-branching.md">View Markdown source ↗</a></div></main></div></body></html>

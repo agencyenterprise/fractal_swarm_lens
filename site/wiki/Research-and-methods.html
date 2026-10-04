@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Research and methods — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a  href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a aria-current="page" href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Research and methods</h1>
+<p>Swarm Lens supports inspecting interactions and designing branch experiments. It does not, by itself, prove that an observed dependency is causal or that an analysis model is accurate.</p>
+<h2>Research context</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role in this project</th>
+<th>Evidence boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/multi-agent-systems-failure-taxonomy/MAST">MAST</a></td>
+<td>Saved-trace LLM judgments using a published failure taxonomy</td>
+<td>Judge outputs and cited evidence require review; not human ground truth</td>
+</tr>
+<tr>
+<td><a href="https://github.com/Greysahy/aciarena">ACIArena</a></td>
+<td>Paired control/attack example generation and recorded source interactions</td>
+<td>Native task/attack grading is distinct from propagation or cascade labels</td>
+</tr>
+<tr>
+<td><a href="https://github.com/caspian-detector/caspian">CASPIAN</a></td>
+<td>Optional experimental detector implementation</td>
+<td>Detection accuracy has not been validated; implementation tests are not benchmark replication</td>
+</tr>
+</tbody>
+</table>
+<p>Swarm Lens's present contribution is infrastructure: an ordered event model, inspectable provenance, branching and intervention workflows, and extensible analysis. These upstream projects supply methods or benchmark context; listing them does not imply their authors endorse this implementation.</p>
+<h2>Cascades and failures</h2>
+<p>A cascade can propagate benign, harmful, or other behavior. An attack is a possible trigger, not a definition of a cascade. Shared answers, common exposure, or agreement do not alone establish propagation. Descriptive tools help locate evidence; reference labels need an explicit operational definition and inspection protocol.</p>
+<h2>Suggested experimental record</h2>
+<ol>
+<li>Preserve source data, code revision, exact prompts, outputs, and observed delivery links.</li>
+<li>State the behavior of interest and labeling criteria before comparing detectors.</li>
+<li>Separate control and intervention conditions; document shared inputs and model settings.</li>
+<li>Record the first detection and continue measurement through the end of the run.</li>
+<li>Retain uncertainty, grader failures, and unscorable cases rather than assigning negative labels.</li>
+<li>Distinguish repeated-condition estimates from a single illustrative run.</li>
+</ol>
+<p>Imported-trace continuation is a new execution in CrewAI, not exact resumption of the original system. Model stochasticity and external side effects limit direct counterfactual interpretations.</p>
+<h2>Current limitations</h2>
+<p>CASPIAN is experimental. MAST can misclassify. Some ACIArena answer parsing is imperfect. The visualization fallbacks are not all recorded delivery edges. Local SQLite data is not automatically reproducible from a Git checkout. See <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/caspian/validation.md">CASPIAN validation notes</a> and the <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/mast/README.md">MAST guide</a>.</p>
+<p>No Swarm Lens paper, DOI, or benchmark accuracy claim is asserted here. Cite the upstream methods separately when using them, and record the exact Swarm Lens commit used in an experiment.</p>
+<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Research-and-methods.md">View Markdown source ↗</a></div></main></div></body></html>

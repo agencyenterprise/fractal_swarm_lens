@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Getting started — Swarm Lens Wiki</title><link rel="icon" href="../favicon.ico"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../wiki.css"></head><body><a class="skip" href="#article">Skip to content</a><header class="nav wrap"><a class="brand" href="../"><img src="../assets/logo.gif" width="38" height="38" alt="">swarm<span class="light">lens</span></a><nav aria-label="Main navigation"><a href="../#demo">Demo</a><a href="Home.html">Wiki</a><a class="nav-code" href="https://github.com/agencyenterprise/fractal_swarm_lens">GitHub ↗</a></nav></header><div class="wiki-layout wrap"><aside><div class="eyebrow">RESEARCH FIELD GUIDE</div><nav aria-label="Wiki pages"><a  href="Home.html">Home</a><a aria-current="page" href="Getting-started.html">Getting started</a><a  href="Explore-traces.html">Explore traces</a><a  href="Examples-and-datasets.html">Examples and datasets</a><a  href="Live-collection-and-branching.html">Live collection and branching</a><a  href="Build-a-plugin.html">Build a plugin</a><a  href="Research-and-methods.html">Research and methods</a><a  href="Architecture-and-storage.html">Architecture and storage</a><a  href="Troubleshooting.html">Troubleshooting</a></nav></aside><main id="article"><h1>Getting started</h1>
+<h2>Install and open the explorer</h2>
+<p>Requirements: Python 3.11+ and Git. Python 3.12 is the tested version for the CrewAI integration.</p>
+<pre><code class="language-sh">git clone https://github.com/agencyenterprise/fractal_swarm_lens.git
+cd fractal_swarm_lens
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[web]'
+swarm-lens --data data --port 8765
+</code></pre>
+<p>On Windows, activate with <code>.venv\Scripts\Activate.ps1</code> in PowerShell. Open <a href="http://127.0.0.1:8765">http://127.0.0.1:8765</a>. Stop the server with Ctrl+C. The browser assets are bundled; Node.js is only needed to rebuild the frontend.</p>
+<h2>Load a trace</h2>
+<p>Choose <strong>⋯ → Import trace</strong>, paste a transcript, and inspect it in Timeline. For structured examples with recorded interactions and memories, use the <a href="Examples-and-datasets.html">medical debate import recipe</a>.</p>
+<p>An empty run picker means the selected workspace has no imported runs. The <code>--data</code> argument selects a directory containing SQLite history, artifacts, and supporting stores. Always use the same directory when restarting.</p>
+<h2>Optional analysis</h2>
+<pre><code class="language-sh">python -m pip install -e '.[mast]'
+</code></pre>
+<p>Set <code>OPENAI_API_KEY</code> in your shell or a local <code>.env</code>. Restart the server, choose <strong>⋯ → MAST trace analysis → Analyze with MAST</strong>, and inspect the free size preview before submitting. Submitting sends the selected trace to the configured provider and incurs model usage. Saved playback and trace import do not require model calls.</p>
+<h2>Next</h2>
+<p><a href="Explore-traces.html">Explore traces</a> · <a href="Live-collection-and-branching.html">Live collection</a> · <a href="Troubleshooting.html">Troubleshooting</a></p>
+<div class="wiki-bottom">Docs for main · <a href="https://github.com/agencyenterprise/fractal_swarm_lens/blob/docs/research-site-wiki/docs/wiki/Getting-started.md">View Markdown source ↗</a></div></main></div></body></html>
