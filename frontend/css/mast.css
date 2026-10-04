@@ -1,4 +1,4 @@
-/* MAST reports view, analyze/import dialogs (mast.js) and the fork dialog (branch.js). */
+/* MAST reports view, analyze/import dialogs (web/plugins/mast/static/index.js) and the fork dialog (branch.js). */
 
 .mast-view {
   display: grid; grid-template-columns: 240px minmax(0, 1fr);
@@ -118,7 +118,7 @@
   .mast-report { padding: 16px; }
 }
 
-/* Trait rows expand into saved evidence (mast-details.js). */
+/* Trait rows expand into saved evidence (web/plugins/mast/static/details.js). */
 .mast-trait > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 6px; border-radius: var(--radius-sm); cursor: pointer; list-style: none; }
 .mast-trait > summary::-webkit-details-marker { display: none; }
 .mast-trait > summary:hover { background: var(--surface-2); }

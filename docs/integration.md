@@ -60,6 +60,65 @@ Implement the `Runtime` protocol's `capabilities()` and `continue_from(state, st
 
 Use `swarm_lens.web.api.create_app(framework, artifacts=...)` for the supplied browser explorer, or call the same application services from a different UI. See the small composition root in `swarm_lens/cli.py`. Core behavior is independent of the browser and FastAPI.
 
+## Write a web plugin
+
+A web plugin adds API routes and, optionally, browser UI to the explorer without editing the core or the explorer's code. It is trusted code: its Python runs in the server process and its module runs with the page's full privileges. Install only plugins you would merge.
+
+A plugin is a `WebExtension(id, router, manifest, assets=None)` from `swarm_lens.web.extensions`:
+
+- `id` is lowercase letters, digits and hyphens. Every route of `router` must start with `/api/plugins/{id}/`. Duplicate IDs or routes fail startup. A router `lifespan` runs with the application's, for startup recovery.
+- `manifest()` returns plugin-owned fields such as `title`, `version` and `modes`. `/api/workspace` lists it under `capabilities.web_plugins`, with `id`, `api_prefix` and `ui` added by the server.
+- `assets` is a directory of public browser files, served at `/assets/plugins/{id}/`. It must contain `index.js`, which the explorer imports at startup (`ui.module` in the manifest). Keep Python files out of this directory.
+
+`index.js` exports `install(host, manifest)`. It runs once, after the workspace loads and before a saved link reopens a plugin view. If it throws or fails to load, the explorer reports the plugin by name and continues without it. The host offers:
+
+| Method | Purpose |
+| --- | --- |
+| `context()` | `{ workspace, run, branch, cursor }` for the current selection; `branch` is null before a run opens |
+| `registerView({ id, title, tip, onShow(params), onHide() })` | Adds a workspace tab and returns its panel element |
+| `openView(id, params)` | Shows a workspace view; `params` ride in the URL so links reopen it |
+| `setViewParams(id, params)` | Updates the URL params of the view that is showing |
+| `openBranchView(branchId, cursor, viewId, params)` | Opens a branch at a cursor, then a view |
+| `openTimeline(branchId, cursor, eventId?)` | Opens the timeline at a cursor, selecting the event if given |
+| `loadTimeline(branchId)`, `loadDetail(branchId, event)` | Cached event summaries and full event records |
+| `addAction({ label, tip, onClick })` | Adds an entry under the plugin's title in the `⋯` menu |
+| `registerVisualization(config)` | Adds a view above the transcript; see the README's frontend section |
+
+Shared browser helpers are imported by a stable name that the page maps to the explorer's own modules: `swarm-lens/ui.js` (elements, `api`, `post`, toasts, tooltips), `swarm-lens/dialog.js`, `swarm-lens/markdown.js` and `swarm-lens/workspace.js`. Node tests resolve the same names through `package.json` exports. Call your own routes with `api("/plugins/{id}/...")`.
+
+```python
+from pathlib import Path
+from fastapi import APIRouter
+from swarm_lens.web.extensions import WebExtension
+
+def notes_extension(store):
+    router = APIRouter(prefix="/api/plugins/notes")
+
+    @router.get("/items")
+    def items(branch_id: str):
+        return {"items": store.items(branch_id)}
+
+    return WebExtension("notes", router, lambda: {"title": "Notes", "version": "1"},
+                        assets=Path(__file__).parent / "static")
+```
+
+```js
+// static/index.js
+import { api, el } from "swarm-lens/ui.js";
+
+export function install(host) {
+  const panel = host.registerView({ id: "notes", title: "Notes", onShow: async () => {
+    const { branch } = host.context();
+    if (!branch) return;
+    const { items } = await api(`/plugins/notes/items?branch_id=${encodeURIComponent(branch.id)}`);
+    panel.replaceChildren(...items.map((item) => el("p", "", item)));
+  } });
+  host.addAction({ label: "Open notes", onClick: () => host.openView("notes") });
+}
+```
+
+Pass the extension to `create_app(framework, artifacts, extensions=(notes_extension(store),))`. MAST (`src/swarm_lens/web/plugins/mast/`) is a complete example that follows exactly this contract. Plugin styles are the plugin's own concern; MAST's stylesheet is part of the shared build only because it predates this contract.
+
 ## Observe a history with a method
 
 Use `ObservabilityPlugin(method_id, version, factory, adapter)` from `swarm_lens.observability`. The factory receives analysis configuration and returns a fresh method. The application adapter consumes the selected `Event` history and yields method-specific observations. Its `id`, `version`, and `describe()` document mapping/encoding provenance. Standard `Framework.analyze` then persists the resolved method/adapter metadata, output, and branch history digest.

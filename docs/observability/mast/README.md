@@ -33,7 +33,7 @@ Messages use the explorer's shared formatter, built from `frontend/message-forma
 
 The library returns this data in `analysis.output.evidence`, including the evidence version, request hash, model metadata, raw response, validation warnings, and details keyed by trait code. Event references are checked against the exact analyzed prefix, and positions are resolved from that input. Invalid references discard that trait's occurrences. Failure of the additional request preserves the original assessment with evidence marked unavailable. Raw transcript imports can cite their containing observation, but do not gain invented message identities.
 
-`web/mast_details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/mast-details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
+`web/plugins/mast/details.py` presents evidence from the frozen trace artifact through the trait endpoint below; `web/plugins/mast/static/details.js` owns the disclosures. These explanations remain model assessments. Deterministic tests verify reference integrity and presentation, not semantic accuracy.
 
 ## Sub-API and registration
 
@@ -57,7 +57,7 @@ For an application-owned composition root:
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.judge import OpenAIMastJudge
 from swarm_lens.observability.mast.service import MastJobs, MastService
-from swarm_lens.web.mast import mast_extension
+from swarm_lens.web.plugins.mast import mast_extension
 from swarm_lens.web.api import create_app
 
 service = MastService(framework, MastPlugin(OpenAIMastJudge()),
@@ -65,7 +65,7 @@ service = MastService(framework, MastPlugin(OpenAIMastJudge()),
 app = create_app(framework, artifacts, extensions=(mast_extension(service),))
 ```
 
-`/api/workspace` advertises web-plugin manifests; the browser connects MAST's renderer to its controls. Duplicate IDs/routes fail startup. Routes must use the plugin's namespace. The domain/application layers and CASPIAN remain independent of FastAPI.
+MAST is an ordinary [web plugin](../../integration.md#write-a-web-plugin): everything it adds lives in `src/swarm_lens/web/plugins/mast/`, and its browser module (`static/index.js`) installs the Reports view and the **Analyze with MAST…** action through the same host API any plugin uses. Duplicate IDs/routes fail startup. Routes must use the plugin's namespace. The domain/application layers and CASPIAN remain independent of FastAPI.
 
 ## Provenance and limits
 

@@ -8,7 +8,7 @@ from swarm_lens.observability.mast.evidence import generate_evidence, validate_t
 from swarm_lens.observability.mast.method import MastPlugin, assets, history_trace
 from swarm_lens.observability.mast.service import MastJobs, MastService
 from swarm_lens.web.api import create_app
-from swarm_lens.web.mast import mast_extension
+from swarm_lens.web.plugins.mast import mast_extension
 
 
 LABELS = [{"code": "1.3", "present": True}, {"code": "1.1", "present": False}]
@@ -155,7 +155,7 @@ def test_frozen_prefix_rejects_a_real_future_parent_event(framework, branch):
 
 
 def test_presenter_keeps_non_message_context_and_later_counterevidence(framework, branch, tmp_path):
-    from swarm_lens.web.mast_details import present_trait_details
+    from swarm_lens.web.plugins.mast.details import present_trait_details
 
     history = framework.history(branch.id)
     first, last = history[3].id, history[-1].id

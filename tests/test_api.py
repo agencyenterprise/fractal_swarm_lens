@@ -47,3 +47,34 @@ def test_raw_transcript_import_keeps_the_text_without_interpreting_it(framework)
     history = framework.history(branch["id"])
     assert [event.kind for event in history] == ["environment.updated", "observation.recorded"]
     assert history[1].data["content"] == "A: hi\nB: hello" and history[0].data["task"] == "Greet"
+
+
+def test_web_plugin_serves_its_own_module_and_owns_only_its_namespace(framework, tmp_path):
+    from fastapi import APIRouter
+    import pytest
+    from swarm_lens.web.extensions import WebExtension
+
+    (tmp_path / "index.js").write_text("export function install(host, manifest) {}")
+    router = APIRouter(prefix="/api/plugins/notes")
+
+    @router.get("/hello")
+    def hello():
+        return {"hello": "notes"}
+
+    extension = WebExtension("notes", router, lambda: {"title": "Notes", "id": "spoofed", "ui": None}, assets=tmp_path)
+    client = TestClient(create_app(framework, extensions=(extension,)))
+    manifest = client.get("/api/workspace").json()["capabilities"]["web_plugins"][0]
+    assert manifest == {"title": "Notes", "id": "notes", "api_prefix": "/api/plugins/notes",
+                        "ui": {"module": "/assets/plugins/notes/index.js"}}
+    assert client.get(manifest["ui"]["module"]).text.startswith("export function install")
+    assert client.get("/api/plugins/notes/hello").json() == {"hello": "notes"}
+    assert client.get("/assets/ui.js").status_code == 200
+
+    with pytest.raises(ValueError, match="lowercase"):
+        WebExtension("../notes", router, dict)
+    with pytest.raises(ValueError, match="index.js"):
+        WebExtension("notes", router, dict, assets=tmp_path / "missing")
+    stray = APIRouter()
+    stray.add_api_route("/api/branches/x", hello)
+    with pytest.raises(ValueError, match="must start with /api/plugins/other/"):
+        create_app(framework, extensions=(WebExtension("other", stray, dict),))

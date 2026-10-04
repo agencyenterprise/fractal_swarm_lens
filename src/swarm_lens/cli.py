@@ -21,7 +21,7 @@ def main():
     args = parser.parse_args()
     import uvicorn
     from .web.api import create_app
-    from .web.mast import mast_extension
+    from .web.plugins.mast import mast_extension
     from .observability.mast import MastPlugin
     from .observability.mast.judge import OpenAIMastJudge
     from .observability.mast.service import MastJobs, MastService
