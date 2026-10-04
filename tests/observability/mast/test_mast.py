@@ -8,7 +8,8 @@ from swarm_lens.adapters.artifacts import FileArtifacts
 from swarm_lens.core.models import DomainError
 from swarm_lens.observability.mast import MastPlugin
 from swarm_lens.observability.mast.method import assets, make_prompt, parse_response
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.adapters.jobs import JobStore
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.mast import mast_extension
 
@@ -42,7 +43,7 @@ class FakeJudge:
 
 @pytest.fixture
 def service(framework, tmp_path):
-    return MastService(framework, MastPlugin(FakeJudge()), MastJobs(tmp_path / "mast.sqlite"),
+    return MastService(framework, MastPlugin(FakeJudge()), JobStore(tmp_path / "mast.sqlite", "mast", "MAST"),
                        FileArtifacts(tmp_path / "artifacts"))
 
 

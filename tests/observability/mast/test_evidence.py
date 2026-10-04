@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from swarm_lens.adapters.artifacts import FileArtifacts
 from swarm_lens.observability.mast.evidence import generate_evidence, validate_traits
 from swarm_lens.observability.mast.method import MastPlugin, assets, history_trace
-from swarm_lens.observability.mast.service import MastJobs, MastService
+from swarm_lens.adapters.jobs import JobStore
+from swarm_lens.observability.mast.service import MastService
 from swarm_lens.web.api import create_app
 from swarm_lens.web.mast import mast_extension
 
@@ -121,7 +122,7 @@ def test_api_presents_frozen_evidence_and_library_matches(framework, branch, tmp
     plugin = MastPlugin(Judge(payload))
     framework.plugins[plugin.id] = plugin
     direct = framework.analyze("mast", child.id, 4)
-    service = MastService(framework, plugin, MastJobs(tmp_path / "mast.sqlite"), FileArtifacts(tmp_path / "artifacts"))
+    service = MastService(framework, plugin, JobStore(tmp_path / "mast.sqlite", "mast", "MAST"), FileArtifacts(tmp_path / "artifacts"))
     job = service.submit(child.id, 4, "partial")
     framework.intervene(child.id, "agent.updated", {"id": "a", "system_prompt": "future child"}, 4)
     service.execute(job["id"])
@@ -160,7 +161,7 @@ def test_presenter_keeps_non_message_context_and_later_counterevidence(framework
     history = framework.history(branch.id)
     first, last = history[3].id, history[-1].id
     plugin = MastPlugin(Judge(response(first, last, [first], [last])))
-    service = MastService(framework, plugin, MastJobs(tmp_path / "mast.sqlite"), FileArtifacts(tmp_path / "artifacts"))
+    service = MastService(framework, plugin, JobStore(tmp_path / "mast.sqlite", "mast", "MAST"), FileArtifacts(tmp_path / "artifacts"))
     job = service.submit(branch.id, 7, "partial")
     service.execute(job["id"])
     detail = present_trait_details(service, job["id"], "1.3")
