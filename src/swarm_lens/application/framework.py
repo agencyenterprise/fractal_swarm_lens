@@ -45,6 +45,24 @@ class Framework:
         self.store.create_run(run, branch)
         return branch
 
+    def import_transcript(self, name: str, text: str, task: str = "") -> Branch:
+        """Save a raw transcript as a new run without interpreting it; a source adapter is needed for agent lanes."""
+        if not text.strip():
+            raise DomainError("A transcript needs nonempty content")
+        at, digest = utc_now(), hashlib.sha256(text.encode()).hexdigest()
+        facts = [Fact("environment.updated", {"task": task or name}, at),
+                 Fact("observation.recorded", {"type": "imported_trace", "content": text}, at,
+                      {"origin": "import", "format": "raw_text", "sha256": digest,
+                       "timing": "import time; original timing remains in the trace"})]
+
+        class Transcript:
+            def facts(self):
+                yield from facts
+
+        branch = self.create_run(name, {"source_type": "saved_trace", "sha256": digest})
+        self.ingest(branch.id, Transcript())
+        return self.store.branch(branch.id)
+
     def history(self, branch_id: str, cursor: int | None = None) -> list[Event]:
         return self.store.events(branch_id, cursor)
 

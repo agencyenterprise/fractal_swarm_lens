@@ -13,7 +13,7 @@ swarm-lens --data data --env-file .env --port 8765
 
 Set `OPENAI_API_KEY` on the server or in the selected `.env`. The default judge is now `MAST_MODEL=gpt-5.5`, as requested for this application. The upstream notebook used `o1`; this model choice is an explicit evaluation variant, recorded with the requested and resolved model names in each result. GPT-5.5 uses medium reasoning and omits the temperature parameter. Its context budget is 1,050,000 tokens, with 16,384 reserved for completion and 1,024 for framing margin. Set `MAST_CONTEXT_WINDOW` when configuring another model whose context limit is not registered. Credentials never reach the browser. Saved traces and results remain available without credentials; starting an analysis requires them.
 
-Open http://127.0.0.1:8765. Use **Import saved trace** to paste or upload a UTF-8 transcript, or select an existing Swarm Lens run. Raw imports preserve the transcript as `observation.recorded`, without inventing agent identities or timestamps. JSON/JSONL files are retained as text, not guessed into a schema. Upload the conversation itself without reference annotations that would reveal the desired judgment.
+Open http://127.0.0.1:8765. Use the core **Import trace** action (`POST /api/traces`) to paste or upload a UTF-8 transcript, or select an existing Swarm Lens run. Raw imports preserve the transcript as `observation.recorded`, without inventing agent identities or timestamps. JSON/JSONL files are retained as text, not guessed into a schema. Upload the conversation itself without reference annotations that would reveal the desired judgment.
 
 Select **MAST analysis**, indicate whether the trace is complete, then **Analyze saved trace**. This setup dialog opens the submitted job in the **MAST reports** workspace view. The report displays its progress, summary, all 14 answers, raw response, provenance, and a JSON download. Use **Timeline** to return to the same cursor, filters, and zoom, or **View analyzed snapshot** to move explicitly to the report's input boundary.
 
@@ -43,7 +43,6 @@ The normal CLI includes the MAST router in the main FastAPI application and its 
 | --- | --- | --- |
 | GET | `/api/plugins/mast/capabilities` | Model, readiness, saved-trace mode, upstream revision |
 | GET | `/api/plugins/mast/taxonomy` | Definitions, question labels, ambiguity notes |
-| POST | `/api/plugins/mast/traces` | Import `{name, text, task?}` without calling a model |
 | POST | `/api/plugins/mast/analyses` | Submit `{branch_id, cursor, completeness?}`; receive HTTP 202 and job ID |
 | POST | `/api/plugins/mast/preview` | Check the same frozen snapshot and token budget without calling the judge |
 | GET | `/api/plugins/mast/analyses?branch_id=...` | Most recent 50 jobs for this branch |

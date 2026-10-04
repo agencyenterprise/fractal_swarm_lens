@@ -186,6 +186,7 @@ function pluginMenuItems() {
 function moreMenuItems() {
   return [
     ...pluginMenuItems(),
+    { label: "Import trace…", onClick: importDialog },
     ...(view.workspace.capabilities.git ? [{ label: "Save Git checkpoint", onClick: saveCheckpoint }] : []),
     ...(view.run?.metadata.dataset_url ? [{ label: "Source and provenance ↗", onClick: () => window.open(view.run.metadata.dataset_url, "_blank", "noopener") }] : []),
     "---",
@@ -480,6 +481,44 @@ async function readArtifact(digest) {
   } catch (error) { failure(error); }
 }
 
+// A raw transcript becomes its own run; no model is called.
+function importDialog() {
+  const root = el("div", "import-dialog");
+  const name = field("Name", "name", "");
+  name.input.required = true;
+  name.input.maxLength = 160;
+  const task = field("Task (optional)", "task", "");
+  const trace = field("Transcript", "trace", "", "textarea");
+  trace.input.required = true;
+  trace.input.maxLength = 200000;
+  trace.input.placeholder = "Paste the conversation, with agent names if available";
+  const file = field("Or load a file (.txt, .json, .jsonl)", "file", "");
+  file.input.type = "file";
+  file.input.accept = ".txt,.json,.jsonl";
+  file.input.onchange = async () => {
+    try {
+      const chosen = file.input.files[0];
+      if (!chosen) return;
+      if (chosen.size > 800000) throw new Error("Choose a file smaller than 800 KB.");
+      const text = await chosen.text();
+      if (text.length > 200000) throw new Error("Choose a trace shorter than 200,000 characters.");
+      trace.input.value = text;
+      if (!name.input.value) name.input.value = chosen.name.slice(0, 160);
+      $("#dialog-error").textContent = "";
+    } catch (error) { $("#dialog-error").textContent = error.message; }
+  };
+  root.append(name.fragment, task.fragment, trace.fragment, file.fragment);
+  openDialog("Import trace", root, { kicker: "", confirm: "Import", pending: "Importing…",
+    submit: async () => {
+      const result = await post("/traces", { name: name.input.value,
+        task: task.input.value, text: trace.input.value });
+      await refreshWorkspace();
+      await loadBranch(result.branch.id);
+      toast("Trace imported");
+    },
+  });
+}
+
 async function runActivityAnalysis() {
   try {
     stopPlayback();
@@ -579,7 +618,6 @@ function pluginHost(manifest) {
       if (!event) throw new Error("This evidence event is not in the selected history.");
       await selectEvent(event);
     },
-    onImport: async (branchId) => { await refreshWorkspace(); await loadBranch(branchId); },
     addAction: (action) => menuActions.push({ ...action, plugin: manifest.title }),
   };
 }

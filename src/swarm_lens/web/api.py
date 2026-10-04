@@ -33,6 +33,12 @@ class AnalysisRequest(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class TraceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=1, max_length=200_000)
+    task: str = Field(default="", max_length=10_000)
+
+
 class CheckpointRequest(BaseModel):
     cursor: int | None = Field(default=None, ge=0)
     message: str = "Visual explorer checkpoint"
@@ -105,6 +111,10 @@ def create_app(framework: Framework, artifacts=None, *, extensions=(), live=None
                 "capabilities": {**framework.capabilities(),
                                  "live": {"enabled": live is not None, "runtimes": list(live.runtimes) if live else []},
                                  "web_plugins": [extension.manifest() for extension in extensions]}}
+
+    @app.post("/api/traces", status_code=201)
+    def import_trace(request: TraceRequest):
+        return {"branch": asdict(framework.import_transcript(request.name, request.text, request.task))}
 
     @app.get("/api/branches/{branch_id}/timeline")
     def timeline(branch_id: str):

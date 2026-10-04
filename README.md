@@ -4,7 +4,7 @@ A self-hosted framework for observing, replaying, branching, and intervening in 
 
 ## Project priorities
 
-Swarm Lens supports saved traces and live collection over the same event history. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for importing and analyzing traces. [CrewAI live collection and branch execution](examples/crewai/README.md) use a pinned adapter, durable ingestion, WebSocket updates, registered application runtimes, and a continuation adapter for imported conversations. ACIArena continuations preserve the debater/aggregator round structure; other traces use an explicit round-robin schedule and registered tools. Docker deployment remains a priority. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
+Swarm Lens supports saved traces and live collection over the same event history. [MAST saved-trace analysis](docs/observability/mast/README.md) provides an on-demand LLM judge, a composed plugin API, and UI controls for analyzing traces; importing a raw transcript is a core action. [CrewAI live collection and branch execution](examples/crewai/README.md) use a pinned adapter, durable ingestion, WebSocket updates, registered application runtimes, and a continuation adapter for imported conversations. ACIArena continuations preserve the debater/aggregator round structure; other traces use an explicit round-robin schedule and registered tools. Docker deployment remains a priority. See the [implementation priorities and acceptance criteria](docs/architecture.md#implementation-priorities).
 
 CASPIAN stays as an optional experimental plugin. We have not validated that it reliably detects cascade effects; executable code and equation-level tests do not establish detection accuracy. Observability and trace collection must remain useful independently of CASPIAN.
 
@@ -62,7 +62,7 @@ This is a working foundation, not a claim of deployment readiness at arbitrary s
 
 ## Observability methods
 
-For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,mast]`, configure the server's `OPENAI_API_KEY`, and launch the usual explorer. **Import saved trace** collects a transcript locally; **MAST analysis** runs the upstream 14-category judge on a saved snapshot and retains the result. MAST does not run live. Its sub-API is `/api/plugins/mast`; CASPIAN has no dedicated API.
+For LLM tracing, use [MAST](docs/observability/mast/README.md): install `.[web,mast]`, configure the server's `OPENAI_API_KEY`, and launch the usual explorer. **Import trace** (core, `POST /api/traces`) saves a transcript locally without calling a model; **Analyze with MAST** runs the upstream 14-category judge on a saved snapshot and retains the result. MAST does not run live. Its sub-API is `/api/plugins/mast`; CASPIAN has no dedicated API.
 
 Optional methods live under `swarm_lens.observability`, independently of the core. The first is a paper-based [CASPIAN implementation](docs/observability/caspian/README.md) with streaming conditional influence estimation, spectral detection, and role/path attribution. Install `.[caspian]`. Applications supply observed source/target vectors through a versioned history adapter; no AI Village schema is embedded in the method.
 

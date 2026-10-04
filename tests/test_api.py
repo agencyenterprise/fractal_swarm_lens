@@ -31,3 +31,16 @@ def test_foreign_origin_cannot_mutate_local_state(framework, branch):
     client = TestClient(create_app(framework))
     assert client.post(f"/api/branches/{branch.id}/fork", json={"cursor": 4, "name": "bad"},
                        headers={"Origin": "https://unrelated.example"}).status_code == 403
+
+
+def test_raw_transcript_import_keeps_the_text_without_interpreting_it(framework):
+    client = TestClient(create_app(framework))
+    assert client.post("/api/traces", json={"name": " ", "text": ""}).status_code == 422
+    response = client.post("/api/traces", json={"name": "Pasted chat", "text": "A: hi\nB: hello", "task": "Greet"})
+    assert response.status_code == 201
+    branch = response.json()["branch"]
+    run = next(run for run in framework.store.runs() if run.id == branch["run_id"])
+    assert run.metadata["source_type"] == "saved_trace"
+    history = framework.history(branch["id"])
+    assert [event.kind for event in history] == ["environment.updated", "observation.recorded"]
+    assert history[1].data["content"] == "A: hi\nB: hello" and history[0].data["task"] == "Greet"
