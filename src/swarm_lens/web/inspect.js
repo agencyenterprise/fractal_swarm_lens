@@ -1,5 +1,5 @@
-import { el, button, avatar, color, eventTone, speakerName, time, formatNumber } from "./ui.js";
-import { renderMarkdown } from "./markdown.js";
+import { el, button, avatar, color, eventTone, speakerName, time, formatNumber, failure } from "./ui.js";
+import { renderMarkdownInto } from "./markdown.js";
 import { topologyGraph } from "./graph.js";
 import { interventionLabel } from "./transcript.js";
 
@@ -161,8 +161,8 @@ function eventBody(event, data) {
     return node;
   }
   const text = data.content ?? data.goal ?? data.system_prompt ?? event.preview ?? "";
-  const md = el("div", "md");
-  md.append(renderMarkdown(text));
+  const md = el("div");
+  renderMarkdownInto(md, text).catch(failure);
   node.append(md);
   return node;
 }

@@ -16,6 +16,9 @@ Object.assign(globalThis, {
 });
 dom.window.HTMLElement.prototype.scrollIntoView = function () { globalThis.scrolledTo = this.dataset.id; };
 const { Transcript } = await import('../../src/swarm_lens/web/transcript.js');
+// The formatter loads lazily in the app; warm the module cache so formatting settles within one tick here.
+await import('../../src/swarm_lens/web/message-format.js');
+const tick = () => new Promise((resolve) => setTimeout(resolve));
 
 const agents = { a: { id: 'a', name: 'Debater 0' }, b: { id: 'b', name: 'Debater 1' } };
 const message = (position, agent, stage, preview) => ({ id: `e${position}`, position, kind: 'message.created',
@@ -59,14 +62,17 @@ test('message bodies load full content once; entries after the cursor wait until
   });
   observed.clear();
   transcript.render({ events, agents, cursor: 4, selectedId: null, agentId: null });
-  assert.match(root.querySelector('[data-id="e4"] .tx-body').textContent, /^Third preview$/);
+  const preview = root.querySelector('[data-id="e4"] .tx-body');
+  assert.equal(preview.textContent, 'Third **preview**', 'raw text shows until the formatter is ready');
+  await tick();
+  assert.equal(preview.textContent.trim(), 'Third preview');
   const margins = new Map([...observed].map(({ node, observer }) => [node.dataset.id, observer.options.rootMargin]));
   assert.deepEqual(Object.fromEntries(margins), { e1: '600px 0px', e3: '600px 0px', e4: '600px 0px', e5: undefined });
   intersectAll();
-  await new Promise((resolve) => setTimeout(resolve));
+  await tick();
   assert.deepEqual(requests.sort(), ['e1', 'e3', 'e4', 'e5']);
   const body = root.querySelector('[data-id="e4"] .tx-body');
-  assert.equal(body.textContent, 'Full e4 with bold');
+  assert.equal(body.textContent.trim(), 'Full e4 with bold');
   assert.equal(body.querySelector('strong').textContent, 'bold');
   transcript.render({ events, agents, cursor: 3, selectedId: null, agentId: null });
   transcript.render({ events, agents, cursor: 5, selectedId: null, agentId: null });

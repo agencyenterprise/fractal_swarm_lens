@@ -240,20 +240,30 @@ dialog::backdrop { background: #0b0c0e66; }
   border-radius: var(--radius); background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg);
 }
 
-/* Rendered Markdown (markdown.js) */
-.md { overflow-wrap: anywhere; }
+/* Rendered messages (markdown.js); plain text until the formatter loads */
+.md { overflow-wrap: anywhere; line-height: 1.6; }
+.md:not(.is-formatted) { white-space: pre-wrap; }
+.md > :first-child { margin-top: 0; }
 .md > * + * { margin-top: 8px; }
-.md ul, .md ol { margin-bottom: 0; padding-left: 20px; }
+.md p { margin: 0; }
+.md p + p { margin-top: 8px; }
+.md ul, .md ol { margin: 8px 0 0; padding-left: 22px; }
 .md ul { list-style: disc; }
 .md ol { list-style: decimal; }
-.md li + li { margin-top: 2px; }
+.md li + li { margin-top: 4px; }
+.md li > p { margin: 0; }
+.md strong { font-weight: 600; }
+.md em { font-style: italic; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
 .md code { padding: 1px 4px; border-radius: 4px; background: var(--surface-2); font: 12px var(--mono); }
-.md .md-heading { font-size: 13px; font-weight: 600; }
-.md .md-code, .md .md-math-block {
-  margin: 8px 0 0; padding: 8px 10px; overflow-x: auto; border-radius: var(--radius-sm);
-  background: var(--surface-2); font: 12px/1.5 var(--mono); white-space: pre;
-}
-.md .md-math-block { color: var(--text-2); }
+.md pre { padding: 8px 10px; overflow-x: auto; border-radius: var(--radius-sm); background: var(--surface-2); font: 12px/1.5 var(--mono); }
+.md pre code { padding: 0; background: transparent; }
+.md blockquote { margin: 8px 0 0; padding: 2px 12px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.md table { border-collapse: collapse; font-size: 12px; }
+.md th, .md td { padding: 4px 8px; border: 1px solid var(--border); text-align: left; }
+.md a { text-decoration: underline; }
+.md math { font-size: 1.05em; }
+.md math[display="block"] { display: block; margin: 8px 0; overflow-x: auto; }
 
 /* Zag pickers (frontend/components.js) */
 .ui-picker { min-width: 0; }

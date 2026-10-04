@@ -1,5 +1,5 @@
 import { el, button, api, failure, formatNumber, color, eventTone, stageOf, speakerName, avatar } from "./ui.js";
-import { renderMarkdown } from "./markdown.js";
+import { renderMarkdownInto } from "./markdown.js";
 import { Picker } from "./components.js?v=1";
 
 const CHUNK = 60;
@@ -343,8 +343,8 @@ class CompareView {
     const head = el("div", "cmp-message-head");
     head.append(avatar(agent || { name: speakerName(event, side.agents) }),
       el("span", "cmp-speaker", event.agent_name || speakerName(event, side.agents)), this.positionButton(side, event));
-    const body = el("div", "md cmp-clamp");
-    body.append(renderMarkdown(event.preview));
+    const body = el("div", "cmp-clamp");
+    renderMarkdownInto(body, event.preview).catch(failure);
     const more = button("Show more", () => {
       const open = body.classList.toggle("open");
       more.textContent = open ? "Show less" : "Show more";
@@ -370,7 +370,7 @@ class CompareView {
     this.pending.delete(node);
     try {
       const detail = await this.host.loadDetail(side.branch.id, event);
-      body.replaceChildren(renderMarkdown(detail.data?.content ?? event.preview));
+      await renderMarkdownInto(body, detail.data?.content ?? event.preview);
     } catch (error) {
       failure(error);
     }

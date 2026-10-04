@@ -70,7 +70,7 @@ The [paper coverage map](docs/observability/caspian/coverage.md) records equatio
 
 ## Frontend development
 
-The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Styles live in `frontend/css/`: `base.css` holds the design tokens (light and dark), shared controls, and the page shell; each feature module has its own file. Agent messages render through a small Markdown subset (`markdown.js`) that builds DOM nodes and never parses recorded text as HTML.
+The explorer uses compiled Tailwind CSS and accessible [Zag.js](https://zagjs.com/) select/combobox components. The conversation picker supports search, keyboard navigation, and capture metadata to distinguish repeated run names. Styles live in `frontend/css/`: `base.css` holds the design tokens (light and dark), shared controls, and the page shell; each feature module has its own file. Agent messages everywhere (transcript, inspector, Compare, MAST evidence) render through one formatter, `frontend/message-format.js` (Markdown-it and KaTeX, recorded HTML stays text). It is bundled to `src/swarm_lens/web/message-format.js` and loaded on first use, so startup does not wait for it.
 
 ```sh
 npm ci

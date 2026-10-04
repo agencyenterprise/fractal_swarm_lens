@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { mastTraitDetails } from '../../src/swarm_lens/web/mast-details.js';
 // The formatter loads lazily in the app; warm the module cache so renders settle within one tick here.
-await import('../../src/swarm_lens/web/mast-message.js');
+await import('../../src/swarm_lens/web/message-format.js');
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 15));
 const job = { id: 'report', branch_id: 'child', cursor: 20 };

@@ -1,5 +1,5 @@
 import { $, el, button, api, post, toast, failure, formatNumber, time } from "./ui.js";
-import { renderMarkdown } from "./markdown.js";
+import { renderMarkdownInto } from "./markdown.js";
 import { EventTimeline } from "./timeline.js";
 import { Transcript } from "./transcript.js";
 import { renderInspector } from "./inspect.js";
@@ -437,8 +437,8 @@ function editGoal() {
 // Reading recorded content
 
 function markdownBlock(text) {
-  const node = el("div", "md");
-  node.append(renderMarkdown(text));
+  const node = el("div");
+  renderMarkdownInto(node, text).catch(failure);
   return node;
 }
 

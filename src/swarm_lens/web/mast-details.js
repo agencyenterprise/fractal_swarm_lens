@@ -1,4 +1,5 @@
 import { el, button, api, failure } from "./ui.js";
+import { renderMarkdownInto, cancelRender } from "./markdown.js";
 
 // Each row owns its disclosure and fetch lifecycle; opening it never runs a judge.
 export function mastTraitDetails(label, job, host) {
@@ -69,12 +70,15 @@ export function mastTraitDetails(label, job, host) {
             const showOriginal = original.getAttribute("aria-pressed") !== "true";
             original.setAttribute("aria-pressed", String(showOriginal));
             original.textContent = showOriginal ? "Formatted text" : "Original text";
-            if (showOriginal) content.replaceChildren(el("pre", "mast-message-original", event.text));
-            else renderContent().catch(failure);
+            if (showOriginal) {
+              cancelRender(content);
+              content.replaceChildren(el("pre", "mast-message-original", event.text));
+            } else render();
           }, "ghost");
           original.setAttribute("aria-pressed", "false");
           tools.append(timestamp, original,
             button("View event on timeline →", () => host.showEvidenceEvent(job.branch_id, event.position, event.event_id).catch(failure), "ghost mast-event-link"));
+          // Marked only after success, so reopening a message retries a failed render.
           let rendered = false;
           async function renderContent() {
             // JSON tool/state payloads stay structured; conversation text gets Markdown + math.
@@ -82,22 +86,23 @@ export function mastTraitDetails(label, job, host) {
               const value = JSON.parse(event.text);
               if (value && typeof value === "object") {
                 content.replaceChildren(el("pre", "mast-message-original", JSON.stringify(value, null, 2)));
+                rendered = true;
                 return;
               }
             } catch { /* Ordinary message text. */ }
-            // The KaTeX bundle is large; load it when the first message opens, not at startup.
-            const { renderMastMessage } = await import("./mast-message.js");
-            content.innerHTML = renderMastMessage(event.text);
+            await renderMarkdownInto(content, event.text);
+            rendered = true;
           }
+          const render = () => renderContent().catch(failure);
           message.addEventListener("toggle", () => {
-            if (message.open && !rendered) { renderContent().catch(failure); rendered = true; }
+            if (message.open && !rendered) render();
           });
           message.append(heading, tools, content);
           // Start with one readable message, not dozens of fully expanded responses.
           if (!openedFirst && event.role !== "context") {
             message.open = true;
-            renderContent().catch(failure);
-            rendered = openedFirst = true;
+            render();
+            openedFirst = true;
           }
           item.append(message);
           events.append(item);

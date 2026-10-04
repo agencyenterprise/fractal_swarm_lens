@@ -1,5 +1,5 @@
 import { el, button, avatar, color, eventTone, stageOf, speakerName, time, formatNumber, failure } from "./ui.js";
-import { renderMarkdown } from "./markdown.js";
+import { renderMarkdownInto } from "./markdown.js";
 
 const PAGE = 150;
 const LATER_PAGE = 50;
@@ -225,8 +225,8 @@ export class Transcript {
     const name = el("span", "tx-speaker", speakerName(event, agents));
     if (agent) name.style.color = color(event.agent_id, agents);
     head.append(avatar(agent || { name: name.textContent }), name, el("time", "tx-time mono", time(event.at)));
-    const body = el("div", "md tx-body");
-    body.append(renderMarkdown(event.preview || ""));
+    const body = el("div", "tx-body");
+    renderMarkdownInto(body, event.preview).catch(failure);
     const more = button("Show more", (click) => {
       click.stopPropagation();
       const expanded = node.classList.toggle("tx-expanded");
@@ -278,8 +278,7 @@ export class Transcript {
     try {
       const detail = await this.handlers.loadDetail(event);
       const content = detail?.data?.content;
-      if (typeof content !== "string" || content === event.preview) return;
-      node.querySelector(".tx-body").replaceChildren(renderMarkdown(content));
+      await renderMarkdownInto(node.querySelector(".tx-body"), typeof content === "string" ? content : event.preview);
       this.measure(node);
     } catch (error) {
       this.loaded.delete(id);

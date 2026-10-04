@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run build:components && npm run build:mast-message && npm run build:styles",
-    "build:mast-message": "esbuild frontend/mast-message.js --bundle --format=esm --target=es2022 --minify --outfile=src/swarm_lens/web/mast-message.js",
+    "build": "npm run build:components && npm run build:message-format && npm run build:styles",
+    "build:message-format": "esbuild frontend/message-format.js --bundle --format=esm --target=es2022 --minify --outfile=src/swarm_lens/web/message-format.js",
     "build:components": "esbuild frontend/components.js --bundle --format=esm --target=es2022 --minify --outfile=src/swarm_lens/web/components.js",
     "build:styles": "tailwindcss -i frontend/styles.css -o src/swarm_lens/web/tailwind.css --minify",
     "test": "node --test tests/web/*.test.mjs"
