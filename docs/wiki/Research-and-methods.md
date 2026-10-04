@@ -8,9 +8,13 @@ Swarm Lens supports inspecting interactions and designing branch experiments. It
 | --- | --- | --- |
 | [MAST](https://github.com/multi-agent-systems-failure-taxonomy/MAST) | Saved-trace LLM judgments using the taxonomy of [Cemri et al. (2025), arXiv:2503.13657](https://arxiv.org/abs/2503.13657) | Judge outputs and cited evidence require review; not human ground truth |
 | [ACIArena](https://github.com/Greysahy/aciarena) | Paired control/attack examples from [An et al. (2026), arXiv:2604.07775](https://arxiv.org/abs/2604.07775) | Native task/attack grading is distinct from propagation or cascade labels |
-| [CASPIAN](https://github.com/caspian-detector/caspian) | Optional experimental detector implementation | To our knowledge, the first public implementation of the CASPIAN paper — [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240) |
+| [CASPIAN](https://github.com/caspian-detector/caspian) | Experimental cascade detection and attribution feature | To our knowledge, the first public implementation of the CASPIAN paper — [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240) |
 
 Swarm Lens's present contribution is infrastructure: an ordered event model, inspectable provenance, branching and intervention workflows, and extensible analysis. These upstream projects supply methods or benchmark context; listing them does not imply their authors endorse this implementation.
+
+## CASPIAN
+
+Swarm Lens includes CASPIAN as an experimental feature for cascade detection and attribution in multi-agent systems. To our knowledge, this is the first public implementation of the method described by [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240).
 
 ## Cascades and failures
 
@@ -29,6 +33,6 @@ Imported-trace continuation is a new execution in CrewAI, not exact resumption o
 
 ## Current limitations
 
-CASPIAN is experimental. MAST can misclassify. Some ACIArena answer parsing is imperfect. The visualization fallbacks are not all recorded delivery edges. Local SQLite data is not automatically reproducible from a Git checkout. See [CASPIAN validation notes](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/caspian/validation.md) and the [MAST guide](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/mast/README.md).
+MAST can misclassify. Some ACIArena answer parsing is imperfect. The visualization fallbacks are not all recorded delivery edges. Local SQLite data is not automatically reproducible from a Git checkout. See the [MAST guide](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/observability/mast/README.md).
 
 No Swarm Lens paper, DOI, or benchmark accuracy claim is asserted here. Cite the upstream methods separately when using them, and record the exact Swarm Lens commit used in an experiment.
