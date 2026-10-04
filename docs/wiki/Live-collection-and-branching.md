@@ -1,14 +1,16 @@
 # Live collection and branching
 
-## Three different operations
+## Playback, live collection, and branch execution
 
-- **Playback** advances through saved history. It makes no model call.
-- **Live collection** records a running agent application and streams new events to the explorer.
-- **Branch execution** creates new model/tool activity from a saved prefix using a compatible runtime.
+These three get confused, so it's worth being precise:
 
-## Run the pinned CrewAI example
+- **Playback** steps through history that's already saved. No model is called.
+- **Live collection** records an agent application while it runs and streams each new event to the explorer.
+- **Branch execution** takes a saved conversation up to some point and continues it with real model and tool calls, using a compatible runtime.
 
-The integration is compatibility-tested with CrewAI 1.15.23 and Python 3.12. From the repository root:
+## Run the CrewAI example
+
+The integration is tested against CrewAI 1.15.23 on Python 3.12. From the repository root:
 
 ```sh
 python3.12 -m venv .venv-crewai
@@ -24,22 +26,22 @@ swarm-lens --data data --port 8765 \
   --trace-tools examples.crewai.demo:trace_tools
 ```
 
-In another terminal with the same environment:
+In a second terminal, with the same environment activated:
 
 ```sh
 python -m examples.crewai.demo --offline --url http://127.0.0.1:8765
 ```
 
-This runs the real CrewAI loop with deterministic fixture responses. Omit `--offline` for model execution after configuring `OPENAI_API_KEY`; that incurs usage.
+`--offline` runs the real CrewAI loop but swaps in fixed, deterministic responses, so it's free. Drop the flag (and set `OPENAI_API_KEY`) to use a real model, which you'll pay for.
 
-## Instrument an existing crew
+## Instrument your own crew
 
-Wrap kickoff with `swarm_lens.integrations.crewai.observe`, passing the crew, inputs, and a registered runtime. The application owns the factory, tool implementations, and revision. Follow the complete [integration example](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/crewai/README.md), including observer configuration and unsupported-state restrictions.
+Wrap your kickoff call with `swarm_lens.integrations.crewai.observe`, passing the crew, its inputs, and a registered runtime. Your application stays in charge of the crew factory, the tool implementations, and its own revision. The [integration example](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/examples/crewai/README.md) walks through the full setup, including observer configuration and which kinds of state aren't supported yet.
 
 ## Continue a saved conversation
 
-Select an event, choose a fork action, review the runtime preview, and select **Create and run**. A goal or prompt change belongs to the new branch. The parent and its later events remain intact.
+Select an event, pick a fork action, check the runtime preview, and choose **Create and run**. Whatever you changed (a goal, a prompt) applies only to the new branch. The parent branch, including everything after the fork point, is left alone.
 
-For a native capture, the adapter can resume at task boundaries or restart the active task with recorded context. Imported traces are reconstructed in CrewAI. ACIArena LLMDebate uses its debater/aggregator ordering; other imported traces use an explicit round-robin policy. This is not restoration of the original framework's hidden process state.
+How the run resumes depends on where the trace came from. For a trace captured natively from CrewAI, the adapter can pick up at a task boundary or restart the current task with the recorded context. An imported trace gets rebuilt as a CrewAI crew: ACIArena LLMDebate keeps its debater-then-aggregator order, and anything else takes turns round-robin. Either way, this is a new run that starts from the recorded messages. The original framework's internal state isn't restored.
 
-Tool implementations must be registered explicitly. Saved tool results are not new executions. Forking does not roll back external files or services, and a restarted task may call tools again. The preview explains availability and the next actor before execution.
+Tools need some care. They have to be registered explicitly, and a saved tool result isn't the same as calling the tool again. Forking also won't undo anything a tool did to files or external services, and if a task restarts it may call those tools a second time. The preview tells you, before anything runs, which tools are available and which agent will act next.

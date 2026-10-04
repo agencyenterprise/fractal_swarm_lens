@@ -2,7 +2,7 @@
 
 ## Install and open the explorer
 
-Requirements: Python 3.11+ and Git. Python 3.12 is the tested version for the CrewAI integration.
+You need Python 3.11 or newer and Git. (If you plan to use the CrewAI integration, use Python 3.12; that's the version we test it on.)
 
 ```sh
 git clone https://github.com/agencyenterprise/fractal_swarm_lens.git
@@ -13,21 +13,23 @@ python -m pip install -e '.[web]'
 swarm-lens --data data --port 8765
 ```
 
-On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Open <http://127.0.0.1:8765>. Stop the server with Ctrl+C. The browser assets are bundled; Node.js is only needed to rebuild the frontend.
+On Windows, activate the environment with `.venv\Scripts\Activate.ps1` in PowerShell instead.
+
+Then open <http://127.0.0.1:8765>. Press Ctrl+C in the terminal to stop the server. The browser assets come prebuilt, so you only need Node.js if you're changing the frontend.
 
 ## Load a trace
 
-Choose **⋯ → Import trace**, paste a transcript, and inspect it in Timeline. For structured examples with recorded interactions and memories, use the [medical debate import recipe](Examples-and-datasets).
+Choose **⋯ → Import trace**, paste a transcript, and it opens in the Timeline. If you'd rather start with something richer, with recorded interactions and memories, follow the [medical debate recipe](Examples-and-datasets).
 
-An empty run picker means the selected workspace has no imported runs. The `--data` argument selects a directory containing SQLite history, artifacts, and supporting stores. Always use the same directory when restarting.
+If the run picker is empty, the workspace just doesn't have any runs yet. The `--data` flag points at the directory holding your SQLite history, artifacts, and other stores, so use the same path every time you restart or your runs will seem to vanish.
 
-## Optional analysis
+## Add MAST analysis (optional)
 
 ```sh
 python -m pip install -e '.[mast]'
 ```
 
-Set `OPENAI_API_KEY` in your shell or a local `.env`. Restart the server, choose **⋯ → MAST trace analysis → Analyze with MAST**, and inspect the free size preview before submitting. Submitting sends the selected trace to the configured provider and incurs model usage. Saved playback and trace import do not require model calls.
+Set `OPENAI_API_KEY` in your shell or in a local `.env`, then restart the server. Choose **⋯ → MAST trace analysis → Analyze with MAST**. Before anything is sent, you'll see a size preview, which is free. Submitting sends the trace to the model provider and you'll be billed for it. Importing and replaying traces never calls a model.
 
 ## Next
 

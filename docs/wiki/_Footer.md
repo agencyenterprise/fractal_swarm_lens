@@ -1,1 +1,1 @@
-Swarm Lens · Research infrastructure for multi-agent observability · [Source and issues](https://github.com/agencyenterprise/fractal_swarm_lens) · Guides describe `main`.
+These pages describe the `main` branch. Spotted something wrong? [Open an issue](https://github.com/agencyenterprise/fractal_swarm_lens/issues).

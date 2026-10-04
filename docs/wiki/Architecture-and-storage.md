@@ -1,6 +1,6 @@
 # Architecture and storage
 
-## Boundaries
+## How the pieces fit
 
 ```text
 Source application → ordered events → framework → SQLite history
@@ -12,12 +12,12 @@ Source application → ordered events → framework → SQLite history
                                 analysis / UI plugins
 ```
 
-The core models agents, channels, messages, memory, tools, and environment state. The application layer owns replay, branches, interventions, and extension interfaces. Adapters own SQLite, Git, and artifacts; web code owns presentation. Dataset interpretation stays in source applications.
+The core models agents, channels, messages, memory, tools, and environment state. On top of that, the application layer handles replay, branches, interventions, and the extension interfaces. Adapters deal with SQLite, Git, and artifacts, and the web code only handles presentation. Anything specific to a dataset, like how to interpret its fields, stays in the source application.
 
-See the [architecture reference](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/architecture.md).
+The [architecture reference](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/architecture.md) has the details.
 
 ## Workspaces
 
-`--data PATH` selects local storage. `data/` and `data/mast-integration/` are separate workspaces even within one checkout. Runs are not added by pulling code. Import saved examples or exchange an exported run bundle to share conversations.
+`--data PATH` picks which local workspace to use. `data/` and `data/mast-integration/` are two separate workspaces, even inside the same checkout. Pulling new code never adds runs; to share conversations, import the bundled examples or pass around exported run bundles.
 
-History lives in `history.sqlite`; live jobs and MAST jobs have supporting stores, alongside artifacts and Git checkpoints. Back up the complete workspace when preserving an experiment. A live SQLite WAL may contain committed data: stop processes and use a consistent SQLite backup, rather than copying only an active database file.
+History is stored in `history.sqlite`. Live jobs and MAST jobs have their own stores next to it, along with artifacts and Git checkpoints. If you want to preserve an experiment, back up the whole workspace directory. While a server is running, the SQLite write-ahead log can hold data that's committed but not yet in the main file, so stop everything first and take a proper SQLite backup rather than copying the database file on its own.

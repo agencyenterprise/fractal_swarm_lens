@@ -1,40 +1,40 @@
 # Research and methods
 
-Swarm Lens supports inspecting interactions and designing branch experiments. It does not, by itself, prove that an observed dependency is causal or that an analysis model is accurate.
+Swarm Lens helps you look closely at how agents interact and set up experiments by branching. It can't, on its own, tell you that one agent caused another's behavior, or that an analysis model got it right. Those claims still need an experimental design behind them.
 
-## Research context
+## Methods we build on
 
-| Component | Role in this project | Research context |
+| Component | What it does here | What to keep in mind |
 | --- | --- | --- |
-| [MAST](https://github.com/multi-agent-systems-failure-taxonomy/MAST) | Saved-trace LLM judgments using the taxonomy of [Cemri et al. (2025), arXiv:2503.13657](https://arxiv.org/abs/2503.13657) | Judge outputs and cited evidence require review; not human ground truth |
-| [ACIArena](https://github.com/Greysahy/aciarena) | Paired control/attack examples from [An et al. (2026), arXiv:2604.07775](https://arxiv.org/abs/2604.07775) | Native task/attack grading is distinct from propagation or cascade labels |
-| [CASPIAN](https://github.com/caspian-detector/caspian) | Experimental cascade detection and attribution feature | Detects and attributes cascade attacks through cross-channel causal monitoring — [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240) |
+| [MAST](https://github.com/multi-agent-systems-failure-taxonomy/MAST) | An LLM judge labels saved traces with the failure taxonomy from [Cemri et al. (2025), arXiv:2503.13657](https://arxiv.org/abs/2503.13657) | Read the judge's output and the evidence it cites; it isn't a human annotation |
+| [ACIArena](https://github.com/Greysahy/aciarena) | Paired control/attack runs from [An et al. (2026), arXiv:2604.07775](https://arxiv.org/abs/2604.07775) | Its grader scores the task and the attack, not whether behavior propagated |
+| [CASPIAN](https://github.com/caspian-detector/caspian) | Experimental cascade detection and attribution | Uses cross-channel causal monitoring, from [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240) |
 
-Swarm Lens's present contribution is infrastructure: an ordered event model, inspectable provenance, branching and intervention workflows, and extensible analysis. These upstream projects supply methods or benchmark context; listing them does not imply their authors endorse this implementation.
+What Swarm Lens itself adds is the infrastructure around these: an ordered event model, provenance you can inspect, branching and intervention, and a way to plug in more analyses. The methods and benchmarks come from the projects above. Their authors haven't reviewed or endorsed this implementation.
 
-## CASPIAN
+## About CASPIAN
 
-Swarm Lens includes CASPIAN as an experimental feature for cascade detection and attribution in multi-agent systems. To our knowledge, this is the first public implementation of the method described by [Venkatesh et al. (2026), arXiv:2605.19240](https://arxiv.org/abs/2605.19240).
+CASPIAN is included as an experimental feature. As far as we know, this is the first public implementation of the method in [Venkatesh et al. (2026)](https://arxiv.org/abs/2605.19240). Expect rough edges, and please [tell us](https://github.com/agencyenterprise/fractal_swarm_lens/issues) when you find them.
 
-## Cascades and failures
+## Cascades vs. failures
 
-A cascade can propagate benign, harmful, or other behavior. An attack is a possible trigger, not a definition of a cascade. Shared answers, common exposure, or agreement do not alone establish propagation. Descriptive tools help locate evidence; reference labels need an explicit operational definition and inspection protocol.
+A cascade is behavior spreading from agent to agent. What spreads might be harmful, harmless, or just odd. An attack is one way to start a cascade, but it isn't the definition of one. And when agents give the same answer, or saw the same input, or agree with each other, that by itself doesn't show anything propagated. The descriptive views help you find evidence. To label cascades reliably, you need a written definition and a consistent way of checking traces against it.
 
-## Suggested experimental record
+## Keeping a good experimental record
 
-1. Preserve source data, code revision, exact prompts, outputs, and observed delivery links.
-2. State the behavior of interest and labeling criteria before comparing detectors.
-3. Separate control and intervention conditions; document shared inputs and model settings.
-4. Record the first detection and continue measurement through the end of the run.
-5. Retain uncertainty, grader failures, and unscorable cases rather than assigning negative labels.
-6. Distinguish repeated-condition estimates from a single illustrative run.
+1. Save the source data, code revision, exact prompts and outputs, and the observed delivery links between agents.
+2. Write down what behavior you're looking for, and how you'll label it, before you compare detectors.
+3. Keep control and intervention conditions separate, and note which inputs and model settings they share.
+4. Record when something is first detected, and keep measuring until the run ends.
+5. Keep uncertain, failed, and unscorable cases as they are. Don't fold them into the negatives.
+6. Be clear about whether a number comes from repeated runs or from a single illustrative one.
 
-Imported-trace continuation is a new execution in CrewAI, not exact resumption of the original system. Model stochasticity and external side effects limit direct counterfactual interpretations.
+Continuing an imported trace starts a new CrewAI run. It doesn't resume the original system exactly. Between model randomness and tools that touch the outside world, a branch isn't a clean counterfactual, so treat comparisons with that in mind.
 
-## Next steps
+## What we'd like to do next
 
-- **Build reproducible benchmark workflows.** Package trace exports, model settings, prompts, and code revisions so researchers can repeat and compare experiments.
-- **Compare analysis with reference annotations.** Evaluate MAST reports and CASPIAN outputs against independently reviewed traces, with results broken down by scenario and behavior.
-- **Study propagation over time.** Compare paired control and intervention runs to examine how behaviors spread through messages, tools, and memory.
-- **Extend framework integrations.** Capture more interaction types and support branch experiments across additional agent runtimes.
-- **Make research easier to share.** Export reports and trace evidence together, with citations to the methods used in each experiment.
+- **Reproducible benchmark workflows.** Package trace exports, model settings, prompts, and code revisions so others can rerun and compare experiments.
+- **Check the analyses against human labels.** Compare MAST reports and CASPIAN output with independently reviewed traces, broken down by scenario and behavior.
+- **Follow propagation over time.** Use paired control and intervention runs to see how behavior moves through messages, tools, and memory.
+- **More frameworks.** Capture more kinds of interaction, and support branching in runtimes beyond CrewAI.
+- **Easier sharing.** Export reports and the trace evidence together, with citations for the methods used.

@@ -1,8 +1,8 @@
 # Build a plugin
 
-A web plugin contributes a namespaced API and optionally a frontend module without adding imports to the explorer. Python and JavaScript plugins are trusted application code, not sandboxed extensions.
+A web plugin adds its own API routes, and optionally a frontend module, to the explorer without you touching the explorer's code. Plugins run as ordinary Python and JavaScript with full access to the app. There's no sandbox, so only install ones you trust.
 
-## Minimal module
+## A minimal plugin
 
 Create `my_plugin/__init__.py`:
 
@@ -25,7 +25,7 @@ def create(services):
     )
 ```
 
-Create `my_plugin/static/index.js`:
+And `my_plugin/static/index.js`:
 
 ```js
 import { api, el } from 'swarm-lens/ui.js';
@@ -46,16 +46,22 @@ export function install(host, manifest) {
 }
 ```
 
-From the directory containing `my_plugin`, with Swarm Lens installed:
+Then, from the directory that contains `my_plugin`, with Swarm Lens installed:
 
 ```sh
 swarm-lens --data data --plugin my_plugin:create
 ```
 
-## Contract
+## The rules
 
-The factory receives `PluginServices(framework, artifacts, data)`. Routes must stay under `/api/plugins/{id}/`; IDs must be unique lowercase letters, digits, and hyphens. The assets directory must contain `index.js`. The server advertises its URL; the browser loads modules before restoring a saved route. Failed installations remove registered UI elements and report the plugin failure.
+Your factory gets a `PluginServices(framework, artifacts, data)`. A few constraints:
 
-The host offers view and visualization registration, actions, current context, timeline/detail loading, and navigation to a branch/cursor. MAST is the bundled reference implementation. [Full API contract](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/integration.md#write-a-web-plugin).
+- Routes live under `/api/plugins/{id}/`.
+- IDs must be unique and use only lowercase letters, digits, and hyphens.
+- The assets directory must contain an `index.js`.
 
-A core analysis `Plugin` and a `WebExtension` are different interfaces. `--plugin` registers the web extension; your factory wires any analysis service it requires. Package browser assets with your distribution, and keep credentials and Python files out of its public assets directory.
+The server tells the browser where your module is, and the browser loads all plugins before it restores the saved route. If a plugin fails to install, any UI it had already registered is removed and the failure is reported.
+
+From `host`, you can register views and visualizations, add actions, read the current context, load timeline and detail data, and jump to a branch and cursor. The bundled MAST plugin is a full working example. The complete API is in the [integration guide](https://github.com/agencyenterprise/fractal_swarm_lens/blob/main/docs/integration.md#write-a-web-plugin).
+
+One distinction that trips people up: an analysis `Plugin` and a `WebExtension` are separate interfaces. `--plugin` registers the web extension, and it's up to your factory to set up any analysis service behind it. When you package a plugin, ship the browser assets with it, and keep credentials and Python source out of the public assets directory.

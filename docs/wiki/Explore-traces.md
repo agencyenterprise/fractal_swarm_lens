@@ -2,31 +2,31 @@
 
 ## Timeline
 
-Choose a run, then a branch. Move the cursor to inspect the state at a particular event. The transcript preserves later messages but dims them; the inspector shows the selected event, agent, or run. Use the View and Show controls to include tools, memories, and observations.
+Pick a run, then a branch. As you move the cursor, the explorer shows the state of the conversation at that event: later messages stay visible but dimmed, and the inspector shows details for whatever you've selected (an event, an agent, or the whole run). Use the View and Show controls to bring tools, memories, and observations into the transcript.
 
-The visualization switch changes the panel above the transcript:
+The panel above the transcript has several views:
 
-| View | Question it helps inspect |
+| View | Good for answering |
 | --- | --- |
 | Lanes | Who acted, and in what order? |
-| Influence | Which agents' messages were read by others? |
-| Blast radius | Which later messages have a recorded path from a selected message? |
-| Phrase spread | Where does a chosen phrase appear across agents and stages? |
-| Echo | How much five-word phrase overlap exists with messages an agent read? |
-| Activity | Where do recorded activity, length, tokens, or latency change? |
+| Influence | Whose messages did other agents actually read? |
+| Blast radius | Which later messages can be traced back to this one? |
+| Phrase spread | Where does a given phrase show up, across agents and stages? |
+| Echo | How much does an agent's message overlap (in five-word phrases) with what it read? |
+| Activity | Where do activity, message length, tokens, or latency shift? |
 
-These are descriptive views, not validated causal or cascade classifiers. Influence uses delivered-source links where available, with reply/channel fallbacks. Inspect provenance before interpreting an edge as evidence of exposure. Missing measurements are not zeros.
+These views describe the trace. They don't classify anything as causal or as a cascade. Influence uses the recorded delivery links when they exist and falls back to replies and channels when they don't, so check where an edge came from before reading it as proof that one agent saw another's message. A missing measurement is shown as missing, never as zero.
 
 ## Compare
 
-Open Compare and explicitly choose the two branches or paired runs. Review the final outcomes and then the stage-aligned transcript. Independent control and attack runs need not share a common history. A comparison alone does not control for model stochasticity or establish causality.
+Open Compare and pick the two branches or paired runs you want side by side. Start with the final outcomes, then read the transcript aligned by stage. A control run and an attack run can be completely independent; they don't need a shared history. Keep in mind that a single comparison can't separate the effect of your change from ordinary model randomness.
 
 ## Branch
 
-Select an event and choose **Fork here** (keyboard: `F`). Other fork actions change a goal, prompt, or agent configuration. A branch preserves history through its fork point. Creating a branch stores an experiment; **Create and run** additionally executes through an available runtime. See [branching semantics](Live-collection-and-branching).
+Select an event and choose **Fork here** (or press `F`). The other fork actions let you change a goal, a prompt, or an agent's configuration. The new branch keeps everything up to the fork point. **Create** saves the branch as an experiment; **Create and run** also executes it, if a runtime is available. See [how branching works](Live-collection-and-branching).
 
 ## Reports and sharing
 
-Reports contains saved MAST analyses for the selected branch. The analysis dialog starts a job; the workspace report displays its result. An empty Reports view does not mean the conversation has no failures—it means no report is available there.
+Reports lists the saved MAST analyses for the branch you're on. Starting an analysis from the dialog creates a job, and the result shows up here when it finishes. An empty Reports view only means nobody has run an analysis on this branch. It says nothing about whether the conversation has problems.
 
-Use **⋯ → Export run** to download a JSON bundle. A colleague uses **Import run** to load that evidence into their own workspace. Local comments and branches are part of the workflow; Git does not automatically synchronize SQLite databases.
+To share a run, use **⋯ → Export run** to download a JSON bundle. Your colleague loads it with **Import run** into their own workspace. Comments and branches stay local, and Git won't sync SQLite databases for you.
