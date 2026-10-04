@@ -14,6 +14,7 @@ from datetime import datetime
 import hashlib
 import math
 import statistics
+import threading
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -252,8 +253,11 @@ class ChangePoints:
     Params = Params
 
     def __init__(self, encoder_factory: Callable[[], object] | None = None):
+        """No run state lives on the instance: every call rebuilds the detectors from the view. The only shared
+        state is a memo of embeddings by text hash (the same text always gets the same vector), behind a lock."""
         self._encoder_factory, self._encoder = encoder_factory, None
         self._cache: dict[str, Vector] = {}
+        self._lock = threading.Lock()
 
     def analyze(self, view, start, end, params):
         found = Scan(params, self._encode).run(view.events(1, end))
@@ -262,7 +266,10 @@ class ChangePoints:
         yield Report(summary(kept, params))
 
     def on_events(self, view, events, params):
-        """Replays the branch up to the batch, then yields what an online run emits within the batch."""
+        """Replays the branch up to the batch, then yields what an online run emits within the batch.
+
+        Replaying keeps no state between calls, at a cost quadratic in the number of batches. Assumes the stream
+        starts at event 1, as live ingestion will."""
         if not events:
             return
         first, last = events[0].position, events[-1].position
@@ -275,11 +282,12 @@ class ChangePoints:
             raise DomainError("The content signal needs an embedding encoder: set OPENAI_API_KEY and install "
                               "swarm-lens[embeddings]")
         keys = [hashlib.sha256(text.encode()).hexdigest() for text in texts]
-        missing = {k: t for k, t in zip(keys, texts) if k not in self._cache}
-        if missing:
-            self._encoder = self._encoder or self._encoder_factory()
-            self._cache.update(zip(missing, self._encoder.encode(list(missing.values()))))
-        return [self._cache[k] for k in keys]
+        with self._lock:
+            missing = {k: t for k, t in zip(keys, texts) if k not in self._cache}
+            if missing:
+                self._encoder = self._encoder or self._encoder_factory()
+                self._cache.update(zip(missing, self._encoder.encode(list(missing.values()))))
+            return [self._cache[k] for k in keys]
 
 
 def summary(findings: list[Metric | Annotation], params: Params) -> dict:
