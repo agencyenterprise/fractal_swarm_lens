@@ -1,28 +1,23 @@
-<p align="center">
-  <img src="src/swarm_lens/web/logos/swarm-lens.gif" alt="Swarm Lens: robots in a factory observed through a lens" width="112" />
-</p>
+![Swarm Lens: robots in a factory observed through a lens](src/swarm_lens/web/logos/swarm-lens.gif)
 
-<h1 align="center">Swarm Lens</h1>
+# Swarm Lens
 
-<p align="center"><strong>Observe agent systems. Explore their history. Run a different path.</strong></p>
-<p align="center">A local workspace for live CrewAI traces, recorded conversations, branching experiments, and MAST analysis.</p>
+**Observe agent systems. Explore their history. Run a different path.**
 
-<p align="center">
-  <a href="#quickstart">Quickstart</a> ·
-  <a href="#examples">Examples</a> ·
-  <a href="#connect-your-crewai-application">Integrate</a> ·
-  <a href="#mast-analysis">MAST</a> ·
-  <a href="docs/integration.md">Plugin guide</a>
-</p>
+A local workspace for live CrewAI traces, recorded conversations, branching experiments, and MAST analysis.
+
+[Quickstart](#quickstart) · [Examples](#examples) · [Integrate](#connect-your-crewai-application) · [MAST](#mast-analysis) · Plugin guide
 
 ![Capture → Inspect → Branch → Analyze. Python 3.12 recommended · CrewAI 1.15.23 · FastAPI · SQLite](assets/docs/workflow.svg)
 
 Swarm Lens gives messages, tools, memories, interventions, and connections one shared event history. Capture a running crew or import a saved trace, inspect what happened at any event, then fork an experiment without rewriting the original conversation. New CrewAI execution streams back into the same workspace.
 
-| Explore | Experiment | Understand |
-| :--- | :--- | :--- |
+
+| Explore                                                                   | Experiment                                                              | Understand                                                                   |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Timeline, transcript, agent state, tools, and memory at a selected cursor | Nested branches, goal/prompt changes, and supported CrewAI continuation | MAST's 14 failure modes, saved reports, evidence spans, and chunked analysis |
-| Follow live or pause to inspect history | Compare an original run with an alternative | Add plugin APIs, views, actions, and visualizations |
+| Follow live or pause to inspect history                                   | Compare an original run with an alternative                             | Add plugin APIs, views, actions, and visualizations                          |
+
 
 **Current integration:** CrewAI **1.15.23**, compatibility-tested with Python **3.12**. The core library supports Python 3.11+ and has no mandatory third-party dependencies. The UI and API run locally in one process; browser assets ship with the package.
 
@@ -41,7 +36,11 @@ Swarm Lens gives messages, tools, memories, interventions, and connections one s
 - [Troubleshooting](#troubleshooting)
 - [Documentation and project status](#documentation-and-project-status)
 
+
+
 ## Quickstart
+
+
 
 ### 1. Install once
 
@@ -78,12 +77,10 @@ This imports **“Perform novel research!”**: 15 agents and 2,222 chat message
 ### 3. Start the workspace
 
 ```sh
-swarm-lens --data data --port 8767 \
-  --runtime examples.crewai.demo:create_runtime \
-  --trace-tools examples.crewai.demo:trace_tools
+swarm-lens --data data --port 8767
 ```
 
-Open **http://127.0.0.1:8767**. Select the AI Village conversation to explore it. Stop the server with `Ctrl+C`; start it with the same `--data` directory to reopen your workspace.
+Open **[http://127.0.0.1:8767](http://127.0.0.1:8767)**. Select the AI Village conversation to explore it. Stop the server with `Ctrl+C`; start it with the same `--data` directory to reopen your workspace.
 
 The runtime registration enables the arithmetic crew's saved branches to execute. The tool registry supplies its calculator when continuing an imported trace. The CLI also registers a general CrewAI continuation runtime for compatible saved conversations.
 
@@ -110,13 +107,17 @@ New captures appear in the picker. **Follow live** advances with incoming events
 
 Start with saved data, then use the offline crew, then enable real models when you need new behavior. Each example has a different purpose:
 
-| Example | Command / guide | Makes model calls? | Use it for |
-| :--- | :--- | :---: | :--- |
-| CrewAI arithmetic, offline | `python -m examples.crewai.demo --offline --url http://127.0.0.1:8767` | No | Check real CrewAI orchestration, tool capture, replay, and branching |
-| CrewAI arithmetic, GPT-5.5 | Same command without `--offline` | Yes | Capture a live three-agent application |
-| AI Village research recording | [Import and prepare a continuation](examples/crewai/README.md#ai-village-perform-novel-research) | No during import/preparation | Inspect a longer conversation and create a CrewAI continuation branch |
-| ACIArena control / injection pairs | [Recorded benchmark examples](examples/aciarena/README.md) | No during import | Contrast matched conditions; includes math, medicine, and code |
-| Medical messageboard logs | [Import an existing batch](examples/messageboard/README.md) | No | Preserve simulator events, private inboxes, tools, and board observations |
+
+| Example                            | Command / guide                                                                                  | Makes model calls?           | Use it for                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------- |
+| CrewAI arithmetic, offline         | `python -m examples.crewai.demo --offline --url http://127.0.0.1:8767`                           | No                           | Check real CrewAI orchestration, tool capture, replay, and branching      |
+| CrewAI arithmetic, GPT-5.5         | Same command without `--offline`                                                                 | Yes                          | Capture a live three-agent application                                    |
+| AI Village research recording      | [Import and prepare a continuation](examples/crewai/README.md#ai-village-perform-novel-research) | No during import/preparation | Inspect a longer conversation and create a CrewAI continuation branch     |
+| ACIArena control / injection pairs | [Recorded benchmark examples](examples/aciarena/README.md)                                       | No during import             | Contrast matched conditions; includes math, medicine, and code            |
+| Medical messageboard logs          | [Import an existing batch](examples/messageboard/README.md)                                      | No                           | Preserve simulator events, private inboxes, tools, and board observations |
+
+
+
 
 ### Continue the AI Village example with CrewAI
 
@@ -181,12 +182,14 @@ Supported continuation focuses on synchronous, sequential text tasks with explic
 
 ## Replay, fork, and run live
 
-| Action | What happens |
-| :--- | :--- |
-| Play / scrub the timeline | Moves through already recorded events; no model execution |
-| Follow live | Follows new events from a running capture; collection continues when disabled |
-| Create branch | Saves the selected history prefix and proposed intervention |
+
+| Action                     | What happens                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| Play / scrub the timeline  | Moves through already recorded events; no model execution                              |
+| Follow live                | Follows new events from a running capture; collection continues when disabled          |
+| Create branch              | Saves the selected history prefix and proposed intervention                            |
 | Create branch and run live | Saves that child, validates execution support, then runs CrewAI and records new events |
+
 
 1. Select a conversation and a timeline event.
 2. Choose **Fork at cursor** / **Run from here…**, or an intervention such as **Change shared goal**.
@@ -225,13 +228,15 @@ The default judge is GPT-5.5. The upstream notebook used `o1`; chunking and the 
 
 ### Persistent data
 
-| Path under `--data` | Purpose |
-| :--- | :--- |
-| `history.sqlite` | Runs, branches, ordered events, snapshots, comments, and analysis records |
-| `artifacts/` | Content-addressed raw payloads and frozen analysis inputs/results |
-| `live.sqlite` | Capture sessions and execution jobs |
-| `mast.sqlite` | MAST job status, stages, and saved reports |
-| `history.git/` | Optional application checkpoints, separate from source control |
+
+| Path under `--data` | Purpose                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `history.sqlite`    | Runs, branches, ordered events, snapshots, comments, and analysis records |
+| `artifacts/`        | Content-addressed raw payloads and frozen analysis inputs/results         |
+| `live.sqlite`       | Capture sessions and execution jobs                                       |
+| `mast.sqlite`       | MAST job status, stages, and saved reports                                |
+| `history.git/`      | Optional application checkpoints, separate from source control            |
+
 
 Collectors default to an outbox at `data/capture-outbox` relative to their own process; configure `spool_dir` for a separate application. Your data, environment files, and provider credentials are excluded from Git.
 
@@ -239,19 +244,21 @@ Use a different `--data` directory to test a clean workspace rather than deletin
 
 ## Configuration
 
-| Setting | Default / purpose |
-| :--- | :--- |
-| `--data` | `data`; choose the same workspace for the server and import commands |
-| `--host` / `--port` | Loopback / `8765` in the CLI; this guide consistently uses `8767` |
-| `--env-file` | `.env`; server configuration, never sent to the browser |
-| `--runtime MODULE:FACTORY` | Register trusted native CrewAI factories; repeatable |
-| `--trace-tools MODULE:FACTORY` | Map saved tool names to trusted executable tools |
-| `--plugin MODULE:FACTORY` | Register additional web/API plugins; repeatable |
-| `OPENAI_API_KEY` | Needed for the real GPT-5.5 example and OpenAI-backed MAST |
-| `MAST_MODEL` | `gpt-5.5` |
-| `MAST_CONTEXT_WINDOW` | Override the context window for an unrecognized model |
-| `MAST_MAX_TRACE_CHARACTERS` | `4000000` per request; larger traces are chunked |
-| `SWARM_LENS_CONTINUATION_MODEL` | `gpt-5.5` fallback for imported agents without a recorded model |
+
+| Setting                         | Default / purpose                                                    |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `--data`                        | `data`; choose the same workspace for the server and import commands |
+| `--host` / `--port`             | Loopback / `8765` in the CLI; this guide consistently uses `8767`    |
+| `--env-file`                    | `.env`; server configuration, never sent to the browser              |
+| `--runtime MODULE:FACTORY`      | Register trusted native CrewAI factories; repeatable                 |
+| `--trace-tools MODULE:FACTORY`  | Map saved tool names to trusted executable tools                     |
+| `--plugin MODULE:FACTORY`       | Register additional web/API plugins; repeatable                      |
+| `OPENAI_API_KEY`                | Needed for the real GPT-5.5 example and OpenAI-backed MAST           |
+| `MAST_MODEL`                    | `gpt-5.5`                                                            |
+| `MAST_CONTEXT_WINDOW`           | Override the context window for an unrecognized model                |
+| `MAST_MAX_TRACE_CHARACTERS`     | `4000000` per request; larger traces are chunked                     |
+| `SWARM_LENS_CONTINUATION_MODEL` | `gpt-5.5` fallback for imported agents without a recorded model      |
+
 
 Imported agents retain their saved model unless you explicitly change it on a branch. Changing the fallback alone does not replace existing agent models. The AI Village `prepare` command makes that substitution explicit.
 
@@ -259,17 +266,19 @@ The arithmetic example disables CrewAI's separate telemetry and tracing. For ano
 
 ## Plugins and APIs
 
-The FastAPI application serves the UI, history API, live ingestion, WebSockets, and plugin routes together. Browse **http://127.0.0.1:8767/docs** for the actual registered API.
+The FastAPI application serves the UI, history API, live ingestion, WebSockets, and plugin routes together. Browse **[http://127.0.0.1:8767/docs](http://127.0.0.1:8767/docs)** for the actual registered API.
 
-| Area | Selected routes |
-| :--- | :--- |
-| Workspace | `GET /api/workspace` |
-| Saved data | `POST /api/traces`, `GET /api/branches/{id}/timeline`, `GET /api/branches/{id}/state` |
-| Branch execution | `GET /api/branches/{id}/execution`, `POST /api/branches/{id}/fork-execute` |
-| Live collection | `POST /api/live/runs`, `POST /api/live/branches/{id}/events` |
-| Live transport | `WS /api/live/branches/{id}/stream?after=N` |
-| MAST | `POST /api/plugins/mast/preview`, `POST /api/plugins/mast/analyses` |
-| Sharing | `GET /api/runs/{id}/export`, `POST /api/runs/import` |
+
+| Area             | Selected routes                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| Workspace        | `GET /api/workspace`                                                                  |
+| Saved data       | `POST /api/traces`, `GET /api/branches/{id}/timeline`, `GET /api/branches/{id}/state` |
+| Branch execution | `GET /api/branches/{id}/execution`, `POST /api/branches/{id}/fork-execute`            |
+| Live collection  | `POST /api/live/runs`, `POST /api/live/branches/{id}/events`                          |
+| Live transport   | `WS /api/live/branches/{id}/stream?after=N`                                           |
+| MAST             | `POST /api/plugins/mast/preview`, `POST /api/plugins/mast/analyses`                   |
+| Sharing          | `GET /api/runs/{id}/export`, `POST /api/runs/import`                                  |
+
 
 A web plugin owns its namespaced router and can ship a browser module. The UI discovers registered manifests on startup and installs their actions, report views, and visualizations. It does not hardcode a list of plugin-specific screens. Plugin loading failures are isolated; installing or removing a plugin requires restarting/reloading the application. MAST is bundled by the standard CLI; custom application composition can choose its own extensions.
 
@@ -332,29 +341,35 @@ The UI uses Tailwind CSS, accessible Zag.js controls, and locally bundled Markdo
 
 ## Troubleshooting
 
-| Symptom | Check |
-| :--- | :--- |
-| A colleague sees different conversations | Compare `--data` directories. SQLite workspaces are local; switching source branches does not exchange conversations. Import a recording or run bundle. |
-| A new import is missing | Reload the picker and confirm the importer and server used the same `--data` path. |
-| A capture cannot reach the server | Match the runner's `--url` to the actual port. The demo defaults to 8766; commands here explicitly use 8767. Check its printed outbox path. |
-| Play works but live execution is unavailable | Play replays saved events. Check the execution preview, runtime revision, provider configuration, and tool mappings. |
-| No live continuation after the native crew finishes | Select an earlier task/event to branch, or use a compatible imported-trace continuation policy. |
-| MAST says instructions cannot fit | Increase the per-request limit or correct `MAST_CONTEXT_WINDOW`. Chunking still needs room for the fixed taxonomy, examples, and response reservation. |
-| MAST job failed or was interrupted | Inspect saved stages in Reports. A new analysis is explicit; restart does not automatically repeat paid requests. |
-| Old conversation data remains after an update | This is expected persistence. Use a new workspace or import the newer examples; no SQLite reset is required. |
+
+| Symptom                                             | Check                                                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A colleague sees different conversations            | Compare `--data` directories. SQLite workspaces are local; switching source branches does not exchange conversations. Import a recording or run bundle. |
+| A new import is missing                             | Reload the picker and confirm the importer and server used the same `--data` path.                                                                      |
+| A capture cannot reach the server                   | Match the runner's `--url` to the actual port. The demo defaults to 8766; commands here explicitly use 8767. Check its printed outbox path.             |
+| Play works but live execution is unavailable        | Play replays saved events. Check the execution preview, runtime revision, provider configuration, and tool mappings.                                    |
+| No live continuation after the native crew finishes | Select an earlier task/event to branch, or use a compatible imported-trace continuation policy.                                                         |
+| MAST says instructions cannot fit                   | Increase the per-request limit or correct `MAST_CONTEXT_WINDOW`. Chunking still needs room for the fixed taxonomy, examples, and response reservation.  |
+| MAST job failed or was interrupted                  | Inspect saved stages in Reports. A new analysis is explicit; restart does not automatically repeat paid requests.                                       |
+| Old conversation data remains after an update       | This is expected persistence. Use a new workspace or import the newer examples; no SQLite reset is required.                                            |
+
+
+
 
 ## Documentation and project status
 
-| Guide | Covers |
-| :--- | :--- |
-| [Examples](examples/README.md) | Maintained examples, cost-aware workflow, and cleanup scope |
-| [CrewAI](examples/crewai/README.md) | Collection, factories, continuation, tool mappings, delivery, and recovery |
-| [AI Village](docs/ai-village.md) | Selected source, event mapping, provenance, and missing evidence |
-| [MAST](docs/observability/mast/README.md) | Saved-trace analysis, chunking, evidence, and plugin API |
-| [Integration](docs/integration.md) | Source, runtime, analysis, and web extension contracts |
-| [Architecture](docs/architecture.md) | Event invariants, storage, migration, and deployment priorities |
-| [ACIArena](examples/aciarena/README.md) | Saved benchmark pairs and optional generation/research |
-| [CASPIAN](docs/observability/caspian/README.md) | Experimental method, input contract, and unvalidated claims |
+
+| Guide                                           | Covers                                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------------- |
+| [Examples](examples/README.md)                  | Maintained examples, cost-aware workflow, and cleanup scope                |
+| [CrewAI](examples/crewai/README.md)             | Collection, factories, continuation, tool mappings, delivery, and recovery |
+| [AI Village](docs/ai-village.md)                | Selected source, event mapping, provenance, and missing evidence           |
+| [MAST](docs/observability/mast/README.md)       | Saved-trace analysis, chunking, evidence, and plugin API                   |
+| [Integration](docs/integration.md)              | Source, runtime, analysis, and web extension contracts                     |
+| [Architecture](docs/architecture.md)            | Event invariants, storage, migration, and deployment priorities            |
+| [ACIArena](examples/aciarena/README.md)         | Saved benchmark pairs and optional generation/research                     |
+| [CASPIAN](docs/observability/caspian/README.md) | Experimental method, input contract, and unvalidated claims                |
+
 
 **Implemented:** saved and live trace workflows, CrewAI capture/continuation, nested branches, comparison, comments, run bundles, plugin UI/API registration, MAST reports and chunked reconciliation, and storage v2 migration.
 
